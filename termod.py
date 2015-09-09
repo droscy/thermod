@@ -12,6 +12,10 @@ import time
 # TODO doppio fork per il demone
 # TODO gestione dei segnali per stoppare il demone
 
+# TODO timetable in json
+#  - status: <auto|t0|tmin|tmax|off>
+#  - t0, tmin, tmax: la temperatura in float
+
 prog_version = '0.0.0~alpha1'
 
 parser = argparse.ArgumentParser(description='termod daemon')
