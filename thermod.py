@@ -22,9 +22,9 @@ from threading import Thread, Lock, Event
 
 prog_version = '0.0.0~alpha1'
 script_path = os.path.dirname(os.path.realpath(__file__))
-config_files = [os.path.abspath(os.path.join(script_path,'termod.conf')),
-                os.path.expanduser('~/.termod.conf'),
-                '/etc/termod/termod.conf']
+config_files = [os.path.abspath(os.path.join(script_path,'thermod.conf')),
+                os.path.expanduser('~/.thermod.conf'),
+                '/etc/thermod/thermod.conf']
 
 # class TemperatureCheckingThread(Thread):
 #     '''This thread checks the temperature and switch on/off the heating according to timetable'''
@@ -38,7 +38,7 @@ config_files = [os.path.abspath(os.path.join(script_path,'termod.conf')),
 #             pass
 
 # parsing input arguments
-parser = argparse.ArgumentParser(description='termod daemon')
+parser = argparse.ArgumentParser(description='thermod daemon')
 parser.add_argument('--version', action='version', version='%(prog)s {}'.format(prog_version))
 parser.add_argument('-D','--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-F','--foreground', action='store_true', help='start the daemon in foreground')
@@ -46,7 +46,7 @@ parser.add_argument('-L','--log', action='store', default=None, help='write mess
 args = parser.parse_args()
 
 # starting base logging system
-logger = logging.getLogger('termod')
+logger = logging.getLogger('thermod')
 logger.setLevel(logging.INFO)
 
 if args.debug:
