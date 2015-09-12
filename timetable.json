@@ -5,8 +5,8 @@
     "tmin": "17.0",
     "tmax": "20.0"
   },
-	"days": {
-	  "monday": {
+  "timetable": {
+    "monday": {
       "//": ["<15","<30","<45","<60"],
       "00": ["tmin","tmin","tmin","tmin"],
       "01": ["tmin","tmin","tmin","tmin"],
@@ -195,5 +195,5 @@
       "22": ["tmax","tmax","tmax","tmax"],
       "23": ["tmax","tmax","tmax","tmax"]
     }
-	}
+  }
 }
