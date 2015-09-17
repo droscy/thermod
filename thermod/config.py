@@ -1,3 +1,7 @@
+# config module for thermod
+
+# TODO inserire logger
+
 # thermod name convention (from json file)
 json_t0_str = 't0'
 json_t_min_str = 'tmin'
@@ -13,7 +17,8 @@ json_status = 'status'
 json_temperatures = 'temperatures'
 json_timetable = 'timetable'
 
-# the same number of %w in strftime()
+# the key of the following dict is th same number of %w of strftime()
+# the name is used to avoid errors with different locales
 json_days_name_map = {1:'monday',    '1':'monday',
                       2:'tuesday',   '2':'tuesday',
                       3:'wednesday', '3':'wednesday',
