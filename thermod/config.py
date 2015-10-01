@@ -33,71 +33,50 @@ json_days_name_map = {1: 'monday',    '1': 'monday',
 json_schema = {
     '$schema': 'http://json-schema.org/draft-04/schema#',
     'title': 'Timetable',
-    'description': 'Timetable file for thermod',
+    'description': 'Timetable file for thermod daemon',
     'type': 'object',
     'properties': {
-        'status': { 'enum': [ 'auto', 'on', 'off', 't0', 'tmin', 'tmax' ] },
+        'status': {
+            'type': 'string',
+            'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'temperatures': {
             'type': 'object',
             'properties': {
-                't0': { 'type': 'number' },
-                'tmin': { 'type': 'number' },
-                'tmax': { 'type': 'number' }
-            },
+                't0': {'type': 'number'},
+                'tmin': {'type': 'number'},
+                'tmax': {'type': 'number'}},
             'required': ['t0', 'tmin', 'tmax'],
-            'additionalProperties': False
-        },
+            'additionalProperties': False},
         'timetable': {
             'type': 'object',
             'properties': {
-                'monday': { 'type': 'object', 'oneOf': [ { '$ref': '#/definitions/day' } ] },
-                'tuesday': { 'type': 'object', 'oneOf': [ { '$ref': '#/definitions/day' } ] },
-                'wednesday': { 'type': 'object', 'oneOf': [ { '$ref': '#/definitions/day' } ] },
-                'thursday': { 'type': 'object', 'oneOf': [ { '$ref': '#/definitions/day' } ] },
-                'friday': { 'type': 'object', 'oneOf': [ { '$ref': '#/definitions/day' } ] },
-                'saturday': { 'type': 'object', 'oneOf': [ { '$ref': '#/definitions/day' } ] },
-                'sunday': { 'type': 'object', 'oneOf': [ { '$ref': '#/definitions/day' } ] },
-            },
-            'required': [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
-            'additionalProperties': False
-        }
-    },
-    'required': [ 'status', 'temperatures', 'timetable' ],
+                'monday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
+                'tuesday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
+                'wednesday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
+                'thursday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
+                'friday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
+                'saturday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
+                'sunday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]}},
+            'required': ['monday', 'tuesday', 'wednesday', 'thursday',
+                         'friday', 'saturday', 'sunday'],
+            'additionalProperties': False}},
+    'required': ['status', 'temperatures', 'timetable'],
     'additionalProperties': False,
     'definitions': {
         'day': {
-            'properties': {
-                # TODO finire
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-                '00': { 'type': 'array', 'items': { 'oneOf': [ { 'type': 'number' }, { 'enum': [ 't0', 'tmin', 'tmax' ] } ] } }
-            }
-        }
-    }
+            'patternProperties': {
+                '([01][0-9]|2[0-3])': {
+                    'type': 'array',
+                    'items': {'oneOf': [{'type': 'number'},
+                                        {'enum': ['t0', 'tmin', 'tmax']}]}}},
+            'required': ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09',
+                         '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
+                         '20', '21', '22', '23'],
+            'additionalProperties': False}}
 }
 
 
-class SettingsNameError(KeyError):
-    """Exception for missing settings in json file"""
-    pass
-
-
-class SettingsValueError(ValueError):
+class JsonValueError(ValueError):
     """Exception for invalid settings value in json file"""
     pass
 
@@ -138,7 +117,8 @@ def json_format_temperature(temperature):
 
 def json_format_hour(hour):
     try:
-        # if hour cannot be converted to int or is outside 0-23 range rise a ValueError
+        # if hour cannot be converted to int or is outside 0-23 range rise a
+        # ValueError
         if int(float(hour)) not in range(24):
             raise Exception()
     except:

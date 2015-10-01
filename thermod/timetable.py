@@ -2,16 +2,18 @@
 
 import json
 import logging
+import jsonschema
 from threading import RLock
 from datetime import datetime
 from thermod import config
-from thermod.config import SettingsNameError, SettingsValueError
+from thermod.config import JsonValueError
 
 # TODO mancano tutte le eccezioni
 # TODO c'è da scrivere come aggiornare a runtime e quindi salvare su json le modifiche
 # TODO write unit-test
+# TODO scrivere i metodi per aggiornare lo status e le temperature
 
-__updated__ = '2015-09-24'
+__updated__ = '2015-10-01'
 
 logger = logging.getLogger('thermod.timetable')
 
@@ -36,6 +38,72 @@ class TimeTable():
         self.reload()
     
     
+    @property
+    def status(self):
+        """Return the current status"""
+        with self.__lock:
+            logger.debug('lock acquired to get current status')
+            return self.__status
+    
+    
+    @status.setter
+    def status(self,status):
+        """Set a new status"""
+        with self.__lock:
+            logger.debug('lock acquired to set a new status')
+            
+            if not status in config.json_all_statuses:
+                logger.debug('invalid new status: {}'.format(status))
+                raise JsonValueError(
+                    'the new status ({}) is invalid, it must be one of [{}]. '
+                    'Falling back to the previews one: {}'.format(
+                        status,
+                        ', '.join(config.json_all_statuses),
+                        self.__status))
+            
+            self.__status = status
+            logger.debug('new current status: {}'.format(status))
+    
+    
+    @property
+    def t0(self):
+        """Return the current value for t0 temperature"""
+        with self.__lock:
+            logger.debug('lock acquired to get current t0 temperature')
+            return self.__temperatures[config.json_t0_str]
+    
+    @t0.setter
+    def t0(self,value):
+        """Set a new value for t0 temperature"""
+        with self.__lock:
+            logger.debug('lock acquired to set a new t0 value')
+            
+            if config.is_valid_temperature(value) and value not in config.json_all_temperatures:
+                self.__temperatures[config.json_t0_str] = value
+            else:
+                logger.debug('invalid new value for t0 temperature: {}'.format(value))
+                raise JsonValueError(
+                    'the new value ({}) for t0 temperature '
+                    'is not valid, it must be a number'.format(value))
+    
+    
+    # TODO scrivere gli altri setter
+    @property
+    def tmin(self):
+        """Return the current value for tmin temperature"""
+        with self.__lock:
+            logger.debug('lock acquired to get current tmin temperature')
+            return self.__temperatures[config.json_tmin_str]
+    
+    
+    @property
+    def tmax(self):
+        """Return the current value for tmax temperature"""
+        with self.__lock:
+            logger.debug('lock acquired to get current tmax temperature')
+            return self.__temperatures[config.json_tmax_str]
+    
+    
     def reload(self):
         # TODO questa docstring è da rivedere
         # TODO bisogna gestire la situazione in cui self.filepath non sia una stringa o che il file non si possa leggere
@@ -54,81 +122,21 @@ class TimeTable():
             logger.debug('lock acquired to (re)load timetable')
             
             # loading json file
-            logger.debug('opening json file')
             with open(self.filepath, 'r') as file:
-                # TODO bisogna anche controllare che le voci principali (status, temperature e timetable)
-                # ci siano nel file json
+                logger.debug('loading json file')
                 settings = json.load(file)
                 
-                _provided_settings = set(settings.keys())
-                _required_settings = set(config.json_all_main_settings)
-                if (_provided_settings & _required_settings) != _required_settings:
-                    _missing_settings = _required_settings - (_provided_settings & _required_settings)
-                    logger.debug('missing required settings in json file: {}'.format(', '.join(_missing_settings)))
-                    raise SettingsNameError('missing required settings in timetable file, the file must contain exactly the following settings: {}'.format(', '.join(_missing_settings)))
+                logger.debug('validating json file')
+                jsonschema.validate(settings, config.json_schema)
                 
-                status = settings[config.json_status]
-                temperatures = settings[config.json_temperatures]
-                timetable = settings[config.json_timetable]
-                logger.debug('json file loaded')
+                logger.debug('json file loaded and validated')
             
-            # checking json content
-            logger.debug('checking json content')
+            self.__status = settings[config.json_status]
+            self.__temperatures = settings[config.json_temperatures]
+            self.__timetable = settings[config.json_timetable]
             
-            if status not in config.json_all_statuses:
-                logger.debug('invalid status in json file: {}'.format(status))
-                raise SettingsValueError('invalid status in timetable file, the status must be one of the following values: {}'.format(', '.join(config.json_all_statuses)))
-            
-            provided_temp = set(temperatures.keys())
-            required_temp = set(config.json_all_temperatures)
-            if (provided_temp & required_temp) != required_temp:
-                missing_temp = required_temp - (provided_temp & required_temp)
-                logger.debug('missing required temperature in json file: {}'.format(', '.join(missing_temp)))
-                raise SettingsNameError('missing required temperature in timetable file, the file must contain exactly the following temperatures: {}'.format(', '.join(config.json_all_temperatures)))
-            
-            for _name in required_temp:
-                # main temperatures must be numbers, so check the validity and
-                # exclude from valid values the string defined in config.json_all_temperatures
-                _value = temperatures[_name]
-                if not config.is_valid_temperature(_value) or _value in config.json_all_temperatures:
-                    logger.debug('invalid _value ({}) for temperature "{}" in json file'.format(_value,_name))
-                    raise SettingsValueError('invalid temperature _value for "{}" in timetable file, main temperatures must be numbers'.format(_name))
-            
-            provided_days = set(timetable.keys())
-            required_days = set(config.json_days_name_map.values())
-            if (provided_days & required_days) != required_days:
-                missing_days = required_days - (provided_days & required_days)
-                logger.debug('missing required _day _name in json file: {}'.format(', '.join(missing_days)))
-                raise SettingsNameError('missing required _day _name in timetable file, the file must contain exactly these days: {}'.format(', '.join(config.json_days_name_map.values())))
-            
-            for _day in required_days:
-                
-                # TODO finire questa parte oppure usare jsonschema: https://pypi.python.org/pypi/jsonschema
-                
-                # TODO converire le ore in numeri e usarle internamente come numeri
-                # per evitare problemi di zeri aggiuntivi, vanno bene anche se nel
-                # file json sono direttamente inserite come numeri
-                # vedere http://stackoverflow.com/questions/21193682/convert-a-string-key-to-int-in-a-dictionary
-                for hour in range(24):
-                    hour_str = format(hour,'02d')
-                    try:
-                        for quarter in range(4):
-                            # if the array _day[hour_str] contains less than 4 elements
-                            # a KeyError exception is automatically raised, so the 'except'
-                            # section manages both missing and invalid temperature
-                            if not config.is_valid_temperature(timetable[_day][hour_str][quarter]):
-                                logger.debug('invalid temperature in json file for _day "{}", hour "{}" and quarter "{}"'.format(_day,hour_str,quarter))
-                                raise ValueError()
-                    except:
-                        logger.debug('invalid or missing temperature in json file for _day "{}" and hour "{}"'.format(_day,hour_str))
-                        raise ValueError('invalid or missing temperature in timetable file for _day "{}" and hour "{}", '
-                                         'the temperature must be a number or one of the following values: '.format(_day,hour_str) + ', '.join(config.json_all_temperatures))
-            
-            logger.debug('json content valid, storing internal variables')
-            
-            self.__status = status
-            self.__temperatures = temperatures
-            self.__timetable = timetable
+            # converting hours to integer in order to avoid problems with leading zero
+            #self.__timetable = {day:{int(h):q for h,q in hours.items()} for day,hours in settings[config.json_timetable].items()}
             
             logger.debug('current status: {}'.format(self.__status))
             logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
@@ -184,7 +192,7 @@ class TimeTable():
                 _day = day
             else:
                 logger.debug('invalid day name or number: {}'.format(day))
-                raise ValueError('the provided day name or number ({}) is not valid'.format(day))
+                raise JsonValueError('the provided day name or number ({}) is not valid'.format(day))
 
             # check hour validity
             logger.debug('checking and formatting hour')
@@ -196,12 +204,15 @@ class TimeTable():
                 _quarter = int(float(quarter))
             else:
                 logger.debug('invalid quarter: {}'.format(quarter))
-                raise ValueError('the provided quarter is not valid ({}), it must be in range 0-3'.format(quarter))
-
+                raise JsonValueError('the provided quarter is not valid ({}), it must be in range 0-3'.format(quarter))
+            
+            # format temperature and check validity
+            _temp = config.json_format_temperature(temperature)
+            
             # update timetable
-            self.__timetable[_day][_hour][_quarter] = config.json_format_temperature(temperature)
+            self.__timetable[_day][_hour][_quarter] = _temp
         
-        logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", temperature "{}"'.format(_day, _hour, _quarter, self.__timetable[_day][_hour][_quarter]))
+        logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", temperature "{}"'.format(_day, _hour, _quarter, _temp))
     
     
     def degrees(self, temperature):

@@ -1,3 +1,3 @@
 from thermod import config
-from thermod.config import SettingsNameError, SettingsValueError
+from thermod.config import JsonValueError
 from thermod.timetable import TimeTable
