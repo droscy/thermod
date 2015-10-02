@@ -1,8 +1,20 @@
 # config module for thermod
 
+import os
+
 __updated__ = '2015-10-02'
 
 # TODO inserire logger
+
+# path to main config file
+# TODO mettere controllo se siamo su Windows o su Unix
+main_config_files = ('thermod.conf',
+                     os.path.expanduser('~/.thermod.conf'),
+                    '/etc/thermod/thermod.conf')
+
+# logger common settings
+logger_fmt = '%(asctime)s %(name)-8s %(levelname)-8s %(message)s'
+logger_datefmt = '%H:%M:%S'
 
 # thermod name convention (from json file)
 json_status = 'status'
