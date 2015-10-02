@@ -1,5 +1,7 @@
 # config module for thermod
 
+__updated__ = '2015-10-02'
+
 # TODO inserire logger
 
 # thermod name convention (from json file)
@@ -36,9 +38,7 @@ json_schema = {
     'description': 'Timetable file for thermod daemon',
     'type': 'object',
     'properties': {
-        'status': {
-            'type': 'string',
-            'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
+        'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'temperatures': {
             'type': 'object',
             'properties': {
@@ -68,6 +68,7 @@ json_schema = {
                 '([01][0-9]|2[0-3])': {
                     'type': 'array',
                     'items': {'oneOf': [{'type': 'number'},
+                                        {'type': 'string', 'pattern': '[-+]?[0-9]*\.?[0-9]+'},
                                         {'enum': ['t0', 'tmin', 'tmax']}]}}},
             'required': ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09',
                          '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
@@ -82,6 +83,12 @@ class JsonValueError(ValueError):
 
 
 def is_valid_temperature(temperature):
+    """Return True if the temperature is valid.
+    
+    A temperature is considered valid if it is a number or one of the
+    following value: 't0', 'tmin', 'tmax'.
+    """
+    
     result = None
 
     if temperature in json_all_temperatures:
@@ -96,7 +103,26 @@ def is_valid_temperature(temperature):
     return result
 
 
+def json_format_main_temperature(temperature):
+    """Format the provided temperature as a float with one decimal.
+    
+    Can be used both for timetable and main temperatures in json file.
+    """
+    
+    if not is_valid_temperature(temperature) or temperature in json_all_temperatures:
+        raise JsonValueError('the provided temperature is not valid ({}), '
+                             'it must be a number'.format(temperature))
+    
+    return round(float(temperature), 1)
+
+
 def json_format_temperature(temperature):
+    """Format the provided temperature as a string for timetable.
+    
+    The output can be a number string with one single decimal (XX.Y) or
+    one of the following string: 't0', 'tmin', 'tmax'.
+    """
+    
     result = None
 
     if is_valid_temperature(temperature):
@@ -107,22 +133,24 @@ def json_format_temperature(temperature):
             # between on and off
             result = format(round(float(temperature), 1), '.1f')
     else:
-        raise ValueError('the provided temperature is not valid ({}), '
-                         'it must be a number or one of the following '
-                         'values : '.format(temperature)
-                         + ', '.join(json_all_temperatures))
+        raise JsonValueError('the provided temperature is not valid ({}), '
+                             'it must be a number or one of the following '
+                             'values: {}'.format(
+                                    temperature,
+                                    ', '.join(json_all_temperatures)))
 
     return result
 
 
 def json_format_hour(hour):
+    """Format the provided hour as a string in 24-hour clock with leading 0."""
     try:
         # if hour cannot be converted to int or is outside 0-23 range rise a
         # ValueError
         if int(float(hour)) not in range(24):
             raise Exception()
     except:
-        raise ValueError('the provided hour is not valid ({}), '
-                         'it must be in range 0-23'.format(hour))
+        raise JsonValueError('the provided hour is not valid ({}), '
+                             'it must be in range 0-23'.format(hour))
 
     return format(int(float(hour)), '0>2d')

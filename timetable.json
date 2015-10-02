@@ -1,13 +1,12 @@
 {
   "status": "auto",
   "temperatures": {
-    "t0": "10.0",
-    "tmin": "17.0",
-    "tmax": "20.0"
+    "t0": 10.0,
+    "tmin": 17.0,
+    "tmax": 20.0
   },
   "timetable": {
     "monday": {
-      "//": ["<15","<30","<45","<60"],
       "00": ["tmin","tmin","tmin","tmin"],
       "01": ["tmin","tmin","tmin","tmin"],
       "02": ["tmin","tmin","tmin","tmin"],
@@ -34,7 +33,6 @@
       "23": ["tmax","tmin","tmin","tmin"]
     },
     "tuesday": {
-      "//": ["<15","<30","<45","<60"],
       "00": ["tmin","tmin","tmin","tmin"],
       "01": ["tmin","tmin","tmin","tmin"],
       "02": ["tmin","tmin","tmin","tmin"],
@@ -61,7 +59,7 @@
       "23": ["tmax","tmin","tmin","tmin"]
     },
     "wednesday": {
-      "//": ["<15","<30","<45","<60"],
+
       "00": ["tmin","tmin","tmin","tmin"],
       "01": ["tmin","tmin","tmin","tmin"],
       "02": ["tmin","tmin","tmin","tmin"],
@@ -88,7 +86,6 @@
       "23": ["tmax","tmin","tmin","tmin"]
     },
     "thursday": {
-      "//": ["<15","<30","<45","<60"],
       "00": ["tmin","tmin","tmin","tmin"],
       "01": ["tmin","tmin","tmin","tmin"],
       "02": ["tmin","tmin","tmin","tmin"],
@@ -115,7 +112,6 @@
       "23": ["tmax","tmin","tmin","tmin"]
     },
     "friday": {
-      "//": ["<15","<30","<45","<60"],
       "00": ["tmin","tmin","tmin","tmin"],
       "01": ["tmin","tmin","tmin","tmin"],
       "02": ["tmin","tmin","tmin","tmin"],
@@ -142,7 +138,6 @@
       "23": ["tmax","tmin","tmin","tmin"]
     },
     "saturday": {
-      "//": ["<15","<30","<45","<60"],
       "00": ["tmin","tmin","tmin","tmin"],
       "01": ["tmin","tmin","tmin","tmin"],
       "02": ["tmin","tmin","tmin","tmin"],
@@ -169,7 +164,6 @@
       "23": ["tmin","tmin","tmin","tmin"]
     },
     "sunday": {
-      "//": ["<15","<30","<45","<60"],
       "00": ["tmin","tmin","tmin","tmin"],
       "01": ["tmin","tmin","tmin","tmin"],
       "02": ["tmin","tmin","tmin","tmin"],

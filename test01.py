@@ -11,6 +11,8 @@ from datetime import datetime
 from thermod import config
 from thermod.timetable import TimeTable
 
+__updated__ = '2015-10-02'
+
 parser = argparse.ArgumentParser(description='thermod test01')
 parser.add_argument('-D','--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-L','--log', action='store', default=None, help='write messages to log file')
@@ -61,6 +63,15 @@ try:
     hour = config.json_format_hour(now.hour)
     quarter = int(now.minute // 15)
     t.update(int(now.strftime('%w')),hour,quarter,30)
+    t.save('tt_save_1.json')
+    
+    logger.info('updating current status to on')
+    t.status = 'on'
+    t.save('tt_save_2.json')
+    
+    logger.info('update tmax temperature')
+    t.tmax = 33
+    t.save('tt_save_3.json')
     
     logger.info('testing again the heating with 21.4 degrees')
     result = t.should_the_heating_be_on(21.4)

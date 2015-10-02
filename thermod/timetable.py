@@ -11,9 +11,8 @@ from thermod.config import JsonValueError
 # TODO mancano tutte le eccezioni
 # TODO c'è da scrivere come aggiornare a runtime e quindi salvare su json le modifiche
 # TODO write unit-test
-# TODO scrivere i metodi per aggiornare lo status e le temperature
 
-__updated__ = '2015-10-01'
+__updated__ = '2015-10-02'
 
 logger = logging.getLogger('thermod.timetable')
 
@@ -52,7 +51,7 @@ class TimeTable():
         with self.__lock:
             logger.debug('lock acquired to set a new status')
             
-            if not status in config.json_all_statuses:
+            if status not in config.json_all_statuses:
                 logger.debug('invalid new status: {}'.format(status))
                 raise JsonValueError(
                     'the new status ({}) is invalid, it must be one of [{}]. '
@@ -62,7 +61,7 @@ class TimeTable():
                         self.__status))
             
             self.__status = status
-            logger.debug('new current status: {}'.format(status))
+            logger.debug('new status set: {}'.format(status))
     
     
     @property
@@ -72,28 +71,51 @@ class TimeTable():
             logger.debug('lock acquired to get current t0 temperature')
             return self.__temperatures[config.json_t0_str]
     
+    
     @t0.setter
     def t0(self,value):
         """Set a new value for t0 temperature"""
         with self.__lock:
             logger.debug('lock acquired to set a new t0 value')
             
-            if config.is_valid_temperature(value) and value not in config.json_all_temperatures:
-                self.__temperatures[config.json_t0_str] = value
-            else:
+            try:
+                nvalue = config.json_format_main_temperature(value)
+            # i catch and raise again the same exception to change the message
+            except JsonValueError:
                 logger.debug('invalid new value for t0 temperature: {}'.format(value))
                 raise JsonValueError(
                     'the new value ({}) for t0 temperature '
                     'is not valid, it must be a number'.format(value))
+            
+            self.__temperatures[config.json_t0_str] = nvalue
+            logger.debug('new t0 temperature set: {}'.format(value))
     
     
-    # TODO scrivere gli altri setter
     @property
     def tmin(self):
         """Return the current value for tmin temperature"""
         with self.__lock:
             logger.debug('lock acquired to get current tmin temperature')
             return self.__temperatures[config.json_tmin_str]
+    
+    
+    @tmin.setter
+    def tmin(self,value):
+        """Set a new value for tmin temperature"""
+        with self.__lock:
+            logger.debug('lock acquired to set a new tmin value')
+            
+            try:
+                nvalue = config.json_format_main_temperature(value)
+            # i catch and raise again the same exception to change the message
+            except JsonValueError:
+                logger.debug('invalid new value for tmin temperature: {}'.format(value))
+                raise JsonValueError(
+                    'the new value ({}) for tmin temperature '
+                    'is not valid, it must be a number'.format(value))
+            
+            self.__temperatures[config.json_tmin_str] = nvalue
+            logger.debug('new tmin temperature set: {}'.format(value))
     
     
     @property
@@ -104,8 +126,26 @@ class TimeTable():
             return self.__temperatures[config.json_tmax_str]
     
     
+    @tmax.setter
+    def tmax(self,value):
+        """Set a new value for tmax temperature"""
+        with self.__lock:
+            logger.debug('lock acquired to set a new tmax value')
+            
+            try:
+                nvalue = config.json_format_main_temperature(value)
+            # i catch and raise again the same exception to change the message
+            except JsonValueError:
+                logger.debug('invalid new value for tmax temperature: {}'.format(value))
+                raise JsonValueError(
+                    'the new value ({}) for tmax temperature '
+                    'is not valid, it must be a number'.format(value))
+            
+            self.__temperatures[config.json_tmax_str] = nvalue
+            logger.debug('new tmax temperature set: {}'.format(nvalue))
+    
+    
     def reload(self):
-        # TODO questa docstring è da rivedere
         # TODO bisogna gestire la situazione in cui self.filepath non sia una stringa o che il file non si possa leggere
         """Reload the timetable from json file.
         
@@ -114,8 +154,9 @@ class TimeTable():
         full path before calling this method.
         
         If the json file is invalid (or self.filepath is not a string)
-        an exception is raised and the internal settings remain untouched.
+        an exception is raised and the internal settings remain unchanged.
         """
+        
         logger.debug('(re)loading timetable from json file "{}"'.format(self.filepath))
         
         with self.__lock:
