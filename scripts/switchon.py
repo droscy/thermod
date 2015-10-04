@@ -9,7 +9,6 @@ Switch on the heating using a serial TTL relay.
 @contact:    simros85@gmail.com
 """
 
-#import os
 import sys
 import json
 import logging
@@ -22,7 +21,7 @@ from thermod import config
 
 __version__ = '0.0.1'
 __date__ = '2015-10-02'
-__updated__ = '2015-10-02'
+__updated__ = '2015-10-03'
 
 
 relay_msg_bytes = 8
@@ -30,15 +29,19 @@ relay_cmd_close = b'\x55\x56\x00\x00\x00\x00\x02\xAD'
 relay_rsp_close = b'\x33\x3C\x00\x00\x00\x00\x02\x71'
 
 
-def main(argv=None):
-    '''Command line options.'''
+def switchon(argv=None):
+    """Switch on the heating.
+    
+    Send a command to a serial TTL relay, which returns a status message,
+    if the status message is the expected "closed" status this function
+    returns 0, otherwise returns 1. Can be used in any POSIX system.
+    """
 
     if argv is None:
         argv = sys.argv
     else:
         sys.argv.extend(argv)
     
-    #prog_name = os.path.basename(sys.argv[0])
     prog_version = 'v%s' % __version__
     prog_build_date = str(__updated__)
     prog_version_msg = '%%(prog)s %s (%s)' % (prog_version, prog_build_date)
@@ -67,7 +70,7 @@ def main(argv=None):
     
     logger.debug('program started')
     
-    logger.debug('reading main configuration from files {}'.format(config.main_config_files))
+    logger.debug('reading switchon configuration from files {}'.format(config.main_config_files))
     cfg = ConfigParser()
     _cfg_files_found = cfg.read(config.main_config_files)
     logger.debug('configuration files found: {}'.format(_cfg_files_found))
@@ -75,12 +78,11 @@ def main(argv=None):
     # device provided by command line arguments has the precedence
     if ((cfg.has_section('scripts') and cfg.has_option('scripts', 'device'))
             or args.device):
-        device = (args.device or cfg['scripts']['device'])
-        logger.debug('device set to: {}'.format(device))
+        device = (args.device or cfg['scripts']['device']).strip('"')
     
     
     try:
-        logger.debug('initializing serial port')
+        logger.debug('initializing serial device {}'.format(device))
         
         # Baud rate 9600kbps, 8 data bits, one stop bit, no parity
         #
@@ -108,28 +110,30 @@ def main(argv=None):
         with serial:
             logger.debug('sending command to close the relay')
             written = serial.write(relay_cmd_close)
-        
+            
             if (written != relay_msg_bytes):
-                logger.debug('number of bytes written ({}) is less than number '
+                logger.debug('number of written bytes ({}) is less than number '
                              'of bytes in close command ({})'
                              .format(written, relay_msg_bytes))
-                raise SerialException('number of bytes written is less than '
-                                      'number of bytes in close command')
+                raise SerialException('cannot send command to relay')
+            
+            logger.debug('command sent')
             
             logger.debug('retriving status message from relay')
             status = serial.read(relay_msg_bytes)
             
             if (status != relay_rsp_close):
-                logger.debug('returned message from relay reports a '
-                             'non-closed status: {}'.format(status))
-                raise SerialException('returned message from relay reports a '
-                                      'non-closed status')
+                logger.debug('the relay returned an unexpected '
+                             'status: {}'.format(status))
+                raise SerialException('the relay returned an unexpected status')
+            
+            logger.debug('message received')
         
         logger.debug('the heating has been switched on')
         result = 0
     
     except SerialException as se:
-        error = str(se)
+        error = 'cannot switch on the heating: {}'.format(se)
         
         if not args.json or args.debug:
             logger.critical(error)
@@ -145,4 +149,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(switchon())
