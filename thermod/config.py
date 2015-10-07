@@ -1,6 +1,6 @@
 # config module for thermod
 
-__updated__ = '2015-10-02'
+__updated__ = '2015-10-07'
 
 # TODO inserire logger
 
@@ -8,7 +8,10 @@ __updated__ = '2015-10-02'
 json_status = 'status'
 json_temperatures = 'temperatures'
 json_timetable = 'timetable'
-json_all_main_settings = (json_status, json_temperatures, json_timetable)
+json_differential = 'differential'
+json_grace_time = 'grace_time'
+json_all_settings = (json_status, json_temperatures, json_timetable,
+                     json_differential, json_grace_time)
 
 json_t0_str = 't0'
 json_tmin_str = 'tmin'
@@ -39,6 +42,8 @@ json_schema = {
     'type': 'object',
     'properties': {
         'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
+        'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
+        'grace_time': {'type': 'integer', 'minimum': 0},
         'temperatures': {
             'type': 'object',
             'properties': {

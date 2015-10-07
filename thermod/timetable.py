@@ -4,7 +4,7 @@ import json
 import logging
 import jsonschema
 from threading import RLock
-from datetime import datetime
+from datetime import datetime, timedelta
 from thermod import config
 from thermod.config import JsonValueError
 
@@ -12,7 +12,7 @@ from thermod.config import JsonValueError
 # TODO c'è da scrivere come aggiornare a runtime e quindi salvare su json le modifiche
 # TODO write unit-test
 
-__updated__ = '2015-10-02'
+__updated__ = '2015-10-07'
 
 logger = logging.getLogger('thermod.timetable')
 
@@ -28,10 +28,15 @@ class TimeTable():
         logger.debug('initializing timetable')
 
         self.__status = None
-        self.__timetable = None
         self.__temperatures = None
+        self.__timetable = None
+        self.__differential = 0.5
+        
+        # TODO sistemare la gestione di timedelta in tutto il programma
+        self.__grace_time = timedelta(seconds=3600)
 
         self.__lock = RLock()
+        self.__last_on_time = datetime(0,0,0)
 
         self.filepath = filepath
         self.reload()
@@ -65,6 +70,67 @@ class TimeTable():
     
     
     @property
+    def differential(self):
+        """Return the current differential value"""
+        with self.__lock:
+            logger.debug('lock acquired to get current differntial value')
+            return self.__differential
+    
+    
+    @differential.setter
+    def differential(self,value):
+        """Set a new differential value"""
+        with self.__lock:
+            logger.debug('lock acquired to set a new differential value')
+            
+            try:
+                nvalue = config.json_format_main_temperature(value)
+                
+                if nvalue < 0 or nvalue > 1:
+                    raise JsonValueError()
+            
+            # i catch and raise again the same exception to change the message
+            except JsonValueError:
+                logger.debug('invalid new differential value: {}'.format(value))
+                raise JsonValueError(
+                    'the new differential value ({}) is invalid, '
+                    'it must be a number in range [0;1]'.format(value))
+            
+            self.__differential = nvalue
+            logger.debug('new differential value set: {}'.format(nvalue))
+    
+    
+    @property
+    def grace_time(self):
+        """Return the current grace time in seconds"""
+        with self.__lock:
+            logger.debug('lock acquired to get current grace time')
+            return int(self.__grace_time.total_seconds())
+    
+    
+    @grace_time.setter
+    def grace_time(self,value):
+        """Set a new grace time"""
+        with self.__lock:
+            logger.debug('lock acquired to set a new grace time')
+            
+            try:
+                nvalue = int(value)
+                
+                if nvalue < 0:
+                    raise ValueError()
+            
+            except:
+                logger.debug('invalid new grace time: {}'.format(value))
+                raise JsonValueError(
+                    'the new grace time ({}) is invalid, '
+                    'it must be a number expressed in seconds'.format(value))
+            
+            self.__grace_time = timedelta(seconds=nvalue)
+            logger.debug('new grace time set: {}'.format(nvalue))
+    
+    
+    @property
     def t0(self):
         """Return the current value for t0 temperature"""
         with self.__lock:
@@ -85,7 +151,7 @@ class TimeTable():
                 logger.debug('invalid new value for t0 temperature: {}'.format(value))
                 raise JsonValueError(
                     'the new value ({}) for t0 temperature '
-                    'is not valid, it must be a number'.format(value))
+                    'is invalid, it must be a number'.format(value))
             
             self.__temperatures[config.json_t0_str] = nvalue
             logger.debug('new t0 temperature set: {}'.format(value))
@@ -112,7 +178,7 @@ class TimeTable():
                 logger.debug('invalid new value for tmin temperature: {}'.format(value))
                 raise JsonValueError(
                     'the new value ({}) for tmin temperature '
-                    'is not valid, it must be a number'.format(value))
+                    'is invalid, it must be a number'.format(value))
             
             self.__temperatures[config.json_tmin_str] = nvalue
             logger.debug('new tmin temperature set: {}'.format(value))
@@ -139,7 +205,7 @@ class TimeTable():
                 logger.debug('invalid new value for tmax temperature: {}'.format(value))
                 raise JsonValueError(
                     'the new value ({}) for tmax temperature '
-                    'is not valid, it must be a number'.format(value))
+                    'is invalid, it must be a number'.format(value))
             
             self.__temperatures[config.json_tmax_str] = nvalue
             logger.debug('new tmax temperature set: {}'.format(nvalue))
@@ -176,11 +242,19 @@ class TimeTable():
             self.__temperatures = settings[config.json_temperatures]
             self.__timetable = settings[config.json_timetable]
             
+            if config.json_differential in settings:
+                self.__differential = settings[config.json_differential]
+            
+            if config.json_grace_time in settings:
+                self.__grace_time = settings[config.json_grace_time]
+            
             # converting hours to integer in order to avoid problems with leading zero
             #self.__timetable = {day:{int(h):q for h,q in hours.items()} for day,hours in settings[config.json_timetable].items()}
             
             logger.debug('current status: {}'.format(self.__status))
             logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
+            logger.debug('differential: {} degrees'.format(self.__differential))
+            logger.debug('grace time: {} sec'.format(self.__grace_time))
         
         logger.debug('timetable (re)loaded')
     
@@ -207,6 +281,8 @@ class TimeTable():
                 logger.debug('saving timetable to json file {}'.format(filepath))
                 
                 settings = {config.json_status: self.__status,
+                            config.json_differential: self.__differential,
+                            config.json_grace_time: self.__grace_time,
                             config.json_temperatures: self.__temperatures,
                             config.json_timetable: self.__timetable}
                 
@@ -216,7 +292,8 @@ class TimeTable():
     
     
     def update(self, day, hour, quarter, temperature):
-        logger.debug('updating timetable: day "{}", hour "{}", quarter "{}", temperature "{}"'.format(day, hour, quarter, temperature))
+        logger.debug('updating timetable: day "{}", hour "{}", quarter "{}", '
+                     'temperature "{}"'.format(day, hour, quarter, temperature))
         
         with self.__lock:
             logger.debug('lock acquired to update timetable')
@@ -229,11 +306,12 @@ class TimeTable():
             logger.debug('retriving day name')
             if day in config.json_days_name_map.keys():
                 _day = config.json_days_name_map[day]
-            elif day in config.json_days_name_map.values():
+            elif day in set(config.json_days_name_map.values()):
                 _day = day
             else:
                 logger.debug('invalid day name or number: {}'.format(day))
-                raise JsonValueError('the provided day name or number ({}) is not valid'.format(day))
+                raise JsonValueError('the provided day name or number ({}) '
+                                     'is not valid'.format(day))
 
             # check hour validity
             logger.debug('checking and formatting hour')
@@ -245,7 +323,8 @@ class TimeTable():
                 _quarter = int(float(quarter))
             else:
                 logger.debug('invalid quarter: {}'.format(quarter))
-                raise JsonValueError('the provided quarter is not valid ({}), it must be in range 0-3'.format(quarter))
+                raise JsonValueError('the provided quarter is not valid ({}), '
+                                     'it must be in range 0-3'.format(quarter))
             
             # format temperature and check validity
             _temp = config.json_format_temperature(temperature)
@@ -253,7 +332,8 @@ class TimeTable():
             # update timetable
             self.__timetable[_day][_hour][_quarter] = _temp
         
-        logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", temperature "{}"'.format(_day, _hour, _quarter, _temp))
+        logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", '
+                     'temperature "{}"'.format(_day, _hour, _quarter, _temp))
     
     
     def degrees(self, temperature):
@@ -281,12 +361,30 @@ class TimeTable():
         return float(value)
     
     
+    def considering_grace_time(self,should_be_on,current,target,diff):
+        """Considering the grace time return whether the heating should be on.
+        
+        If should_be_on is True return always True, if should_be_on is
+        False return True if the grace time is elapsed and the current
+        temperature is grater then (target - differential).
+        """
+        
+        if should_be_on:
+            return True
+        elif ((datetime.now() - self.__last_on_time > self.__grace_time)
+                and (current >= (target - diff))
+                and (current < target)):
+            return True
+        else:
+            return False
+    
+    
     def should_the_heating_be_on(self, current_temperature):
         """Return True if now the heating should be on, False otherwise"""
         
         logger.debug('checking current should-be status of the heating')
 
-        result = None
+        shoud_be_on = None
 
         with self.__lock:
             logger.debug('lock acquired to check the should-be status')
@@ -295,15 +393,22 @@ class TimeTable():
                 logger.debug('empty timetable, cannot check current should-be status')
                 raise RuntimeError('the timetable is empty, cannot check current should-be status')
             
-            logger.debug('status: {}, current_temperature: {}'.format(self.__status, current_temperature))
+            current = self.degrees(current_temperature)
+            diff = self.degrees(self.__differential)
+            logger.debug('status: {}, current_temperature: {}, differential: {}'
+                         .format(self.__status, current, diff))
             
-            if self.__status == config.json_status_on:
-                result = True
-            elif self.__status == config.json_status_off:
-                result = False
-            elif self.__status in config.json_all_temperatures:
-                logger.debug('target_temperature: {}'.format(self.__temperatures[self.__status]))
-                result = (self.degrees(current_temperature) < self.degrees(self.__temperatures[self.__status]))
+            if self.__status == config.json_status_on:  # always on
+                shoud_be_on = True
+            
+            elif self.__status == config.json_status_off:  # always off
+                shoud_be_on = False
+            
+            elif self.__status in config.json_all_temperatures:  # target temp is set manually
+                target = self.degrees(self.__temperatures[self.__status])
+                logger.debug('target_temperature: {} = {} + {}'.format((target + diff), target, diff))
+                shoud_be_on = (current < (target + diff))
+            
             elif self.__status == config.json_status_auto:
                 now = datetime.now()
 
@@ -311,11 +416,19 @@ class TimeTable():
                 hour = config.json_format_hour(now.hour)
                 quarter = int(now.minute // 15)
                 
-                target_temperature = self.__timetable[day][hour][quarter]
-
-                logger.debug('day: {}, hour: {}, quarter: {}, target_temperature: {}'.format(day, hour, quarter, target_temperature))
-                result = (self.degrees(current_temperature) < self.degrees(target_temperature))
+                target = self.degrees(self.__timetable[day][hour][quarter])
+                
+                logger.debug('day: {}, hour: {}, quarter: {}, '
+                             'target_temperature: {} = {} + {}'
+                             .format(day, hour, quarter, (target+diff),
+                                     target, diff))
+                
+                shoud_be_on = (current < (target + diff))
+            
+            if shoud_be_on:
+                self.__last_on_time = datetime.now()
         
-        logger.debug('the heating should be on: {}'.format(result))
+        # TODO convertire questo messaggio in "the heating should be: {}"
+        logger.debug('the heating should be on: {}'.format(shoud_be_on))
 
-        return result
+        return shoud_be_on
