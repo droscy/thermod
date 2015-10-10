@@ -11,17 +11,18 @@ Switch on/off or get the status of the heating using a serial TTL relay.
 
 import sys
 import json
-import logging
+import logging.handlers
+import serial
 
 from argparse import ArgumentParser
 from configparser import ConfigParser
-from serial import Serial, SerialException, EIGHTBITS, STOPBITS_ONE, PARITY_NONE
+from serial import Serial, SerialException
 from thermod import config
 
 
-__version__ = '1.0.0~beta1'
+__version__ = '1.0.0~beta2'
 __date__ = '2015-10-02'
-__updated__ = '2015-10-05'
+__updated__ = '2015-10-10'
 
 
 # Control commands
@@ -116,16 +117,16 @@ def comunicate(device, command, response=None, timeout=5):
     logger.debug('initializing serial device {}'.format(device))
     
     # Baud rate 9600kbps, 8 data bits, one stop bit, no parity
-    serial = Serial(port=device,
-                    baudrate=9600,
-                    timeout=timeout,  # read timeout in seconds
-                    bytesize=EIGHTBITS,
-                    stopbits=STOPBITS_ONE,
-                    parity=PARITY_NONE)
+    relay = Serial(port=device,
+                   baudrate=9600,
+                   timeout=timeout,  # read timeout in seconds
+                   bytesize=serial.EIGHTBITS,
+                   stopbits=serial.STOPBITS_ONE,
+                   parity=serial.PARITY_NONE)
     
-    with serial:
+    with relay:
         logger.debug('sending command to relay')
-        written = serial.write(command)
+        written = relay.write(command)
         
         if (written != relay_cmd_size):
             logger.debug('number of written bytes ({}) is less than command'
@@ -135,7 +136,7 @@ def comunicate(device, command, response=None, timeout=5):
         logger.debug('command sent')
         
         logger.debug('retriving status message from relay')
-        status = serial.read(relay_cmd_size)
+        status = relay.read(relay_cmd_size)
         
         if response is not None and (status != response):
             logger.debug('the relay returned an unexpected '
@@ -188,6 +189,8 @@ def main(argv=None):
     
     if args.debug:
         logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
     
     if not args.json or (args.json and args.debug and not args.syslog):
         # log to console only when json output is not choosen
@@ -198,8 +201,8 @@ def main(argv=None):
         logger.addHandler(console)
     
     if args.syslog:
-        syslog = logging.handlers.SysLogHandler()
-        syslog.addFormatter(logging.Formatter(fmt=config.logger_fmt_msg_syslog))
+        syslog = logging.handlers.SysLogHandler(address='/dev/log')
+        syslog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_syslog))
         logger.addHandler(syslog)
     
     logger.debug('reading thermod configuration from files {}'.format(config.main_config_files))
@@ -215,20 +218,20 @@ def main(argv=None):
     try:
         
         if device is None:
-            raise SerialException('device not provided, cannot procede')
+            raise SerialException('device not provided, cannot continue')
         
         if args.on:
-            logger.info('switching on the heating')
+            logger.debug('switching on the heating')
             status = switch_on(device)
             logger.info('heating switched on')
         
         elif args.off:
-            logger.info('switching off the heating')
+            logger.debug('switching off the heating')
             status = switch_off(device)
             logger.info('heating switched off')
         
         else:
-            logger.info('getting current status of the heating')
+            logger.debug('getting current status of the heating')
             status = get_status(device)
             
             if status == 1:

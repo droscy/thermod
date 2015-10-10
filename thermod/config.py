@@ -2,7 +2,7 @@
 
 import os
 
-__updated__ = '2015-10-05'
+__updated__ = '2015-10-10'
 
 # TODO inserire logger
 
@@ -14,7 +14,7 @@ main_config_files = ('thermod.conf',
 
 # logger common settings
 logger_fmt_msg = '%(asctime)s %(name)-8s %(levelname)-8s %(message)s'
-logger_fmt_msg_syslog = '%(name)-8s: %(levelname)-8s %(message)s'
+logger_fmt_msg_syslog = '%(name)s: %(levelname)s %(message)s'
 logger_fmt_date = '%H:%M:%S'
 
 # thermod name convention (from json file)
