@@ -40,6 +40,95 @@ class TimeTable():
         self.reload()
     
     
+    def reload(self):
+        # TODO bisogna gestire la situazione in cui self.filepath non sia una stringa o che il file non si possa leggere
+        """Reload the timetable from json file.
+        
+        The json file is the same provided in __init__() method, thus
+        if a different file is needed, set the new self.filepath to the
+        full path before calling this method.
+        
+        If the json file is invalid (or self.filepath is not a string)
+        an exception is raised and the internal settings remain unchanged.
+        """
+        
+        logger.debug('(re)loading timetable from json file "{}"'.format(self.filepath))
+        
+        with self.__lock:
+            logger.debug('lock acquired to (re)load timetable')
+            
+            # loading json file
+            with open(self.filepath, 'r') as file:
+                
+                try:
+                    logger.debug('loading json file')
+                    settings = json.load(file)
+                except ValueError:
+                    logger.debug('not a json file')
+                    raise JsonValueError('the timetable file is not in json format')
+                
+                logger.debug('validating json file')
+                jsonschema.validate(settings, config.json_schema)
+                
+                logger.debug('json file loaded and validated')
+            
+            self.__status = settings[config.json_status]
+            self.__temperatures = settings[config.json_temperatures]
+            self.__timetable = settings[config.json_timetable]
+            
+            if config.json_differential in settings:
+                self.__differential = settings[config.json_differential]
+            
+            if config.json_grace_time in settings:
+                self.__grace_time = timedelta(seconds=settings[config.json_grace_time])
+            
+            # converting hours to integer in order to avoid problems with leading zero
+            #self.__timetable = {day:{int(h):q for h,q in hours.items()} for day,hours in settings[config.json_timetable].items()}
+            
+            logger.debug('current status: {}'.format(self.__status))
+            logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
+            logger.debug('differential: {} degrees'.format(self.__differential))
+            logger.debug('grace time: {}'.format(self.__grace_time))
+        
+        logger.debug('timetable (re)loaded')
+    
+    
+    def save(self, filepath=None):
+        """Save the current timetable to json file.
+        
+        Save the current configuration of the timetable to a json file
+        pointed by filepath (full path to file). I filepath is None
+        the settings are saved to the json file provided during the
+        creation of the object (self.filepath).
+        """
+        
+        logger.debug('saving timetable to file')
+        
+        with self.__lock:
+            logger.debug('lock acquired to save timetable')
+            
+            # TODO questa situazione non può verificarsi perché se __timetable
+            # rimane None il metodo reload() solleva un'eccezione che provoca
+            # la cancellazione della variabile inizializzata, quindi non sarà
+            # mai None.
+            #if self.__timetable is None:
+            #    logger.debug('empty timetable, cannot be saved')
+            #    raise RuntimeError('the timetable is empty, cannot be saved')
+            
+            with open(filepath or self.__json_file_path, 'w') as file:
+                logger.debug('saving timetable to json file {}'.format(filepath))
+                
+                settings = {config.json_status: self.__status,
+                            config.json_differential: self.__differential,
+                            config.json_grace_time: int(self.__grace_time.total_seconds()),
+                            config.json_temperatures: self.__temperatures,
+                            config.json_timetable: self.__timetable}
+                
+                json.dump(settings, file, indent=2, sort_keys=True)
+        
+        logger.debug('timetable saved')
+    
+    
     @property
     def status(self):
         """Return the current status"""
@@ -207,86 +296,6 @@ class TimeTable():
             
             self.__temperatures[config.json_tmax_str] = nvalue
             logger.debug('new tmax temperature set: {}'.format(nvalue))
-    
-    
-    def reload(self):
-        # TODO bisogna gestire la situazione in cui self.filepath non sia una stringa o che il file non si possa leggere
-        """Reload the timetable from json file.
-        
-        The json file is the same provided in __init__() method, thus
-        if a different file is needed, set the new self.filepath to the
-        full path before calling this method.
-        
-        If the json file is invalid (or self.filepath is not a string)
-        an exception is raised and the internal settings remain unchanged.
-        """
-        
-        logger.debug('(re)loading timetable from json file "{}"'.format(self.filepath))
-        
-        with self.__lock:
-            logger.debug('lock acquired to (re)load timetable')
-            
-            # loading json file
-            with open(self.filepath, 'r') as file:
-                logger.debug('loading json file')
-                settings = json.load(file)
-                
-                logger.debug('validating json file')
-                jsonschema.validate(settings, config.json_schema)
-                
-                logger.debug('json file loaded and validated')
-            
-            self.__status = settings[config.json_status]
-            self.__temperatures = settings[config.json_temperatures]
-            self.__timetable = settings[config.json_timetable]
-            
-            if config.json_differential in settings:
-                self.__differential = settings[config.json_differential]
-            
-            if config.json_grace_time in settings:
-                self.__grace_time = timedelta(seconds=settings[config.json_grace_time])
-            
-            # converting hours to integer in order to avoid problems with leading zero
-            #self.__timetable = {day:{int(h):q for h,q in hours.items()} for day,hours in settings[config.json_timetable].items()}
-            
-            logger.debug('current status: {}'.format(self.__status))
-            logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
-            logger.debug('differential: {} degrees'.format(self.__differential))
-            logger.debug('grace time: {}'.format(self.__grace_time))
-        
-        logger.debug('timetable (re)loaded')
-    
-    
-    def save(self, filepath=None):
-        """Save the current timetable to json file.
-        
-        Save the current configuration of the timetable to a json file
-        pointed by filepath (full path to file). I filepath is None
-        the settings are saved to the json file provided during the
-        creation of the object (self.filepath).
-        """
-        
-        logger.debug('saving timetable to file')
-        
-        with self.__lock:
-            logger.debug('lock acquired to save timetable')
-            
-            if self.__timetable is None:
-                logger.debug('empty timetable, cannot be saved')
-                raise RuntimeError('the timetable is empty, cannot be saved')
-            
-            with open(filepath or self.__json_file_path, 'w') as file:
-                logger.debug('saving timetable to json file {}'.format(filepath))
-                
-                settings = {config.json_status: self.__status,
-                            config.json_differential: self.__differential,
-                            config.json_grace_time: int(self.__grace_time.total_seconds()),
-                            config.json_temperatures: self.__temperatures,
-                            config.json_timetable: self.__timetable}
-                
-                json.dump(settings, file, indent=2, sort_keys=True)
-        
-        logger.debug('timetable saved')
     
     
     def update(self, day, hour, quarter, temperature):
