@@ -8,13 +8,11 @@ from datetime import datetime, timedelta
 from thermod import config
 from thermod.config import JsonValueError
 
-# TODO mancano tutte le eccezioni
-# TODO c'è da scrivere come aggiornare a runtime e quindi salvare su json le modifiche
 # TODO write unit-test
 
-__updated__ = '2015-10-07'
+__updated__ = '2015-10-10'
 
-logger = logging.getLogger('thermod.timetable')
+logger = logging.getLogger(__name__)
 
 class TimeTable():
     
@@ -32,11 +30,11 @@ class TimeTable():
         self.__timetable = None
         self.__differential = 0.5
         
-        # TODO sistemare la gestione di timedelta in tutto il programma
         self.__grace_time = timedelta(seconds=3600)
 
         self.__lock = RLock()
-        self.__last_on_time = datetime(0,0,0)
+        self.__is_on = False  # if the heating is on
+        self.__last_on_time = datetime(1,1,1)  # last switch on time
 
         self.filepath = filepath
         self.reload()
@@ -109,25 +107,25 @@ class TimeTable():
     
     
     @grace_time.setter
-    def grace_time(self,value):
+    def grace_time(self,seconds):
         """Set a new grace time"""
         with self.__lock:
             logger.debug('lock acquired to set a new grace time')
             
             try:
-                nvalue = int(value)
+                nvalue = int(seconds)
                 
                 if nvalue < 0:
                     raise ValueError()
             
             except:
-                logger.debug('invalid new grace time: {}'.format(value))
+                logger.debug('invalid new grace time: {}'.format(seconds))
                 raise JsonValueError(
                     'the new grace time ({}) is invalid, '
-                    'it must be a number expressed in seconds'.format(value))
+                    'it must be a number expressed in seconds'.format(seconds))
             
             self.__grace_time = timedelta(seconds=nvalue)
-            logger.debug('new grace time set: {}'.format(nvalue))
+            logger.debug('new grace time set: {} sec = {}'.format(nvalue, self.__grace_time))
     
     
     @property
@@ -246,7 +244,7 @@ class TimeTable():
                 self.__differential = settings[config.json_differential]
             
             if config.json_grace_time in settings:
-                self.__grace_time = settings[config.json_grace_time]
+                self.__grace_time = timedelta(seconds=settings[config.json_grace_time])
             
             # converting hours to integer in order to avoid problems with leading zero
             #self.__timetable = {day:{int(h):q for h,q in hours.items()} for day,hours in settings[config.json_timetable].items()}
@@ -254,7 +252,7 @@ class TimeTable():
             logger.debug('current status: {}'.format(self.__status))
             logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
             logger.debug('differential: {} degrees'.format(self.__differential))
-            logger.debug('grace time: {} sec'.format(self.__grace_time))
+            logger.debug('grace time: {}'.format(self.__grace_time))
         
         logger.debug('timetable (re)loaded')
     
@@ -282,7 +280,7 @@ class TimeTable():
                 
                 settings = {config.json_status: self.__status,
                             config.json_differential: self.__differential,
-                            config.json_grace_time: self.__grace_time,
+                            config.json_grace_time: int(self.__grace_time.total_seconds()),
                             config.json_temperatures: self.__temperatures,
                             config.json_timetable: self.__timetable}
                 
@@ -301,7 +299,7 @@ class TimeTable():
             if self.__timetable is None:
                 logger.debug('empty timetable, cannot be updated')
                 raise RuntimeError('the timetable is empty, cannot be updated')
-
+            
             # get day name
             logger.debug('retriving day name')
             if day in config.json_days_name_map.keys():
@@ -312,11 +310,11 @@ class TimeTable():
                 logger.debug('invalid day name or number: {}'.format(day))
                 raise JsonValueError('the provided day name or number ({}) '
                                      'is not valid'.format(day))
-
+            
             # check hour validity
             logger.debug('checking and formatting hour')
             _hour = config.json_format_hour(hour)
-
+            
             # check validity of quarter of an hour
             logger.debug('checking validity of quarter')
             if int(float(quarter)) in range(4):
@@ -361,31 +359,19 @@ class TimeTable():
         return float(value)
     
     
-    def considering_grace_time(self,should_be_on,current,target,diff):
-        """Considering the grace time return whether the heating should be on.
-        
-        If should_be_on is True return always True, if should_be_on is
-        False return True if the grace time is elapsed and the current
-        temperature is grater then (target - differential).
-        """
-        
-        if should_be_on:
-            return True
-        elif ((datetime.now() - self.__last_on_time > self.__grace_time)
-                and (current >= (target - diff))
-                and (current < target)):
-            return True
-        else:
-            return False
-    
-    
     def should_the_heating_be_on(self, current_temperature):
-        """Return True if now the heating should be on, False otherwise"""
+        """Return True if now the heating should be on, False otherwise
+        
+        This method doesn't update any of the internal variables,
+        i.e. if the heating should be on, self.__is_on and
+        self.__last_on_time remain the same until self.seton()
+        is executed.
+        """
         
         logger.debug('checking current should-be status of the heating')
 
         shoud_be_on = None
-
+        
         with self.__lock:
             logger.debug('lock acquired to check the should-be status')
             
@@ -404,31 +390,55 @@ class TimeTable():
             elif self.__status == config.json_status_off:  # always off
                 shoud_be_on = False
             
-            elif self.__status in config.json_all_temperatures:  # target temp is set manually
-                target = self.degrees(self.__temperatures[self.__status])
-                logger.debug('target_temperature: {} = {} + {}'.format((target + diff), target, diff))
-                shoud_be_on = (current < (target + diff))
-            
-            elif self.__status == config.json_status_auto:
+            else:  # checking against current temperature and timetable
                 now = datetime.now()
-
-                day = config.json_days_name_map[now.strftime('%w')]
-                hour = config.json_format_hour(now.hour)
-                quarter = int(now.minute // 15)
                 
-                target = self.degrees(self.__timetable[day][hour][quarter])
+                if self.__status in config.json_all_temperatures:
+                    # target temperature is set manually
+                    target = self.degrees(self.__temperatures[self.__status])
+                    logger.debug('target_temperature: {}'.format(target))
                 
-                logger.debug('day: {}, hour: {}, quarter: {}, '
-                             'target_temperature: {} = {} + {}'
-                             .format(day, hour, quarter, (target+diff),
-                                     target, diff))
+                elif self.__status == config.json_status_auto:
+                    # target temperature is retrived from timetable
+                    day = config.json_days_name_map[now.strftime('%w')]
+                    hour = config.json_format_hour(now.hour)
+                    quarter = int(now.minute // 15)
+                    
+                    target = self.degrees(self.__timetable[day][hour][quarter])
+                    
+                    logger.debug('day: {}, hour: {}, quarter: {}, '
+                                 'target_temperature: {}'
+                                 .format(day, hour, quarter, target))
                 
-                shoud_be_on = (current < (target + diff))
-            
-            if shoud_be_on:
-                self.__last_on_time = datetime.now()
+                laston = self.__is_on
+                lotime = self.__last_on_time
+                grace = self.__grace_time
+                
+                shoud_be_on = (
+                    (current < (target - diff))
+                    or ((current <= target) and ((now - lotime) > grace))
+                    or ((current < (target + diff)) and laston))
         
-        # TODO convertire questo messaggio in "the heating should be: {}"
-        logger.debug('the heating should be on: {}'.format(shoud_be_on))
-
+        logger.debug('the heating should be: {}'
+                     .format((shoud_be_on and 'ON')
+                             or (not shoud_be_on and 'OFF')))
+        
         return shoud_be_on
+    
+    
+    def seton(self):
+        """The heating is on, set internal variable to reflect the status"""
+        with self.__lock:
+            logger.debug('lock acquired to set on')
+            self.__is_on = True
+            self.__last_on_time = datetime.now()
+            logger.debug('is-on set to "{}" and last-on-time set to "{}"'
+                         .format(self.__is_on, self.__last_on_time))
+    
+    
+    def setoff(self):
+        """The heating is off, set internal variable to reflect the status"""
+        with self.__lock:
+            logger.debug('lock acquired to set off')
+            self.__is_on = False
+            logger.debug('is-on set to "{}"'.format(self.__is_on))

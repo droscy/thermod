@@ -1,6 +1,6 @@
 # config module for thermod
 
-__updated__ = '2015-10-07'
+__updated__ = '2015-10-10'
 
 # TODO inserire logger
 
@@ -88,10 +88,10 @@ class JsonValueError(ValueError):
 
 
 def is_valid_temperature(temperature):
-    """Return True if the temperature is valid.
+    """Return True if the provided temperature is valid.
     
     A temperature is considered valid if it is a number or one of the
-    following value: 't0', 'tmin', 'tmax'.
+    following string values: 't0', 'tmin', 'tmax'.
     """
     
     result = None
