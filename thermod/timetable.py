@@ -1,4 +1,4 @@
-# this module is the timetable
+"""Manage the timetable of thermod."""
 
 import json
 import logging
@@ -10,17 +10,20 @@ from thermod.config import JsonValueError
 
 # TODO write unit-test
 
-__updated__ = '2015-10-10'
+__docformat__ = 'restructuredtext'
+__updated__ = '2015-10-11'
 
 logger = logging.getLogger(__name__)
 
 class TimeTable():
+    """Represent the timetable to control the heating."""
     
-    def __init__(self, filepath):
-        """Init the timetable from a json file.
+    def __init__(self, filepath=None):
+        """Init the timetable.
 
-        The filepath must be a full path to the json file that
-        contains all the informations to setup the timetable.
+        If the `filepath` is not `None`, it must be a full path to a
+        JSON file that contains all the informations to setup the
+        timetable.
         """
         
         logger.debug('initializing timetable')
@@ -35,36 +38,41 @@ class TimeTable():
         self.__lock = RLock()
         self.__is_on = False  # if the heating is on
         self.__last_on_time = datetime(1,1,1)  # last switch on time
-
+        
         self.filepath = filepath
-        self.reload()
+        
+        if self.filepath is not None:
+            self.reload()
     
     
     def reload(self):
         # TODO bisogna gestire la situazione in cui self.filepath non sia una stringa o che il file non si possa leggere
-        """Reload the timetable from json file.
+        """Reload the timetable from JSON file.
         
-        The json file is the same provided in __init__() method, thus
-        if a different file is needed, set the new self.filepath to the
-        full path before calling this method.
+        The JSON file is the same provided in `TimeTable.__init__()`
+        method, thus if a different file is needed, set a new
+        `self.filepath` to the full path before calling this method.
         
-        If the json file is invalid (or self.filepath is not a string)
+        If the JSON file is invalid (or `self.filepath` is not a string)
         an exception is raised and the internal settings remain unchanged.
         """
         
-        logger.debug('(re)loading timetable from json file "{}"'.format(self.filepath))
+        logger.debug('(re)loading timetable')
         
         with self.__lock:
             logger.debug('lock acquired to (re)load timetable')
             
+            if self.filepath is None:
+                logger.debug('filepath not set, cannot continue')
+                raise RuntimeError('no timetable file provided, cannot (re)load data')
+            
             # loading json file
             with open(self.filepath, 'r') as file:
-                
                 try:
-                    logger.debug('loading json file')
+                    logger.debug('loading json file: {}'.format(self.filepath))
                     settings = json.load(file)
                 except ValueError:
-                    logger.debug('not a json file')
+                    logger.debug('not a json file, cannot continue')
                     raise JsonValueError('the timetable file is not in json format')
                 
                 logger.debug('validating json file')
@@ -94,12 +102,11 @@ class TimeTable():
     
     
     def save(self, filepath=None):
-        """Save the current timetable to json file.
+        """Save the current timetable to JSON file.
         
-        Save the current configuration of the timetable to a json file
-        pointed by filepath (full path to file). I filepath is None
-        the settings are saved to the json file provided during the
-        creation of the object (self.filepath).
+        Save the current configuration of the timetable to a JSON file
+        pointed by `filepath` (full path to file). I `filepath` is
+        `None`, settings are saved to `self.filepath`.
         """
         
         logger.debug('saving timetable to file')
@@ -107,13 +114,9 @@ class TimeTable():
         with self.__lock:
             logger.debug('lock acquired to save timetable')
             
-            # TODO questa situazione non può verificarsi perché se __timetable
-            # rimane None il metodo reload() solleva un'eccezione che provoca
-            # la cancellazione della variabile inizializzata, quindi non sarà
-            # mai None.
-            #if self.__timetable is None:
-            #    logger.debug('empty timetable, cannot be saved')
-            #    raise RuntimeError('the timetable is empty, cannot be saved')
+            if self.__timetable is None:
+                logger.debug('empty timetable, cannot be saved')
+                raise RuntimeError('the timetable is empty, cannot be saved')
             
             with open(filepath or self.__json_file_path, 'w') as file:
                 logger.debug('saving timetable to json file {}'.format(filepath))
@@ -131,7 +134,7 @@ class TimeTable():
     
     @property
     def status(self):
-        """Return the current status"""
+        """Return the current status."""
         with self.__lock:
             logger.debug('lock acquired to get current status')
             return self.__status
@@ -139,7 +142,7 @@ class TimeTable():
     
     @status.setter
     def status(self,status):
-        """Set a new status"""
+        """Set a new status."""
         with self.__lock:
             logger.debug('lock acquired to set a new status')
             
@@ -158,7 +161,7 @@ class TimeTable():
     
     @property
     def differential(self):
-        """Return the current differential value"""
+        """Return the current differential value."""
         with self.__lock:
             logger.debug('lock acquired to get current differntial value')
             return self.__differential
@@ -166,7 +169,7 @@ class TimeTable():
     
     @differential.setter
     def differential(self,value):
-        """Set a new differential value"""
+        """Set a new differential value."""
         with self.__lock:
             logger.debug('lock acquired to set a new differential value')
             
@@ -189,7 +192,7 @@ class TimeTable():
     
     @property
     def grace_time(self):
-        """Return the current grace time in seconds"""
+        """Return the current grace time in *seconds*."""
         with self.__lock:
             logger.debug('lock acquired to get current grace time')
             return int(self.__grace_time.total_seconds())
@@ -197,7 +200,7 @@ class TimeTable():
     
     @grace_time.setter
     def grace_time(self,seconds):
-        """Set a new grace time"""
+        """Set a new grace time in *seconds*."""
         with self.__lock:
             logger.debug('lock acquired to set a new grace time')
             
@@ -219,7 +222,7 @@ class TimeTable():
     
     @property
     def t0(self):
-        """Return the current value for t0 temperature"""
+        """Return the current value for ``t0`` temperature."""
         with self.__lock:
             logger.debug('lock acquired to get current t0 temperature')
             return self.__temperatures[config.json_t0_str]
@@ -227,7 +230,7 @@ class TimeTable():
     
     @t0.setter
     def t0(self,value):
-        """Set a new value for t0 temperature"""
+        """Set a new value for ``t0`` temperature."""
         with self.__lock:
             logger.debug('lock acquired to set a new t0 value')
             
@@ -246,7 +249,7 @@ class TimeTable():
     
     @property
     def tmin(self):
-        """Return the current value for tmin temperature"""
+        """Return the current value for ``tmin`` temperature."""
         with self.__lock:
             logger.debug('lock acquired to get current tmin temperature')
             return self.__temperatures[config.json_tmin_str]
@@ -254,7 +257,7 @@ class TimeTable():
     
     @tmin.setter
     def tmin(self,value):
-        """Set a new value for tmin temperature"""
+        """Set a new value for ``tmin`` temperature."""
         with self.__lock:
             logger.debug('lock acquired to set a new tmin value')
             
@@ -273,7 +276,7 @@ class TimeTable():
     
     @property
     def tmax(self):
-        """Return the current value for tmax temperature"""
+        """Return the current value for ``tmax`` temperature."""
         with self.__lock:
             logger.debug('lock acquired to get current tmax temperature')
             return self.__temperatures[config.json_tmax_str]
@@ -281,7 +284,7 @@ class TimeTable():
     
     @tmax.setter
     def tmax(self,value):
-        """Set a new value for tmax temperature"""
+        """Set a new value for ``tmax`` temperature."""
         with self.__lock:
             logger.debug('lock acquired to set a new tmax value')
             
@@ -299,6 +302,7 @@ class TimeTable():
     
     
     def update(self, day, hour, quarter, temperature):
+        # TODO scrivere documentazione
         logger.debug('updating timetable: day "{}", hour "{}", quarter "{}", '
                      'temperature "{}"'.format(day, hour, quarter, temperature))
         
@@ -369,11 +373,11 @@ class TimeTable():
     
     
     def should_the_heating_be_on(self, current_temperature):
-        """Return True if now the heating should be on, False otherwise
+        """Return `True` if now the heating *should be* ON, `False` otherwise.
         
         This method doesn't update any of the internal variables,
-        i.e. if the heating should be on, self.__is_on and
-        self.__last_on_time remain the same until self.seton()
+        i.e. if the heating should be on, `self.__is_on` and
+        `self.__last_on_time` remain the same until `self.seton()`
         is executed.
         """
         
@@ -436,7 +440,12 @@ class TimeTable():
     
     
     def seton(self):
-        """The heating is on, set internal variable to reflect the status"""
+        """The heating is ON, set internal variable to reflect this status.
+        
+        In other part of the program someone switched on the heating and
+        the timetable must be informed of this change, thus call this
+        method to set `self.__is_on` and `self.__last_on_time`.
+        """
         with self.__lock:
             logger.debug('lock acquired to set on')
             self.__is_on = True
@@ -446,7 +455,7 @@ class TimeTable():
     
     
     def setoff(self):
-        """The heating is off, set internal variable to reflect the status"""
+        """The heating is OFF, set internal variable to reflect this status."""
         with self.__lock:
             logger.debug('lock acquired to set off')
             self.__is_on = False
