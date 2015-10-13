@@ -1,6 +1,6 @@
 # config module for thermod
 
-__updated__ = '2015-10-10'
+__updated__ = '2015-10-13'
 
 # TODO inserire logger
 
@@ -83,7 +83,7 @@ json_schema = {
 
 
 class JsonValueError(ValueError):
-    """Exception for invalid settings value in json file"""
+    """Exception for invalid settings value in JSON file"""
     pass
 
 

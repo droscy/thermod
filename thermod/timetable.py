@@ -11,7 +11,7 @@ from thermod.config import JsonValueError
 # TODO write unit-test
 
 __docformat__ = 'restructuredtext'
-__updated__ = '2015-10-11'
+__updated__ = '2015-10-13'
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,8 @@ class TimeTable():
         logger.debug('initializing timetable')
 
         self.__status = None
-        self.__temperatures = None
-        self.__timetable = None
+        self.__temperatures = {}
+        self.__timetable = {}
         self.__differential = 0.5
         
         self.__grace_time = timedelta(seconds=3600)
@@ -46,7 +46,6 @@ class TimeTable():
     
     
     def reload(self):
-        # TODO bisogna gestire la situazione in cui self.filepath non sia una stringa o che il file non si possa leggere
         """Reload the timetable from JSON file.
         
         The JSON file is the same provided in `TimeTable.__init__()`
@@ -55,6 +54,14 @@ class TimeTable():
         
         If the JSON file is invalid (or `self.filepath` is not a string)
         an exception is raised and the internal settings remain unchanged.
+        The exceptions can be:
+        
+        - `RuntimeError` if no file provided
+        - `OSError` if the file cannot be found/read or other OS related errors
+        - `json.decoder.JSONDecodeError` if the file is not in JSON format or
+          the JSON content has syntax errors
+        - `jsonschema.ValidationError` if the JSON content is not valid
+        
         """
         
         logger.debug('(re)loading timetable')
@@ -62,24 +69,21 @@ class TimeTable():
         with self.__lock:
             logger.debug('lock acquired to (re)load timetable')
             
-            if self.filepath is None:
+            if not self.filepath:  # empty string or None
                 logger.debug('filepath not set, cannot continue')
                 raise RuntimeError('no timetable file provided, cannot (re)load data')
             
             # loading json file
             with open(self.filepath, 'r') as file:
-                try:
-                    logger.debug('loading json file: {}'.format(self.filepath))
-                    settings = json.load(file)
-                except ValueError:
-                    logger.debug('not a json file, cannot continue')
-                    raise JsonValueError('the timetable file is not in json format')
+                logger.debug('loading json file: {}'.format(self.filepath))
+                settings = json.load(file)
                 
                 logger.debug('validating json file')
                 jsonschema.validate(settings, config.json_schema)
                 
                 logger.debug('json file loaded and validated')
             
+            # set internal variables
             self.__status = settings[config.json_status]
             self.__temperatures = settings[config.json_temperatures]
             self.__timetable = settings[config.json_timetable]
@@ -105,8 +109,12 @@ class TimeTable():
         """Save the current timetable to JSON file.
         
         Save the current configuration of the timetable to a JSON file
-        pointed by `filepath` (full path to file). I `filepath` is
+        pointed by `filepath` (full path to file). If `filepath` is
         `None`, settings are saved to `self.filepath`.
+        
+        Raise the following exceptions on error:
+        - `jsonschema.ValidationError` if the current timetable is not valid
+        - `OSError` if the file cannot be written or other OS related errors
         """
         
         logger.debug('saving timetable to file')
@@ -114,22 +122,33 @@ class TimeTable():
         with self.__lock:
             logger.debug('lock acquired to save timetable')
             
-            if self.__timetable is None:
-                logger.debug('empty timetable, cannot be saved')
-                raise RuntimeError('the timetable is empty, cannot be saved')
+            settings = self.__validate_timetable__get_settings()
             
-            with open(filepath or self.__json_file_path, 'w') as file:
-                logger.debug('saving timetable to json file {}'.format(filepath))
-                
-                settings = {config.json_status: self.__status,
-                            config.json_differential: self.__differential,
-                            config.json_grace_time: int(self.__grace_time.total_seconds()),
-                            config.json_temperatures: self.__temperatures,
-                            config.json_timetable: self.__timetable}
-                
+            with open(filepath or self.filepath, 'w') as file:
+                logger.debug('saving timetable to json file {}'.format(file.name))
                 json.dump(settings, file, indent=2, sort_keys=True)
         
         logger.debug('timetable saved')
+    
+    
+    def __validate_timetable__get_settings(self):
+        # TODO documentare
+        logger.debug('validating timetable')
+        
+        with self.__lock:
+            logger.debug('lock acquired to validate timetable')
+            
+            settings = {config.json_status: self.__status,
+                        config.json_differential: self.__differential,
+                        config.json_grace_time: int(self.__grace_time.total_seconds()),
+                        config.json_temperatures: self.__temperatures,
+                        config.json_timetable: self.__timetable}
+            
+            jsonschema.validate(settings, config.json_schema)
+            
+            logger.debug('the timetable is valid')
+        
+        return settings
     
     
     @property
@@ -236,6 +255,7 @@ class TimeTable():
             
             try:
                 nvalue = config.json_format_main_temperature(value)
+            
             # i catch and raise again the same exception to change the message
             except JsonValueError:
                 logger.debug('invalid new value for t0 temperature: {}'.format(value))
@@ -263,6 +283,7 @@ class TimeTable():
             
             try:
                 nvalue = config.json_format_main_temperature(value)
+            
             # i catch and raise again the same exception to change the message
             except JsonValueError:
                 logger.debug('invalid new value for tmin temperature: {}'.format(value))
@@ -290,6 +311,7 @@ class TimeTable():
             
             try:
                 nvalue = config.json_format_main_temperature(value)
+            
             # i catch and raise again the same exception to change the message
             except JsonValueError:
                 logger.debug('invalid new value for tmax temperature: {}'.format(value))
@@ -309,9 +331,11 @@ class TimeTable():
         with self.__lock:
             logger.debug('lock acquired to update timetable')
             
-            if self.__timetable is None:
-                logger.debug('empty timetable, cannot be updated')
-                raise RuntimeError('the timetable is empty, cannot be updated')
+            # TODO capire se è possibile creare un TimeTable da zero
+            # e quindi settare tutto senza caricare da JSON
+            #if not self.__timetable:
+            #    logger.debug('empty timetable, cannot be updated')
+            #    raise RuntimeError('the timetable is empty, cannot be updated')
             
             # get day name
             logger.debug('retriving day name')
@@ -330,15 +354,26 @@ class TimeTable():
             
             # check validity of quarter of an hour
             logger.debug('checking validity of quarter')
-            if int(float(quarter)) in range(4):
-                _quarter = int(float(quarter))
-            else:
+            try:
+                if int(float(quarter)) in range(4):
+                    _quarter = int(float(quarter))
+                else:
+                    raise Exception()
+            except:
                 logger.debug('invalid quarter: {}'.format(quarter))
                 raise JsonValueError('the provided quarter is not valid ({}), '
                                      'it must be in range 0-3'.format(quarter))
             
             # format temperature and check validity
             _temp = config.json_format_temperature(temperature)
+            
+            # if the day is missing, add it to the timetable
+            if _day not in self.__timetable.keys():
+                self.__timetable[_day] = {}
+            
+            # if the hour is missing, add it to the timetable
+            if _hour not in self.__timetable[_day].keys():
+                self.__timetable[_day][_hour] = [None, None, None, None]
             
             # update timetable
             self.__timetable[_day][_hour][_quarter] = _temp
@@ -382,15 +417,12 @@ class TimeTable():
         """
         
         logger.debug('checking current should-be status of the heating')
-
+        
         shoud_be_on = None
+        self.__validate_timetable__get_settings()  # validating current timetable
         
         with self.__lock:
             logger.debug('lock acquired to check the should-be status')
-            
-            if self.__timetable is None:
-                logger.debug('empty timetable, cannot check current should-be status')
-                raise RuntimeError('the timetable is empty, cannot check current should-be status')
             
             current = self.degrees(current_temperature)
             diff = self.degrees(self.__differential)
@@ -418,19 +450,18 @@ class TimeTable():
                     quarter = int(now.minute // 15)
                     
                     target = self.degrees(self.__timetable[day][hour][quarter])
-                    
                     logger.debug('day: {}, hour: {}, quarter: {}, '
                                  'target_temperature: {}'
                                  .format(day, hour, quarter, target))
                 
-                laston = self.__is_on
-                lotime = self.__last_on_time
+                ison = self.__is_on
+                laston = self.__last_on_time
                 grace = self.__grace_time
                 
                 shoud_be_on = (
                     (current < (target - diff))
-                    or ((current <= target) and ((now - lotime) > grace))
-                    or ((current < (target + diff)) and laston))
+                    or ((current <= target) and ((now - laston) > grace))
+                    or ((current < (target + diff)) and ison))
         
         logger.debug('the heating should be: {}'
                      .format((shoud_be_on and 'ON')
@@ -446,6 +477,7 @@ class TimeTable():
         the timetable must be informed of this change, thus call this
         method to set `self.__is_on` and `self.__last_on_time`.
         """
+        
         with self.__lock:
             logger.debug('lock acquired to set on')
             self.__is_on = True
@@ -456,6 +488,7 @@ class TimeTable():
     
     def setoff(self):
         """The heating is OFF, set internal variable to reflect this status."""
+        
         with self.__lock:
             logger.debug('lock acquired to set off')
             self.__is_on = False
