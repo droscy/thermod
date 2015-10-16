@@ -1,6 +1,6 @@
 # config module for thermod
 
-__updated__ = '2015-10-13'
+__updated__ = '2015-10-16'
 
 # TODO inserire logger
 
@@ -21,8 +21,11 @@ json_all_temperatures = (json_t0_str, json_tmin_str, json_tmax_str)
 json_status_on = 'on'
 json_status_off = 'off'
 json_status_auto = 'auto'
+json_status_t0 = json_t0_str
+json_status_tmin = json_tmin_str
+json_status_tmax = json_tmax_str
 json_all_statuses = (json_status_on, json_status_off, json_status_auto,
-                     json_t0_str, json_tmin_str, json_tmax_str)
+                     json_status_t0, json_status_tmin, json_status_tmax)
 
 # the key of the following dict is th same number of %w of strftime()
 # the name is used to avoid errors with different locales
@@ -83,7 +86,7 @@ json_schema = {
 
 
 class JsonValueError(ValueError):
-    """Exception for invalid settings value in JSON file"""
+    """Exception for invalid settings values in JSON file."""
     pass
 
 

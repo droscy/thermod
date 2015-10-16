@@ -8,10 +8,10 @@ from datetime import datetime, timedelta
 from thermod import config
 from thermod.config import JsonValueError
 
-# TODO write unit-test
+# TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
 __docformat__ = 'restructuredtext'
-__updated__ = '2015-10-13'
+__updated__ = '2015-10-16'
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,93 @@ class TimeTable():
             self.reload()
     
     
+    def __eq__(self, other):
+        """Check if two `TimeTable`s have the same temperatures and timetable.
+        
+        The check is performed only on main temperatures, timetable,
+        differential value and grace time because the other attributes
+        (status, is_on, last_on_time and filepath) are relative to the
+        current usage of the `TimeTable` object.
+        """
+        
+        result = None
+        
+        if (isinstance(other, self.__class__)
+                and (self.__temperatures == other.__temperatures)
+                and (self.__timetable == other.__timetable)
+                and (self.__differential == other.__differential)
+                and (self.__grace_time == other.__grace_time)):
+            result = True
+        else:
+            result = False
+        
+        return result
+    
+    
+    def __getstate__(self):
+        """Validate the internal settings and return them as a dictonary.
+        
+        The returned dictonary can be used to save the data in a JSON file.
+        """
+        
+        logger.debug('validating timetable and returning internal state')
+        
+        with self.__lock:
+            logger.debug('lock acquired to validate timetable')
+            
+            settings = {config.json_status: self.__status,
+                        config.json_differential: self.__differential,
+                        config.json_grace_time: int(self.__grace_time.total_seconds()),
+                        config.json_temperatures: self.__temperatures,
+                        config.json_timetable: self.__timetable}
+            
+            jsonschema.validate(settings, config.json_schema)
+            logger.debug('the timetable is valid')
+        
+        logger.debug('returning internal state')
+        return settings
+    
+    
+    def __setstate__(self, state):
+        """Set the internal state.
+        
+        The `state` is first validated, if it is valid the internal
+        variable will be set, otherwise a `jsonschema.ValidationError`
+        exception is raised.
+        """
+        
+        self.__init__(None)
+        
+        logger.debug('storing internal state')
+        
+        with self.__lock:
+            logger.debug('validating json data')
+            jsonschema.validate(state, config.json_schema)
+            
+            logger.debug('data validated: storing variables')
+            self.__status = state[config.json_status]
+            self.__temperatures = state[config.json_temperatures]
+            self.__timetable = state[config.json_timetable]
+            
+            if config.json_differential in state:
+                self.__differential = state[config.json_differential]
+            
+            if config.json_grace_time in state:
+                self.__grace_time = timedelta(seconds=state[config.json_grace_time])
+            
+            logger.debug('current status: {}'.format(self.__status))
+            logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
+            logger.debug('differential: {} degrees'.format(self.__differential))
+            logger.debug('grace time: {}'.format(self.__grace_time))
+        
+        logger.debug('internal state set')
+    
+    
+    def __validate(self):
+        """Validate the internal settings."""
+        self.__getstate__()
+    
+    
     def reload(self):
         """Reload the timetable from JSON file.
         
@@ -58,10 +145,9 @@ class TimeTable():
         
         - `RuntimeError` if no file provided
         - `OSError` if the file cannot be found/read or other OS related errors
-        - `json.decoder.JSONDecodeError` if the file is not in JSON format or
+        - `ValueError` if the file is not in JSON format or
           the JSON content has syntax errors
         - `jsonschema.ValidationError` if the JSON content is not valid
-        
         """
         
         logger.debug('(re)loading timetable')
@@ -77,30 +163,31 @@ class TimeTable():
             with open(self.filepath, 'r') as file:
                 logger.debug('loading json file: {}'.format(self.filepath))
                 settings = json.load(file)
-                
-                logger.debug('validating json file')
-                jsonschema.validate(settings, config.json_schema)
-                
-                logger.debug('json file loaded and validated')
+                logger.debug('json file loaded')
             
-            # set internal variables
-            self.__status = settings[config.json_status]
-            self.__temperatures = settings[config.json_temperatures]
-            self.__timetable = settings[config.json_timetable]
+            self.__setstate__(settings)
             
-            if config.json_differential in settings:
-                self.__differential = settings[config.json_differential]
-            
-            if config.json_grace_time in settings:
-                self.__grace_time = timedelta(seconds=settings[config.json_grace_time])
-            
-            # converting hours to integer in order to avoid problems with leading zero
-            #self.__timetable = {day:{int(h):q for h,q in hours.items()} for day,hours in settings[config.json_timetable].items()}
-            
-            logger.debug('current status: {}'.format(self.__status))
-            logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
-            logger.debug('differential: {} degrees'.format(self.__differential))
-            logger.debug('grace time: {}'.format(self.__grace_time))
+            #logger.debug('validating json data')
+            #jsonschema.validate(settings, config.json_schema)
+            #
+            #logger.debug('data validated: setting internal variables')
+            #self.__status = settings[config.json_status]
+            #self.__temperatures = settings[config.json_temperatures]
+            #self.__timetable = settings[config.json_timetable]
+            #
+            #if config.json_differential in settings:
+            #    self.__differential = settings[config.json_differential]
+            #
+            #if config.json_grace_time in settings:
+            #    self.__grace_time = timedelta(seconds=settings[config.json_grace_time])
+            #
+            ## converting hours to integer in order to avoid problems with leading zero
+            ##self.__timetable = {day:{int(h):q for h,q in hours.items()} for day,hours in settings[config.json_timetable].items()}
+            #
+            #logger.debug('current status: {}'.format(self.__status))
+            #logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
+            #logger.debug('differential: {} degrees'.format(self.__differential))
+            #logger.debug('grace time: {}'.format(self.__grace_time))
         
         logger.debug('timetable (re)loaded')
     
@@ -122,33 +209,18 @@ class TimeTable():
         with self.__lock:
             logger.debug('lock acquired to save timetable')
             
-            settings = self.__validate_timetable__get_settings()
+            if not (filepath or self.filepath):  # empty strings or None
+                logger.debug('filepath not set, cannot save timetable')
+                raise RuntimeError('no timetable file provided, cannot save data')
+            
+            # validate and retrive settings
+            settings = self.__getstate__()
             
             with open(filepath or self.filepath, 'w') as file:
                 logger.debug('saving timetable to json file {}'.format(file.name))
                 json.dump(settings, file, indent=2, sort_keys=True)
         
         logger.debug('timetable saved')
-    
-    
-    def __validate_timetable__get_settings(self):
-        # TODO documentare
-        logger.debug('validating timetable')
-        
-        with self.__lock:
-            logger.debug('lock acquired to validate timetable')
-            
-            settings = {config.json_status: self.__status,
-                        config.json_differential: self.__differential,
-                        config.json_grace_time: int(self.__grace_time.total_seconds()),
-                        config.json_temperatures: self.__temperatures,
-                        config.json_timetable: self.__timetable}
-            
-            jsonschema.validate(settings, config.json_schema)
-            
-            logger.debug('the timetable is valid')
-        
-        return settings
     
     
     @property
@@ -196,10 +268,10 @@ class TimeTable():
                 nvalue = config.json_format_main_temperature(value)
                 
                 if nvalue < 0 or nvalue > 1:
-                    raise JsonValueError()
+                    raise ValueError()
             
             # i catch and raise again the same exception to change the message
-            except JsonValueError:
+            except:
                 logger.debug('invalid new differential value: {}'.format(value))
                 raise JsonValueError(
                     'the new differential value ({}) is invalid, '
@@ -257,14 +329,14 @@ class TimeTable():
                 nvalue = config.json_format_main_temperature(value)
             
             # i catch and raise again the same exception to change the message
-            except JsonValueError:
+            except:
                 logger.debug('invalid new value for t0 temperature: {}'.format(value))
                 raise JsonValueError(
                     'the new value ({}) for t0 temperature '
                     'is invalid, it must be a number'.format(value))
             
             self.__temperatures[config.json_t0_str] = nvalue
-            logger.debug('new t0 temperature set: {}'.format(value))
+            logger.debug('new t0 temperature set: {}'.format(nvalue))
     
     
     @property
@@ -285,14 +357,14 @@ class TimeTable():
                 nvalue = config.json_format_main_temperature(value)
             
             # i catch and raise again the same exception to change the message
-            except JsonValueError:
+            except:
                 logger.debug('invalid new value for tmin temperature: {}'.format(value))
                 raise JsonValueError(
                     'the new value ({}) for tmin temperature '
                     'is invalid, it must be a number'.format(value))
             
             self.__temperatures[config.json_tmin_str] = nvalue
-            logger.debug('new tmin temperature set: {}'.format(value))
+            logger.debug('new tmin temperature set: {}'.format(nvalue))
     
     
     @property
@@ -313,7 +385,7 @@ class TimeTable():
                 nvalue = config.json_format_main_temperature(value)
             
             # i catch and raise again the same exception to change the message
-            except JsonValueError:
+            except:
                 logger.debug('invalid new value for tmax temperature: {}'.format(value))
                 raise JsonValueError(
                     'the new value ({}) for tmax temperature '
@@ -386,6 +458,7 @@ class TimeTable():
         """Convert the name of a temperature in its corresponding number value.
         
         If temperature is already a number, the number itself is returned.
+        If the main temperatures aren't set yet a `RuntimeError` is raised.
         """
         
         logger.debug('converting temperature name to degrees')
@@ -394,6 +467,11 @@ class TimeTable():
         
         with self.__lock:
             logger.debug('lock acquired to convert temperature name')
+            
+            if not self.__temperatures:
+                logger.debug('no main temperature provided')
+                raise RuntimeError('no main temperature provided, '
+                                   'cannot convert name to degrees')
             
             _temp = config.json_format_temperature(temperature)
             
@@ -419,7 +497,7 @@ class TimeTable():
         logger.debug('checking current should-be status of the heating')
         
         shoud_be_on = None
-        self.__validate_timetable__get_settings()  # validating current timetable
+        self.__validate()
         
         with self.__lock:
             logger.debug('lock acquired to check the should-be status')
