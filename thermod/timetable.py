@@ -9,9 +9,13 @@ from thermod import config
 from thermod.config import JsonValueError
 
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
+# TODO togliere doppio _ dagli attributi privati
+# TODO migliorare il metodo __validate salvando una variabile interna per dire
+# se è valido, resettando tale variabile in ogni metodo che modifica una qualsiasi variabile
+# (così se eseguito molteplici volte consecutive migliora le performance)
 
 __docformat__ = 'restructuredtext'
-__updated__ = '2015-10-16'
+__updated__ = '2015-10-23'
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +25,7 @@ class TimeTable():
     def __init__(self, filepath=None):
         """Init the timetable.
 
-        If the `filepath` is not `None`, it must be a full path to a
+        If `filepath` is not `None`, it must be a full path to a
         JSON file that contains all the informations to setup the
         timetable.
         """
@@ -46,7 +50,7 @@ class TimeTable():
     
     
     def __eq__(self, other):
-        """Check if two `TimeTable`s have the same temperatures and timetable.
+        """Check if two `TimeTable`'s have the same temperatures and timetable.
         
         The check is performed only on main temperatures, timetable,
         differential value and grace time because the other attributes
@@ -137,7 +141,7 @@ class TimeTable():
         
         The JSON file is the same provided in `TimeTable.__init__()`
         method, thus if a different file is needed, set a new
-        `self.filepath` to the full path before calling this method.
+        `TimeTable.filepath` to the full path before calling this method.
         
         If the JSON file is invalid (or `self.filepath` is not a string)
         an exception is raised and the internal settings remain unchanged.
@@ -166,28 +170,6 @@ class TimeTable():
                 logger.debug('json file loaded')
             
             self.__setstate__(settings)
-            
-            #logger.debug('validating json data')
-            #jsonschema.validate(settings, config.json_schema)
-            #
-            #logger.debug('data validated: setting internal variables')
-            #self.__status = settings[config.json_status]
-            #self.__temperatures = settings[config.json_temperatures]
-            #self.__timetable = settings[config.json_timetable]
-            #
-            #if config.json_differential in settings:
-            #    self.__differential = settings[config.json_differential]
-            #
-            #if config.json_grace_time in settings:
-            #    self.__grace_time = timedelta(seconds=settings[config.json_grace_time])
-            #
-            ## converting hours to integer in order to avoid problems with leading zero
-            ##self.__timetable = {day:{int(h):q for h,q in hours.items()} for day,hours in settings[config.json_timetable].items()}
-            #
-            #logger.debug('current status: {}'.format(self.__status))
-            #logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self.__temperatures))
-            #logger.debug('differential: {} degrees'.format(self.__differential))
-            #logger.debug('grace time: {}'.format(self.__grace_time))
         
         logger.debug('timetable (re)loaded')
     
@@ -403,12 +385,6 @@ class TimeTable():
         with self.__lock:
             logger.debug('lock acquired to update timetable')
             
-            # TODO capire se è possibile creare un TimeTable da zero
-            # e quindi settare tutto senza caricare da JSON
-            #if not self.__timetable:
-            #    logger.debug('empty timetable, cannot be updated')
-            #    raise RuntimeError('the timetable is empty, cannot be updated')
-            
             # get day name
             logger.debug('retriving day name')
             if day in config.json_days_name_map.keys():
@@ -537,8 +513,8 @@ class TimeTable():
                 grace = self.__grace_time
                 
                 shoud_be_on = (
-                    (current < (target - diff))
-                    or ((current <= target) and ((now - laston) > grace))
+                    (current <= (target - diff))
+                    or ((current < target) and ((now - laston) > grace))
                     or ((current < (target + diff)) and ison))
         
         logger.debug('the heating should be: {}'
@@ -553,7 +529,7 @@ class TimeTable():
         
         In other part of the program someone switched on the heating and
         the timetable must be informed of this change, thus call this
-        method to set `self.__is_on` and `self.__last_on_time`.
+        method to set `self.__is_on` and `self.__last_on_time` attributes.
         """
         
         with self.__lock:

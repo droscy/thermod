@@ -1,6 +1,6 @@
 # config module for thermod
 
-__updated__ = '2015-10-16'
+__updated__ = '2015-10-23'
 
 # TODO inserire logger
 
@@ -44,16 +44,16 @@ json_schema = {
     'description': 'Timetable file for thermod daemon',
     'type': 'object',
     'properties': {
-        'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
+        'status': {'enum': list(json_all_statuses)},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
         'grace_time': {'type': 'integer', 'minimum': 0},
         'temperatures': {
             'type': 'object',
             'properties': {
-                't0': {'type': 'number'},
-                'tmin': {'type': 'number'},
-                'tmax': {'type': 'number'}},
-            'required': ['t0', 'tmin', 'tmax'],
+                json_t0_str: {'type': 'number'},
+                json_tmin_str: {'type': 'number'},
+                json_tmax_str: {'type': 'number'}},
+            'required': list(json_all_temperatures),
             'additionalProperties': False},
         'timetable': {
             'type': 'object',
@@ -75,9 +75,9 @@ json_schema = {
             'patternProperties': {
                 '([01][0-9]|2[0-3])': {
                     'type': 'array',
-                    'items': {'oneOf': [{'type': 'number'},
+                    'items': {'anyOf': [{'type': 'number'},
                                         {'type': 'string', 'pattern': '[-+]?[0-9]*\.?[0-9]+'},
-                                        {'enum': ['t0', 'tmin', 'tmax']}]}}},
+                                        {'enum': list(json_all_temperatures)}]}}},
             'required': ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09',
                          '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
                          '20', '21', '22', '23'],
