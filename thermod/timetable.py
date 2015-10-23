@@ -10,9 +10,6 @@ from thermod.config import JsonValueError
 
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO togliere doppio _ dagli attributi privati
-# TODO migliorare il metodo __validate salvando una variabile interna per dire
-# se è valido, resettando tale variabile in ogni metodo che modifica una qualsiasi variabile
-# (così se eseguito molteplici volte consecutive migliora le performance)
 
 __docformat__ = 'restructuredtext'
 __updated__ = '2015-10-23'
@@ -43,6 +40,17 @@ class TimeTable():
         self.__is_on = False  # if the heating is on
         self.__last_on_time = datetime(1,1,1)  # last switch on time
         
+        self.__has_been_validated = False
+        """Used to speedup validation.
+        
+        Whenever a full validation has already been performed and no
+        change has occurred, the object is still valid, no need to
+        validate again.
+        
+        If it isn't `True` it means only that a full validation hasn't
+        been performed yet, but the object can be valid.
+        """
+        
         self.filepath = filepath
         
         if self.filepath is not None:
@@ -54,8 +62,8 @@ class TimeTable():
         
         The check is performed only on main temperatures, timetable,
         differential value and grace time because the other attributes
-        (status, is_on, last_on_time and filepath) are relative to the
-        current usage of the `TimeTable` object.
+        (status, is_on, last_on_time, is_valid and filepath) are relative
+        to the current usage of the `TimeTable` object.
         """
         
         result = None
@@ -76,6 +84,8 @@ class TimeTable():
         """Validate the internal settings and return them as a dictonary.
         
         The returned dictonary can be used to save the data in a JSON file.
+        The validation is performed even if `TimeTable.__has_been_validated`
+        is True.
         """
         
         logger.debug('validating timetable and returning internal state')
@@ -128,12 +138,24 @@ class TimeTable():
             logger.debug('differential: {} degrees'.format(self.__differential))
             logger.debug('grace time: {}'.format(self.__grace_time))
         
+            self.__validate()
+        
         logger.debug('internal state set')
     
     
     def __validate(self):
-        """Validate the internal settings."""
-        self.__getstate__()
+        """Validate the internal settings.
+        
+        A full validation is performed only if `TimeTable.__has_been_validated`
+        is not `True`, otherwise silently exits without errors.
+        """
+        
+        with self.__lock:
+            if not self.__has_been_validated:
+                self.__getstate__()
+                
+                # if no exception is raised
+                self.__has_been_validated = True
     
     
     def reload(self):
@@ -229,6 +251,7 @@ class TimeTable():
                         self.__status))
             
             self.__status = status
+            self.__has_been_validated = False
             logger.debug('new status set: {}'.format(status))
     
     
@@ -260,6 +283,7 @@ class TimeTable():
                     'it must be a number in range [0;1]'.format(value))
             
             self.__differential = nvalue
+            self.__has_been_validated = False
             logger.debug('new differential value set: {}'.format(nvalue))
     
     
@@ -290,6 +314,7 @@ class TimeTable():
                     'it must be a number expressed in seconds'.format(seconds))
             
             self.__grace_time = timedelta(seconds=nvalue)
+            self.__has_been_validated = False
             logger.debug('new grace time set: {} sec = {}'.format(nvalue, self.__grace_time))
     
     
@@ -318,6 +343,7 @@ class TimeTable():
                     'is invalid, it must be a number'.format(value))
             
             self.__temperatures[config.json_t0_str] = nvalue
+            self.__has_been_validated = False
             logger.debug('new t0 temperature set: {}'.format(nvalue))
     
     
@@ -346,6 +372,7 @@ class TimeTable():
                     'is invalid, it must be a number'.format(value))
             
             self.__temperatures[config.json_tmin_str] = nvalue
+            self.__has_been_validated = False
             logger.debug('new tmin temperature set: {}'.format(nvalue))
     
     
@@ -374,6 +401,7 @@ class TimeTable():
                     'is invalid, it must be a number'.format(value))
             
             self.__temperatures[config.json_tmax_str] = nvalue
+            self.__has_been_validated = False
             logger.debug('new tmax temperature set: {}'.format(nvalue))
     
     
@@ -425,6 +453,7 @@ class TimeTable():
             
             # update timetable
             self.__timetable[_day][_hour][_quarter] = _temp
+            self.__has_been_validated = False
         
         logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", '
                      'temperature "{}"'.format(_day, _hour, _quarter, _temp))
