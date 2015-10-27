@@ -1,8 +1,8 @@
-# config module for thermod
+"""Utilities, functions and constants for thermod daemon."""
 
 import os
 
-__updated__ = '2015-10-10'
+__updated__ = '2015-10-27'
 
 # TODO inserire logger
 
@@ -21,7 +21,10 @@ logger_fmt_date = '%H:%M:%S'
 json_status = 'status'
 json_temperatures = 'temperatures'
 json_timetable = 'timetable'
-json_all_main_settings = (json_status, json_temperatures, json_timetable)
+json_differential = 'differential'
+json_grace_time = 'grace_time'
+json_all_settings = (json_status, json_temperatures, json_timetable,
+                     json_differential, json_grace_time)
 
 json_t0_str = 't0'
 json_tmin_str = 'tmin'
@@ -31,8 +34,11 @@ json_all_temperatures = (json_t0_str, json_tmin_str, json_tmax_str)
 json_status_on = 'on'
 json_status_off = 'off'
 json_status_auto = 'auto'
+json_status_t0 = json_t0_str
+json_status_tmin = json_tmin_str
+json_status_tmax = json_tmax_str
 json_all_statuses = (json_status_on, json_status_off, json_status_auto,
-                     json_t0_str, json_tmin_str, json_tmax_str)
+                     json_status_t0, json_status_tmin, json_status_tmax)
 
 # the key of the following dict is th same number of %w of strftime()
 # the name is used to avoid errors with different locales
@@ -51,14 +57,16 @@ json_schema = {
     'description': 'Timetable file for thermod daemon',
     'type': 'object',
     'properties': {
-        'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
+        'status': {'enum': list(json_all_statuses)},
+        'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
+        'grace_time': {'type': 'integer', 'minimum': 0},
         'temperatures': {
             'type': 'object',
             'properties': {
-                't0': {'type': 'number'},
-                'tmin': {'type': 'number'},
-                'tmax': {'type': 'number'}},
-            'required': ['t0', 'tmin', 'tmax'],
+                json_t0_str: {'type': 'number'},
+                json_tmin_str: {'type': 'number'},
+                json_tmax_str: {'type': 'number'}},
+            'required': list(json_all_temperatures),
             'additionalProperties': False},
         'timetable': {
             'type': 'object',
@@ -80,9 +88,9 @@ json_schema = {
             'patternProperties': {
                 '([01][0-9]|2[0-3])': {
                     'type': 'array',
-                    'items': {'oneOf': [{'type': 'number'},
+                    'items': {'anyOf': [{'type': 'number'},
                                         {'type': 'string', 'pattern': '[-+]?[0-9]*\.?[0-9]+'},
-                                        {'enum': ['t0', 'tmin', 'tmax']}]}}},
+                                        {'enum': list(json_all_temperatures)}]}}},
             'required': ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09',
                          '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
                          '20', '21', '22', '23'],
@@ -91,15 +99,15 @@ json_schema = {
 
 
 class JsonValueError(ValueError):
-    """Exception for invalid settings value in json file"""
+    """Exception for invalid settings values in JSON file."""
     pass
 
 
 def is_valid_temperature(temperature):
-    """Return True if the temperature is valid.
+    """Return True if the provided temperature is valid.
     
     A temperature is considered valid if it is a number or one of the
-    following value: 't0', 'tmin', 'tmax'.
+    following string values: 't0', 'tmin', 'tmax'.
     """
     
     result = None

@@ -1,5 +1,7 @@
 {
   "status": "auto",
+  "differential": 0.5,
+  "grace_time": 3600,
   "temperatures": {
     "t0": 10.0,
     "tmin": 17.0,
