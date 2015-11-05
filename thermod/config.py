@@ -2,9 +2,10 @@
 
 import os
 
-__updated__ = '2015-10-27'
+__updated__ = '2015-11-04'
 
 # TODO inserire logger
+# TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
 
 # path to main config file
 # TODO mettere controllo se siamo su Windows o su Unix
