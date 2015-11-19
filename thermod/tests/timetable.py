@@ -9,7 +9,7 @@ from jsonschema import ValidationError
 from datetime import datetime, timedelta
 from thermod import TimeTable, JsonValueError, config as tconf
 
-__updated__ = '2015-10-23'
+__updated__ = '2015-11-19'
 
 
 def fill_timetable(timetable):
@@ -477,8 +477,8 @@ class TestTimeTable(TestCase):
         self.timetable.update(day,hour,quarter,tconf.json_tmax_str)
         
         # the heating was on 2 hours ego, more than grace time
-        self.timetable._TimeTable__is_on = False
-        self.timetable._TimeTable__last_on_time = (now - timedelta(seconds=7200))
+        self.timetable._is_on = False
+        self.timetable._last_on_time = (now - timedelta(seconds=7200))
         self.assertTrue(self.timetable.should_the_heating_be_on(20.9))
         self.assertFalse(self.timetable.should_the_heating_be_on(21))
         self.assertFalse(self.timetable.should_the_heating_be_on(21.1))
@@ -497,8 +497,8 @@ class TestTimeTable(TestCase):
         self.timetable.grace_time = 3600
         
         # the heating was on 30 minutes ego, less than grace time
-        self.timetable._TimeTable__is_on = False
-        self.timetable._TimeTable__last_on_time = (now - timedelta(seconds=1800))
+        self.timetable._is_on = False
+        self.timetable._last_on_time = (now - timedelta(seconds=1800))
         self.assertTrue(self.timetable.should_the_heating_be_on(20.5))
         self.assertFalse(self.timetable.should_the_heating_be_on(20.6))
         self.assertFalse(self.timetable.should_the_heating_be_on(21))
