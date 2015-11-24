@@ -12,12 +12,8 @@ from .config import JsonValueError
 # TODO passare a Doxygen dato che lo conosco meglio!
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-# TODO il _lock deve poter essere usato in lettura anche dall'esterno oppure
-#      si può estendere direttamente la classe RLock così che lo stesso oggetto
-#      TimeTable possa essere usato in "with self"
-
 __docformat__ = 'restructuredtext'
-__updated__ = '2015-11-19'
+__updated__ = '2015-11-24'
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +161,13 @@ class TimeTable():
                 
                 # if no exception is raised
                 self._has_been_validated = True
+    
+    
+    @property
+    def lock(self):
+        """Return the internal reentrant lock to be acquired externally."""
+        logger.debug('returning internal lock to be acquired externally')
+        return self._lock
     
     
     def reload(self):

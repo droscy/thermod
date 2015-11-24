@@ -4,12 +4,13 @@ import os
 import copy
 import unittest
 import tempfile
+import threading
 from unittest import TestCase
 from jsonschema import ValidationError
 from datetime import datetime, timedelta
 from thermod import TimeTable, JsonValueError, config as tconf
 
-__updated__ = '2015-11-19'
+__updated__ = '2015-11-24'
 
 
 def fill_timetable(timetable):
@@ -518,6 +519,8 @@ class TestTimeTable(TestCase):
         self.timetable.grace_time = 60
         self.timetable.seton()
         
+        # the heating is on and it remains on untill target temperature
+        # plus differential
         self.assertTrue(self.timetable.should_the_heating_be_on(21.1))
         
         # I simulate the time passing by changing the target temperature
@@ -530,6 +533,39 @@ class TestTimeTable(TestCase):
         # the heating remains off
         self.timetable.update(day,hour,quarter,tconf.json_tmax_str)
         self.assertFalse(self.timetable.should_the_heating_be_on(21))
+    
+    
+    # TODO write more concurrent tests
+    def test_threading_01(self):
+        fill_timetable(self.timetable)
+        
+        self.timetable.tmax = 30
+        self.timetable.status = tconf.json_status_tmax
+        
+        # initial status, the heating should be on
+        self.assertTrue(self.timetable.should_the_heating_be_on(20))
+        
+        # creating updating thread
+        thread = threading.Thread(target=self.thread_01)
+        
+        # the lock is acquired, then the thread that changes a parameter is
+        # executed and the assert is checked again, if the lock works the
+        # assert is still True
+        with self.timetable.lock:
+            thread.start()
+            self.assertTrue(self.timetable.should_the_heating_be_on(20))
+        
+        # the assert become False after the execution of the thread
+        thread.join()
+        self.assertFalse(self.timetable.should_the_heating_be_on(20))
+    
+    def thread_01(self):
+        self.assertTrue(self.timetable.should_the_heating_be_on(20))
+        
+        with self.timetable.lock:
+            self.timetable.status = tconf.json_status_off
+            self.assertFalse(self.timetable.should_the_heating_be_on(20))
+
 
 
 if __name__ == '__main__':
