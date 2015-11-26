@@ -13,7 +13,7 @@ from .config import JsonValueError
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
 __docformat__ = 'restructuredtext'
-__updated__ = '2015-11-24'
+__updated__ = '2015-11-26'
 
 logger = logging.getLogger(__name__)
 
@@ -69,13 +69,16 @@ class TimeTable():
         
         result = None
         
-        if (isinstance(other, self.__class__)
-                and (self._temperatures == other._temperatures)
-                and (self._timetable == other._timetable)
-                and (self._differential == other._differential)
-                and (self._grace_time == other._grace_time)):
-            result = True
-        else:
+        try:
+            if (isinstance(other, self.__class__)
+                    and (self._temperatures == other._temperatures)
+                    and (self._timetable == other._timetable)
+                    and (self._differential == other._differential)
+                    and (self._grace_time == other._grace_time)):
+                result = True
+            else:
+                result = False
+        except AttributeError:
             result = False
         
         return result
@@ -115,16 +118,16 @@ class TimeTable():
         exception is raised.
         """
         
-        # TODO non si può inizializzare nuovamente perché questo azzererebbe
-        # l'oggetto RLock il cui lock potrebbe essere stato acquisito dall'esterno,
-        # quindi è necessario avere un metodo tipo _reset() che lo riporta allo
-        # stato iniziale
-        self.__init__(None)
+        # Init this object only if the _lock attribute is missing, that means
+        # that this method has been called during a copy of a TimeTable object.
+        if not hasattr(self, '_lock'):
+            logger.debug('setting state to an empty timetable')
+            self.__init__(None)
         
         logger.debug('storing internal state')
         
         with self._lock:
-            logger.debug('validating json data')
+            logger.debug('validating received json data')
             jsonschema.validate(state, config.json_schema)
             
             logger.debug('data validated: storing variables')
@@ -423,7 +426,7 @@ class TimeTable():
                      'temperature "{}"'.format(day, hour, quarter, temperature))
         
         with self._lock:
-            logger.debug('lock acquired to update timetable')
+            logger.debug('lock acquired to update a temperature in timetable')
             
             # get day name
             logger.debug('retriving day name')
