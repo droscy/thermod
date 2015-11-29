@@ -3,6 +3,8 @@
 import json
 import logging
 import jsonschema
+import os.path
+import time
 from threading import RLock
 from datetime import datetime, timedelta
 
@@ -13,9 +15,10 @@ from .config import JsonValueError
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
 __docformat__ = 'restructuredtext'
-__updated__ = '2015-11-26'
+__updated__ = '2015-11-29'
 
 logger = logging.getLogger(__name__)
+
 
 class TimeTable():
     """Represent the timetable to control the heating."""
@@ -33,8 +36,8 @@ class TimeTable():
         self._status = None
         self._temperatures = {}
         self._timetable = {}
-        self._differential = 0.5
         
+        self._differential = 0.5
         self._grace_time = timedelta(seconds=3600)
 
         self._lock = RLock()
@@ -50,6 +53,13 @@ class TimeTable():
         
         If it isn't `True` it means only that a full validation hasn't
         been performed yet, but the object can be valid.
+        """
+        
+        self._last_update_timestamp = 0
+        """Timestamp of settings last update.
+        
+        Equal to JSON file mtime if settings loaded from file or equal
+        to current timestamp of last settings change.
         """
         
         self.filepath = filepath
@@ -147,6 +157,7 @@ class TimeTable():
             logger.debug('grace time: {}'.format(self._grace_time))
         
             self._validate()
+            self._last_update_timestamp = time.time()
         
         logger.debug('internal state set')
     
@@ -207,6 +218,7 @@ class TimeTable():
                 logger.debug('json file loaded')
             
             self.__setstate__(settings)
+            self._last_update_timestamp = os.path.getmtime(self.filepath)
         
         logger.debug('timetable (re)loaded')
     
@@ -242,6 +254,21 @@ class TimeTable():
         logger.debug('timetable saved')
     
     
+    def settings(self):
+        """Return settings as JSON string.
+        
+        @see thermod.config.json_schema for JSON settings schema
+        """
+        
+        settings = self.__getstate__()
+        return json.dumps(settings)
+    
+    
+    def last_update_timestamp(self):
+        """Returns the timestamp of last settings update."""
+        return self._last_update_timestamp
+    
+    
     @property
     def status(self):
         """Return the current status."""
@@ -267,6 +294,7 @@ class TimeTable():
             
             self._status = status
             self._has_been_validated = False
+            self._last_update_timestamp = time.time()
             logger.debug('new status set: {}'.format(status))
     
     
@@ -299,6 +327,7 @@ class TimeTable():
             
             self._differential = nvalue
             self._has_been_validated = False
+            self._last_update_timestamp = time.time()
             logger.debug('new differential value set: {}'.format(nvalue))
     
     
@@ -330,6 +359,7 @@ class TimeTable():
             
             self._grace_time = timedelta(seconds=nvalue)
             self._has_been_validated = False
+            self._last_update_timestamp = time.time()
             logger.debug('new grace time set: {} sec = {}'.format(nvalue, self._grace_time))
     
     
@@ -359,6 +389,7 @@ class TimeTable():
             
             self._temperatures[config.json_t0_str] = nvalue
             self._has_been_validated = False
+            self._last_update_timestamp = time.time()
             logger.debug('new t0 temperature set: {}'.format(nvalue))
     
     
@@ -388,6 +419,7 @@ class TimeTable():
             
             self._temperatures[config.json_tmin_str] = nvalue
             self._has_been_validated = False
+            self._last_update_timestamp = time.time()
             logger.debug('new tmin temperature set: {}'.format(nvalue))
     
     
@@ -417,6 +449,7 @@ class TimeTable():
             
             self._temperatures[config.json_tmax_str] = nvalue
             self._has_been_validated = False
+            self._last_update_timestamp = time.time()
             logger.debug('new tmax temperature set: {}'.format(nvalue))
     
     
@@ -469,6 +502,7 @@ class TimeTable():
             # update timetable
             self._timetable[_day][_hour][_quarter] = _temp
             self._has_been_validated = False
+            self._last_update_timestamp = time.time()
         
         logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", '
                      'temperature "{}"'.format(_day, _hour, _quarter, _temp))
