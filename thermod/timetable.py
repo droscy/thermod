@@ -11,11 +11,10 @@ from datetime import datetime, timedelta
 from . import config
 from .config import JsonValueError
 
-# TODO passare a Doxygen dato che lo conosco meglio!
+# TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__docformat__ = 'restructuredtext'
-__updated__ = '2015-11-29'
+__updated__ = '2015-12-03'
 
 logger = logging.getLogger(__name__)
 
@@ -69,18 +68,19 @@ class TimeTable():
     
     
     def __eq__(self, other):
-        """Check if two `TimeTable`'s have the same temperatures and timetable.
+        """Check if two `TimeTable` objects have the same settings.
         
-        The check is performed only on main temperatures, timetable,
+        The check is performed only on status, main temperatures, timetable,
         differential value and grace time because the other attributes
-        (status, is_on, last_on_time, is_valid and filepath) are relative
-        to the current usage of the `TimeTable` object.
+        (is_on, last_on_time, is_valid, filepath and last_update_timestamp)
+        are relative to the current usage of the `TimeTable` object.
         """
         
         result = None
         
         try:
             if (isinstance(other, self.__class__)
+                    and (self._status == other._status)
                     and (self._temperatures == other._temperatures)
                     and (self._timetable == other._timetable)
                     and (self._differential == other._differential)
@@ -88,6 +88,7 @@ class TimeTable():
                 result = True
             else:
                 result = False
+        
         except AttributeError:
             result = False
         
@@ -95,7 +96,7 @@ class TimeTable():
     
     
     def __getstate__(self):
-        """Validate the internal settings and return them as a dictonary.
+        """Validate the internal state and return it as a dictonary.
         
         The returned dictonary can be used to save the data in a JSON file.
         The validation is performed even if `TimeTable._has_been_validated`
@@ -121,26 +122,35 @@ class TimeTable():
     
     
     def __setstate__(self, state):
-        """Set the internal state.
+        """Set new internal state.
         
-        The `state` is first validated, if it is valid the internal
-        variable will be set, otherwise a `jsonschema.ValidationError`
-        exception is raised.
+        The `state` is first validated, if it's valid it will be set,
+        otherwise a `jsonschema.ValidationError` exception is raised and the
+        old state remains unchanged.
         """
         
+        logger.debug('setting new internal state')
+        
         # Init this object only if the _lock attribute is missing, that means
-        # that this method has been called during a copy of a TimeTable object.
+        # that this method has been called during a copy of an other
+        # TimeTable object.
         if not hasattr(self, '_lock'):
-            logger.debug('setting state to an empty timetable')
+            logger.debug('the timetable is empty')
             self.__init__(None)
         
-        logger.debug('storing internal state')
-        
         with self._lock:
-            logger.debug('validating received json data')
+            logger.debug('lock acquired, validating the provided state')
             jsonschema.validate(state, config.json_schema)
             
-            logger.debug('data validated: storing variables')
+            # saving old values
+            old_status = self._status
+            old_temperatures = self._temperatures
+            old_timetable = self._timetable
+            old_differential = self._differential
+            old_grace_time = self._grace_time
+            
+            # storing new values
+            logger.debug('data validated: setting new values')
             self._status = state[config.json_status]
             self._temperatures = state[config.json_temperatures]
             self._timetable = state[config.json_timetable]
@@ -151,15 +161,33 @@ class TimeTable():
             if config.json_grace_time in state:
                 self._grace_time = timedelta(seconds=state[config.json_grace_time])
             
-            logger.debug('current status: {}'.format(self._status))
-            logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self._temperatures))
-            logger.debug('differential: {} degrees'.format(self._differential))
-            logger.debug('grace time: {}'.format(self._grace_time))
-        
-            self._validate()
+            # validating again to get abnormal behaviours
+            try:
+                self._validate()
+            
+            except:
+                logger.critical('something strange happened because the new '
+                                'state was VALID before storing it into '
+                                'timetable and INVALID after that, resetting '
+                                'to old state')
+                
+                # in case of exception resetting the old values
+                self._status = old_status
+                self._temperatures= old_temperatures
+                self._timetable = old_timetable
+                self._differential = old_differential
+                self._grace_time = old_grace_time
+                
+                raise
+            
+            finally:
+                logger.debug('current status: {}'.format(self._status))
+                logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self._temperatures))
+                logger.debug('differential: {} degrees'.format(self._differential))
+                logger.debug('grace time: {}'.format(self._grace_time))
+            
             self._last_update_timestamp = time.time()
-        
-        logger.debug('internal state set')
+            logger.debug('new internal state set')
     
     
     def _validate(self):
@@ -178,10 +206,22 @@ class TimeTable():
     
     
     @property
-    def lock(self):
-        """Return the internal reentrant lock to be acquired externally."""
-        logger.debug('returning internal lock to be acquired externally')
-        return self._lock
+    def settings(self):
+        """Get internal settings as JSON string."""
+        return json.dumps(self.__getstate__())
+    
+    
+    @settings.setter
+    def settings(self,new_settings):
+        """Set new settings from JSON string.
+        
+        @param new_settings the new settings JSON-encoded
+        
+        @see thermod.config.json_schema for JSON schema
+        @see thermod.timetable.__setstate__() for exceptions in storing new settings
+        """
+        
+        self.__setstate__(json.loads(new_settings))
     
     
     def reload(self):
@@ -220,7 +260,7 @@ class TimeTable():
             self.__setstate__(settings)
             self._last_update_timestamp = os.path.getmtime(self.filepath)
         
-        logger.debug('timetable (re)loaded')
+            logger.debug('timetable (re)loaded')
     
     
     def save(self, filepath=None):
@@ -251,17 +291,14 @@ class TimeTable():
                 logger.debug('saving timetable to json file {}'.format(file.name))
                 json.dump(settings, file, indent=2, sort_keys=True)
         
-        logger.debug('timetable saved')
+            logger.debug('timetable saved')
     
     
-    def settings(self):
-        """Return settings as JSON string.
-        
-        @see thermod.config.json_schema for JSON settings schema
-        """
-        
-        settings = self.__getstate__()
-        return json.dumps(settings)
+    @property
+    def lock(self):
+        """Return the internal reentrant lock."""
+        logger.debug('returning internal lock')
+        return self._lock
     
     
     def last_update_timestamp(self):
@@ -293,7 +330,13 @@ class TimeTable():
                         self._status))
             
             self._status = status
+            
+            # Note: cannot call _validate() method after simple update (like
+            # this method, like tmax, t0, etc because those methods can be
+            # used even to populate an empty TimeTable that is invalid till
+            # a full population
             self._has_been_validated = False
+            
             self._last_update_timestamp = time.time()
             logger.debug('new status set: {}'.format(status))
     

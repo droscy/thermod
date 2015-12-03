@@ -10,7 +10,7 @@ from jsonschema import ValidationError
 from datetime import datetime, timedelta
 from thermod import TimeTable, JsonValueError, config as tconf
 
-__updated__ = '2015-11-24'
+__updated__ = '2015-11-30'
 
 
 def fill_timetable(timetable):
@@ -269,9 +269,9 @@ class TestTimeTable(TestCase):
         self.assertEqual(self.timetable, tt2)
         self.assertEqual(self.timetable.status, tt2.status)
         
-        # changing the status doesn't make two timetable different
+        # changing the status makes two timetable different
         tt2.status = tconf.json_status_off
-        self.assertEqual(self.timetable, tt2)
+        self.assertNotEqual(self.timetable, tt2)
         self.assertNotEqual(self.timetable.status, tt2.status)
         
         # change other settings and test inequality
