@@ -1,17 +1,35 @@
 """Control socket to manage thermod from external applications."""
 
+import cgi
 import sys
 import logging
+from jsonschema import ValidationError
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from . import config
 from .timetable import TimeTable
 
-__updated__ = '2015-11-29'
+
+__updated__ = '2015-12-03'
 __version__ = '0.1'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
+
+req_settings_paths = ('/settings', '/settings/')
+
+# TODO finire i vari messaggi
+req_settings_all = 'settings'
+#req_settings_day = 'day'
+#req_settings_status = config.json_status
+#req_settings_t0 = config.json_t0_str
+#req_settings_tmin = config.json_tmin_str
+#req_settings_tmax = config.json_tmax_str
+
+rsp_error = 'error'
+rsp_shortmsg = 'shortmsg'
+rsp_fullmsg = 'fullmsg'
+
 
 # TODO write test cases for thermod.socket
 
@@ -26,7 +44,6 @@ class ControlThread(Thread):
             raise TypeError('ControlThread requires a TimeTable object')
         
         self.server = ControlServer(timetable, (host, port), ControlRequestHandler)
-    
     
     def run(self):
         (host, port) = self.server.server_address
@@ -46,7 +63,6 @@ class ControlServer(HTTPServer):
         self.timetable = timetable
         logger.debug('ControlServer initialized on {}'.format(self.server_address))
     
-    
     def shutdown(self):
         logger.debug('shutting down ControlServer {}'.format(self.server_address))
         super().shutdown()
@@ -57,39 +73,17 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     
     BaseHTTPRequestHandler.server_version = 'Thermod/{}'.format(__version__)
     
-    def send_head(self):
-        """Send the full response header and return the JSON settings.
+    @property
+    def stripped_lowered_path(self):
+        """Strip arguments from path and lower the result."""
+        idx = self.path.find('?')
         
-        If the HTTP request is valid, this method returns the whole settings
-        as JSON-encoded string that can be sent back to the client, otherwise
-        `None` is returned along with a 404 error.
-        """
-        
-        settings = None
-        
-        if self.path == '/settings':
-            logger.info('{} sending back Thermod settings'
-                        .format(self.client_address))
-            
-            with self.server.timetable.lock:
-                settings = self.server.timetable.settings().encode('utf-8')
-                size = len(settings)
-                last_updt = self.server.timetable.last_update_timestamp()
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.send_header("Content-Length", size)
-            self.send_header("Last-Modified", self.date_time_string(last_updt))
-            self.end_headers()
-        
+        if idx >= 0:
+            rpath = self.path[:idx]
         else:
-            logger.warning('{} invalid request received, '
-                           'sending back 404 error'.format(self.client_address))
-            
-            self.send_error(404, 'the requested object cannot be found')
+            rpath = self.path
         
-        return settings
-    
+        return rpath.lower()
     
     def do_HEAD(self):
         """Send the HTTP header."""
@@ -97,28 +91,128 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         logger.info('{} received "{} {}" command'
                     .format(self.client_address, self.command, self.path))
         
-        self.send_head()
+        settings = None
         
-        logger.info('{} header sent, connection closed'.format(self.client_address))
-    
+        if self.stripped_lowered_path in req_settings_paths:
+            logger.info('{} sending back Thermod settings'.format(self.client_address))
+            
+            with self.server.timetable.lock:
+                settings = self.server.timetable.settings.encode('utf-8')
+                last_updt = self.server.timetable.last_update_timestamp()
+            
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', len(settings))
+            self.send_header('Last-Modified', self.date_time_string(last_updt))
+        else:
+            logger.warning('{} invalid request, sending back error code 404'
+                           .format(self.client_address))
+            
+            self.send_error(404, 'the requested object cannot be found')
+        
+        self.end_headers()
+        logger.info('{} header sent'.format(self.client_address))
+        
+        return settings
     
     def do_GET(self):
         """Manage the GET request sending back the whole settings."""
         
-        logger.info('{} received "{} {}" command'
-                    .format(self.client_address, self.command, self.path))
-        
-        settings = self.send_head()
+        settings = self.do_HEAD()
         
         if settings:
             self.wfile.write(settings)
+            logger.info('{} response sent'.format(self.client_address))
         
-        logger.info('{} response sent, connection closed'.format(self.client_address))
-    
+        logger.info('{} closing connection'.format(self.client_address))
     
     def do_POST(self):
-        # TODO this method
-        pass
+        """Manage the POST request updating timetable settings."""
+        
+        logger.info('{} received "{} {}" command'
+                    .format(self.client_address, self.command, self.path))
+        
+        if self.stripped_lowered_path in req_settings_paths:
+            logger.debug('{} parsing received POST data'.format(self.client_address))
+            
+            # code copied from http://stackoverflow.com/a/4233452
+            ctype, pdict = cgi.parse_header(self.headers.getheader('Content-Type'))
+            
+            if ctype == 'multipart/form-data':
+                postvars = cgi.parse_multipart(self.rfile, pdict)
+            elif ctype == 'application/x-www-form-urlencoded':
+                length = int(self.headers.getheader('Content-Length'))
+                postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
+            else:
+                postvars = {}
+            
+            logger.debug('{} POST content-type: {}'.format(self.client_address, ctype))
+            logger.debug('{} POST variables: {}'.format(self.client_address, postvars))
+            
+            response = {rsp_error: False, rsp_shortmsg: '', rsp_fullmsg: ''}
+            
+            if req_settings_all in postvars:
+                with self.server.timetable.lock:
+                    logger.info('{} updating Thermod settings'.format(self.client_address))
+                    
+                    try:
+                        self.server.timetable.settings = postvars[req_settings_all]
+                        logger.info('{} settings updated'.format(self.client_address))
+                        
+                        response[rsp_shortmsg] = 'settings updated'
+                        self.send_response(200, response[rsp_shortmsg])
+                    
+                    except ValidationError as ve:
+                        error = 400
+                        
+                        logger.warning(ve.message)  # TODO maybe a debug message
+                        logger.warning('{} cannot update settings, the POST '
+                                       'request contains incomplete or invalid '
+                                       'data, sending back error code {:d}'
+                                       .format(self.client_address, error))
+                        
+                        response[rsp_error] = True
+                        response[rsp_shortmsg] = 'incomplete or invalid JSON-encoded settings'
+                        response[rsp_fullmsg] = ve.message
+                        
+                        self.send_error(error, response[rsp_shortmsg])
+                        
+                    except Exception as e:
+                        error = 500
+                        
+                        logger.critical(e)   # TODO maybe a debug message
+                        logger.critical('{} cannot update settings, the POST '
+                                        'request produced an unhandled '
+                                        'exception; in order to diagnose what '
+                                        'happened execute Thermod in debug '
+                                        'mode and resubmit the last request; '
+                                        'sending back error code {:d}'
+                                        .format(self.client_address, error))
+                        
+                        response[rsp_error] = True
+                        response[rsp_shortmsg] = 'cannot process the request'
+                        response[rsp_fullmsg] = str(e)
+                        
+                        self.send_error(error, response[rsp_shortmsg])
+                
+                # TODO controllare metodo
+            
+            else:
+                # TODO
+                pass
+                
+
+        else:
+            logger.warning('{} invalid request, sending back error code 404'
+                           .format(self.client_address))
+            # TODO segnare errore nella risposta
+            self.send_error(404, 'the requested object cannot be found')
+        
+        self.end_headers()
+        
+        # TODO inviare risposta
+        #self.wfile.write(json.dumps(response))
+        #logger.info('{} response sent'.format(self.client_address))
 
 
 # only for debug purpose
