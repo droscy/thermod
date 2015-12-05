@@ -11,30 +11,31 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from . import config
 from .timetable import TimeTable
+from .config import JsonValueError
 
+# TODO aggiungere modo per aggiornare l'orario di un singolo giorno
+# TODO write test cases for thermod.socket
 
 __updated__ = '2015-12-05'
 __version__ = '0.1'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
-req_settings_paths = ('/settings', '/settings/')
 
-# TODO finire i vari messaggi
 req_settings_all = 'settings'
-req_settings_filepath = 'filepath'
 #req_settings_day = 'day'
 req_settings_status = config.json_status
-#req_settings_t0 = config.json_t0_str
-#req_settings_tmin = config.json_tmin_str
-#req_settings_tmax = config.json_tmax_str
+req_settings_t0 = config.json_t0_str
+req_settings_tmin = config.json_tmin_str
+req_settings_tmax = config.json_tmax_str
+req_settings_differential = config.json_differential
+req_settings_grace_time = config.json_grace_time
+
+req_settings_paths = ('/settings', '/settings/')
 
 rsp_error = 'error'
 rsp_message = 'message'
 rsp_fullmsg = 'explain'
-
-
-# TODO write test cases for thermod.socket
 
 
 class ControlThread(Thread):
@@ -188,27 +189,33 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     try:
                         self.server.timetable.settings = postvars[req_settings_all]
-                        self.server.timetable.save()
+                        self.server.timetable.save()  # saving changes to filesystem
                     
                     except ValidationError as ve:
                         code = 400
                         
                         logger.warning('{} cannot update settings, the POST '
                                        'request contains incomplete or invalid '
-                                       'data: "{}"'.format(self.client_address,
-                                                           ve.message))
+                                       'data: {}'.format(self.client_address,
+                                                         ve.message))
                         
                         message = 'incomplete or invalid JSON-encoded settings'
                         response = {rsp_error: message, rsp_fullmsg: ve.message}
                     
                     except IOError as ioe:
+                        # can be raised only by timetable.save() method, so the
+                        # internal settings have already been updated and a
+                        # reload of the old settings is required
                         code = 500
                         logger.critical('{} cannot save new settings to '
-                            'fileystem: "{}"' .format(self.client_address, ioe))
+                            'fileystem: {}'.format(self.client_address, ioe))
                         
                         message = 'cannot save new settings to filesystem'
                         response = {rsp_error: message, rsp_fullmsg: str(ioe)}
                         
+                        # reloading old settings still present on filesystem
+                        self.server.timetable.reload()
+                    
                     except Exception as e:
                         code = 500
                         
@@ -224,9 +231,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         
                         message = 'cannot process the request'
                         response = {rsp_error: message, rsp_fullmsg: str(e)}
+                        
+                        # reloading old settings still present on filesystem
+                        self.server.timetable.reload()
                     
                     else:
-                        # TODO prima di dare l'ok le nuove impostazioni devono essere salvate su file di config
                         code = 200
                         message = 'settings updated'
                         logger.info('{} {}'.format(self.client_address, message))
@@ -236,10 +245,94 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         data = json.dumps(response).encode('utf-8')
                         self._send_header(code, message, data)
             
-            #elif req_settings_status in postvars:
-            #    # TODO finire questa parte
-            #    with self.server.timetable.lock:
-            #        logger.info('{} updating Thermod status'.format(self.client_address))
+            elif postvars:
+                with self.server.timetable.lock:
+                    try:
+                        for var, value in postvars.items():
+                            if var == req_settings_status:
+                                self.server.timetable.status = value
+                            elif var == req_settings_t0:
+                                self.server.timetable.t0 = value
+                            elif var == req_settings_tmin:
+                                self.server.timetable.tmin = value
+                            elif var == req_settings_tmax:
+                                self.server.timetable.tmax = value
+                            elif var == req_settings_differential:
+                                self.server.timetable.differential = value
+                            elif var == req_settings_grace_time:
+                                self.server.timetable.grace_time = value
+                            else:
+                                raise ValidationError('invalid variable `{}` '
+                                                      'in request body'
+                                                      .format(var))
+                        
+                        # saving changes to filesystem
+                        self.server.timetable.save()
+                    
+                    except ValidationError as ve:
+                        code = 400
+                        logger.warning('{} cannot update settings: {}'
+                                       .format(self.client_address, ve.message))
+                        
+                        message = 'cannot update settings'
+                        response = {rsp_error: message, rsp_fullmsg: ve.message}
+                        
+                        # reloading old settings still present on filesystem
+                        self.server.timetable.reload()
+                    
+                    except JsonValueError as jve:
+                        code = 400
+                        logger.warning('{} cannot update {}: {}'
+                                       .format(self.client_address, var, jve))
+                        
+                        message = 'cannot update settings'
+                        response = {rsp_error: message, rsp_fullmsg: str(jve)}
+                        
+                        # reloading old settings still present on filesystem
+                        self.server.timetable.reload()
+                    
+                    except IOError as ioe:
+                        # can be raised only by timetable.save() method, so the
+                        # internal settings have already been updated and a
+                        # reload of the old settings is required
+                        code = 500
+                        logger.critical('{} cannot save new settings to '
+                            'fileystem: {}'.format(self.client_address, ioe))
+                        
+                        message = 'cannot save new settings to filesystem'
+                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
+                        
+                        # reloading old settings still present on filesystem
+                        self.server.timetable.reload()
+                    
+                    except Exception as e:
+                        code = 500
+                        
+                        logger.critical('{} Cannot update settings, the POST '
+                                        'request produced an unhandled '
+                                        'exception; in order to diagnose what '
+                                        'happened execute Thermod in debug '
+                                        'mode and resubmit the last request.'
+                                        .format(self.client_address))
+                        
+                        logger.debug('{} {}: {}'.format(self.client_address,
+                                                        type(e).__name__, e))
+                        
+                        message = 'cannot process the request'
+                        response = {rsp_error: message, rsp_fullmsg: str(e)}
+                        
+                        # reloading old settings still present on filesystem
+                        self.server.timetable.reload()
+                    
+                    else:
+                        code = 200
+                        message = 'settings {} updated'.format(list(postvars.keys()))
+                        logger.info('{} {}'.format(self.client_address, message))
+                        response = {rsp_message: message}
+                    
+                    finally:
+                        data = json.dumps(response).encode('utf-8')
+                        self._send_header(code, message, data)
             
             else:
                 code = 400

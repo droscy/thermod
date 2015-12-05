@@ -2,7 +2,7 @@
 
 import os
 
-__updated__ = '2015-11-04'
+__updated__ = '2015-12-05'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -167,8 +167,8 @@ def json_format_temperature(temperature):
 def json_format_hour(hour):
     """Format the provided hour as a string in 24-hour clock with leading 0."""
     try:
-        # if hour cannot be converted to int or is outside 0-23 range rise a
-        # ValueError
+        # if hour cannot be converted to int or is outside 0-23 range
+        # raise a ValueError
         if int(float(hour)) not in range(24):
             raise Exception()
     except:

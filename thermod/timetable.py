@@ -14,7 +14,7 @@ from .config import JsonValueError
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2015-12-03'
+__updated__ = '2015-12-05'
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +184,8 @@ class TimeTable():
                 logger.debug('current status: {}'.format(self._status))
                 logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self._temperatures))
                 logger.debug('differential: {} degrees'.format(self._differential))
-                logger.debug('grace time: {}'.format(self._grace_time))
+                logger.debug('grace time: {} ({} sec)'.format(self._grace_time,
+                                                              int(self._grace_time.total_seconds())))
             
             self._last_update_timestamp = time.time()
             logger.debug('new internal state set')
@@ -315,7 +316,7 @@ class TimeTable():
     
     
     @status.setter
-    def status(self,status):
+    def status(self, status):
         """Set a new status."""
         with self._lock:
             logger.debug('lock acquired to set a new status')
@@ -323,8 +324,8 @@ class TimeTable():
             if status not in config.json_all_statuses:
                 logger.debug('invalid new status: {}'.format(status))
                 raise JsonValueError(
-                    'the new status ({}) is invalid, it must be one of [{}]. '
-                    'Falling back to the previews one: {}'.format(
+                    'the new status `{}` is invalid, it must be one of [{}]. '
+                    'Falling back to the previous one: `{}`.'.format(
                         status,
                         ', '.join(config.json_all_statuses),
                         self._status))
@@ -350,7 +351,7 @@ class TimeTable():
     
     
     @differential.setter
-    def differential(self,value):
+    def differential(self, value):
         """Set a new differential value."""
         with self._lock:
             logger.debug('lock acquired to set a new differential value')
@@ -383,7 +384,7 @@ class TimeTable():
     
     
     @grace_time.setter
-    def grace_time(self,seconds):
+    def grace_time(self, seconds):
         """Set a new grace time in *seconds*."""
         with self._lock:
             logger.debug('lock acquired to set a new grace time')
@@ -403,7 +404,7 @@ class TimeTable():
             self._grace_time = timedelta(seconds=nvalue)
             self._has_been_validated = False
             self._last_update_timestamp = time.time()
-            logger.debug('new grace time set: {} sec = {}'.format(nvalue, self._grace_time))
+            logger.debug('new grace time set: {} ({} sec)'.format(self._grace_time, nvalue))
     
     
     @property
@@ -415,7 +416,7 @@ class TimeTable():
     
     
     @t0.setter
-    def t0(self,value):
+    def t0(self, value):
         """Set a new value for ``t0`` temperature."""
         with self._lock:
             logger.debug('lock acquired to set a new t0 value')
@@ -445,7 +446,7 @@ class TimeTable():
     
     
     @tmin.setter
-    def tmin(self,value):
+    def tmin(self, value):
         """Set a new value for ``tmin`` temperature."""
         with self._lock:
             logger.debug('lock acquired to set a new tmin value')
@@ -475,7 +476,7 @@ class TimeTable():
     
     
     @tmax.setter
-    def tmax(self,value):
+    def tmax(self, value):
         """Set a new value for ``tmax`` temperature."""
         with self._lock:
             logger.debug('lock acquired to set a new tmax value')
