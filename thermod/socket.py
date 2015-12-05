@@ -2,7 +2,9 @@
 
 import cgi
 import sys
+import json
 import logging
+import time
 from jsonschema import ValidationError
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -11,7 +13,7 @@ from . import config
 from .timetable import TimeTable
 
 
-__updated__ = '2015-12-03'
+__updated__ = '2015-12-05'
 __version__ = '0.1'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -20,15 +22,16 @@ req_settings_paths = ('/settings', '/settings/')
 
 # TODO finire i vari messaggi
 req_settings_all = 'settings'
+req_settings_filepath = 'filepath'
 #req_settings_day = 'day'
-#req_settings_status = config.json_status
+req_settings_status = config.json_status
 #req_settings_t0 = config.json_t0_str
 #req_settings_tmin = config.json_tmin_str
 #req_settings_tmax = config.json_tmax_str
 
 rsp_error = 'error'
-rsp_shortmsg = 'shortmsg'
-rsp_fullmsg = 'fullmsg'
+rsp_message = 'message'
+rsp_fullmsg = 'explain'
 
 
 # TODO write test cases for thermod.socket
@@ -85,38 +88,52 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         
         return rpath.lower()
     
+    def _send_header(self, code, message=None, json_data=None, last_modified=None):
+        self.send_response_only(code, message)
+        
+        if json_data:
+            self.send_header('Content-Type', 'application/json;charset=utf-8')
+            self.send_header('Content-Length', len(json_data))
+            self.send_header('Last-Modified',
+                             self.date_time_string(last_modified or time.time()))
+        
+        self.send_header('Connection', 'close')
+        self.send_header('Server', self.version_string())
+        self.send_header('Date', self.date_time_string())
+    
     def do_HEAD(self):
-        """Send the HTTP header."""
+        """Send the HTTP header equal to the one of the GET request."""
         
         logger.info('{} received "{} {}" command'
                     .format(self.client_address, self.command, self.path))
         
-        settings = None
+        data = None
         
         if self.stripped_lowered_path in req_settings_paths:
             logger.info('{} sending back Thermod settings'.format(self.client_address))
             
             with self.server.timetable.lock:
-                settings = self.server.timetable.settings.encode('utf-8')
+                data = self.server.timetable.settings.encode('utf-8')
                 last_updt = self.server.timetable.last_update_timestamp()
             
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', len(settings))
-            self.send_header('Last-Modified', self.date_time_string(last_updt))
-        else:
-            logger.warning('{} invalid request, sending back error code 404'
-                           .format(self.client_address))
+            self._send_header(200, json_data=data, last_modified=last_updt)
             
-            self.send_error(404, 'the requested object cannot be found')
+        else:
+            error = 404
+            logger.warning('{} invalid request path, sending back error '
+                           'code {:d}'.format(self.client_address, error))
+            
+            message = 'path not found'
+            data = json.dumps({rsp_error: message}).encode('utf-8')
+            self._send_header(404, message, data)
         
         self.end_headers()
         logger.info('{} header sent'.format(self.client_address))
         
-        return settings
+        return data
     
     def do_GET(self):
-        """Manage the GET request sending back the whole settings."""
+        """Manage the GET request sending back all settings as JSON string."""
         
         settings = self.do_HEAD()
         
@@ -127,29 +144,43 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         logger.info('{} closing connection'.format(self.client_address))
     
     def do_POST(self):
-        """Manage the POST request updating timetable settings."""
+        """Manage the POST request updating timetable settings.
+        
+        With this request a client can update the settings of the daemon. The
+        request path is the same of the GET method and the new settings must
+        be present in the body of the request.
+        
+        Accepted settings in the body:
+            * `settings` to update the whole state (JSON encoded settings)
+            * TODO the other values
+        """
+        # TODO completare la documentazione con la descrizione dei campi accettati
         
         logger.info('{} received "{} {}" command'
                     .format(self.client_address, self.command, self.path))
         
+        code = None
+        data = None
+        
         if self.stripped_lowered_path in req_settings_paths:
             logger.debug('{} parsing received POST data'.format(self.client_address))
             
-            # code copied from http://stackoverflow.com/a/4233452
-            ctype, pdict = cgi.parse_header(self.headers.getheader('Content-Type'))
+            # code copied from http://stackoverflow.com/a/13330449
+            ctype, pdict = cgi.parse_header(self.headers['Content-Type'])
             
             if ctype == 'multipart/form-data':
                 postvars = cgi.parse_multipart(self.rfile, pdict)
             elif ctype == 'application/x-www-form-urlencoded':
-                length = int(self.headers.getheader('Content-Length'))
+                length = int(self.headers['Content-Length'])
                 postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
             else:
                 postvars = {}
             
+            # TODO capire se questo aggiustamento serve sempre
+            postvars = {k.decode('utf-8'): v[0].decode('utf-8') for k,v in postvars.items()}
+            
             logger.debug('{} POST content-type: {}'.format(self.client_address, ctype))
             logger.debug('{} POST variables: {}'.format(self.client_address, postvars))
-            
-            response = {rsp_error: False, rsp_shortmsg: '', rsp_fullmsg: ''}
             
             if req_settings_all in postvars:
                 with self.server.timetable.lock:
@@ -157,66 +188,97 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     try:
                         self.server.timetable.settings = postvars[req_settings_all]
-                        logger.info('{} settings updated'.format(self.client_address))
-                        
-                        response[rsp_shortmsg] = 'settings updated'
-                        self.send_response(200, response[rsp_shortmsg])
+                        self.server.timetable.save()
                     
                     except ValidationError as ve:
-                        error = 400
+                        code = 400
                         
-                        logger.warning(ve.message)  # TODO maybe a debug message
                         logger.warning('{} cannot update settings, the POST '
                                        'request contains incomplete or invalid '
-                                       'data, sending back error code {:d}'
-                                       .format(self.client_address, error))
+                                       'data: "{}"'.format(self.client_address,
+                                                           ve.message))
                         
-                        response[rsp_error] = True
-                        response[rsp_shortmsg] = 'incomplete or invalid JSON-encoded settings'
-                        response[rsp_fullmsg] = ve.message
+                        message = 'incomplete or invalid JSON-encoded settings'
+                        response = {rsp_error: message, rsp_fullmsg: ve.message}
+                    
+                    except IOError as ioe:
+                        code = 500
+                        logger.critical('{} cannot save new settings to '
+                            'fileystem: "{}"' .format(self.client_address, ioe))
                         
-                        self.send_error(error, response[rsp_shortmsg])
+                        message = 'cannot save new settings to filesystem'
+                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
                         
                     except Exception as e:
-                        error = 500
+                        code = 500
                         
-                        logger.critical(e)   # TODO maybe a debug message
-                        logger.critical('{} cannot update settings, the POST '
+                        logger.critical('{} Cannot update settings, the POST '
                                         'request produced an unhandled '
                                         'exception; in order to diagnose what '
                                         'happened execute Thermod in debug '
-                                        'mode and resubmit the last request; '
-                                        'sending back error code {:d}'
-                                        .format(self.client_address, error))
+                                        'mode and resubmit the last request.'
+                                        .format(self.client_address))
                         
-                        response[rsp_error] = True
-                        response[rsp_shortmsg] = 'cannot process the request'
-                        response[rsp_fullmsg] = str(e)
+                        logger.debug('{} {}: {}'.format(self.client_address,
+                                                        type(e).__name__, e))
                         
-                        self.send_error(error, response[rsp_shortmsg])
-                
-                # TODO controllare metodo
+                        message = 'cannot process the request'
+                        response = {rsp_error: message, rsp_fullmsg: str(e)}
+                    
+                    else:
+                        # TODO prima di dare l'ok le nuove impostazioni devono essere salvate su file di config
+                        code = 200
+                        message = 'settings updated'
+                        logger.info('{} {}'.format(self.client_address, message))
+                        response = {rsp_message: message}
+                    
+                    finally:
+                        data = json.dumps(response).encode('utf-8')
+                        self._send_header(code, message, data)
+            
+            #elif req_settings_status in postvars:
+            #    # TODO finire questa parte
+            #    with self.server.timetable.lock:
+            #        logger.info('{} updating Thermod status'.format(self.client_address))
             
             else:
-                # TODO
-                pass
+                code = 400
+                logger.warning('{} cannot update settings, the POST request '
+                               'contains no data'.format(self.client_address))
                 
-
+                message = 'no settings provided'
+                data = json.dumps({rsp_error: message}).encode('utf-8')
+                self._send_header(code, message, data)
+        
         else:
-            logger.warning('{} invalid request, sending back error code 404'
-                           .format(self.client_address))
-            # TODO segnare errore nella risposta
-            self.send_error(404, 'the requested object cannot be found')
+            code = 404
+            logger.warning('{} invalid request path'.format(self.client_address))
+            
+            message = 'path not found'
+            data = json.dumps({rsp_error: message}).encode('utf-8')
+            self._send_header(404, message, data)
+        
+        logger.info('{} sending back {} code {:d}'
+                    .format(self.client_address,
+                            ((code>=400) and 'error' or 'status'),
+                            code))
         
         self.end_headers()
+        logger.debug('{} header sent'.format(self.client_address))
         
-        # TODO inviare risposta
-        #self.wfile.write(json.dumps(response))
-        #logger.info('{} response sent'.format(self.client_address))
+        if data:
+            self.wfile.write(data)
+            logger.info('{} response sent'.format(self.client_address))
+        
+        logger.info('{} closing connection'.format(self.client_address))
 
 
 # only for debug purpose
 if __name__ == '__main__':
+    import os
+    import shutil
+    import tempfile
+    
     logger.setLevel(logging.DEBUG)
     
     console = logging.StreamHandler(sys.stdout)
@@ -224,7 +286,10 @@ if __name__ == '__main__':
                                            datefmt=config.logger_fmt_date))
     logger.addHandler(console)
     
-    tt = TimeTable('timetable.json')
+    file = 'timetable.json'
+    tmpfile = os.path.join(tempfile.gettempdir(),file)
+    shutil.copy(file, tmpfile)
+    tt = TimeTable(tmpfile)
     cc = ControlThread(tt)
     
     try:
