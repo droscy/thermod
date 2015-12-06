@@ -14,7 +14,7 @@ from .config import JsonValueError
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2015-12-05'
+__updated__ = '2015-12-06'
 
 logger = logging.getLogger(__name__)
 
@@ -507,14 +507,7 @@ class TimeTable():
             
             # get day name
             logger.debug('retriving day name')
-            if day in config.json_days_name_map.keys():
-                _day = config.json_days_name_map[day]
-            elif day in set(config.json_days_name_map.values()):
-                _day = day
-            else:
-                logger.debug('invalid day name or number: {}'.format(day))
-                raise JsonValueError('the provided day name or number ({}) '
-                                     'is not valid'.format(day))
+            _day = config.json_get_day_name(day)
             
             # check hour validity
             logger.debug('checking and formatting hour')
@@ -621,7 +614,7 @@ class TimeTable():
                 
                 elif self._status == config.json_status_auto:
                     # target temperature is retrived from timetable
-                    day = config.json_days_name_map[now.strftime('%w')]
+                    day = config.json_get_day_name(now.strftime('%w'))
                     hour = config.json_format_hour(now.hour)
                     quarter = int(now.minute // 15)
                     

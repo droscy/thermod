@@ -2,6 +2,7 @@
 
 import os
 import copy
+import locale
 import unittest
 import tempfile
 import threading
@@ -10,7 +11,7 @@ from jsonschema import ValidationError
 from datetime import datetime, timedelta
 from thermod import TimeTable, JsonValueError, config as tconf
 
-__updated__ = '2015-11-30'
+__updated__ = '2015-12-06'
 
 
 def fill_timetable(timetable):
@@ -292,8 +293,32 @@ class TestTimeTable(TestCase):
         self.assertRaises(JsonValueError, self.timetable.update, 4, 26, 2, tconf.json_tmin_str)
         self.assertRaises(JsonValueError, self.timetable.update, 7, 11, 1, 'invalid')
         self.assertRaises(JsonValueError, self.timetable.update, 4, 11, 'invalid', tconf.json_tmax_str)
+    
+    
+    def test_locale(self):
+        locale.setlocale(locale.LC_ALL,'it_IT.utf8')
+        
+        fill_timetable(self.timetable)
+        
+        self.assertIsNone(self.timetable.update('Lun',10,1,30))
+        self.assertIsNone(self.timetable.update('mer',11,2,20))
+        settings = self.timetable.__getstate__()
+        
+        day = tconf.json_get_day_name(1)
+        hour = tconf.json_format_hour(10)
+        quarter = 1
+        t1 = tconf.json_format_main_temperature(settings[tconf.json_timetable][day][hour][quarter])
+        t2 = tconf.json_format_main_temperature(30)
+        self.assertEqual(t1, t2)
 
-
+        day = tconf.json_get_day_name(3)
+        hour = tconf.json_format_hour(11)
+        quarter = 2
+        t1 = tconf.json_format_main_temperature(settings[tconf.json_timetable][day][hour][quarter])
+        t2 = tconf.json_format_main_temperature(20)
+        self.assertEqual(t1, t2)
+    
+    
     def test_timetable_01(self):  # test t0 status
         fill_timetable(self.timetable)
         

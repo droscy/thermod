@@ -1,8 +1,9 @@
 """Utilities, functions and constants for thermod daemon."""
 
 import os
+import calendar
 
-__updated__ = '2015-12-05'
+__updated__ = '2015-12-06'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -128,7 +129,7 @@ def is_valid_temperature(temperature):
 def json_format_main_temperature(temperature):
     """Format the provided temperature as a float with one decimal.
     
-    Can be used both for timetable and main temperatures in json file.
+    Can be used both for timetable and main temperatures in JSON file.
     """
     
     if not is_valid_temperature(temperature) or temperature in json_all_temperatures:
@@ -176,3 +177,33 @@ def json_format_hour(hour):
                              'it must be in range 0-23'.format(hour))
 
     return format(int(float(hour)), '0>2d')
+
+
+def json_get_day_name(day):
+    """Return the name of the provided day as used by Thermod.
+    
+    The input `day` can be a number in range 0-6 (0 is Sunday, 1 is Monday, etc)
+    or a day name in English or in the current locale.
+    """
+    
+    result = None
+    
+    try:
+        if day in json_days_name_map.keys():
+            result = json_days_name_map[day]
+        elif str(day).lower() in set(json_days_name_map.values()):
+            result = str(day).lower()
+        elif str(day).lower() in calendar.day_name:
+            idx =  (list(calendar.day_name).index(str(day).lower())+1) % 7
+            result = json_days_name_map[idx]
+        elif str(day).lower() in calendar.day_abbr:
+            idx =  (list(calendar.day_abbr).index(str(day).lower())+1) % 7
+            result = json_days_name_map[idx]
+        else:
+            raise Exception
+    
+    except:
+        #logger.debug('invalid day name or number: {}'.format(day))
+        raise JsonValueError('the provided day name or number `{}` is not valid'.format(day))
+    
+    return result
