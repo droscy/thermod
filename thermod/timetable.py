@@ -1,5 +1,6 @@
 """Manage the timetable of thermod."""
 
+import copy
 import json
 import logging
 import jsonschema
@@ -14,7 +15,7 @@ from .config import JsonValueError
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2015-12-06'
+__updated__ = '2015-12-07'
 
 logger = logging.getLogger(__name__)
 
@@ -184,8 +185,7 @@ class TimeTable():
                 logger.debug('current status: {}'.format(self._status))
                 logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self._temperatures))
                 logger.debug('differential: {} degrees'.format(self._differential))
-                logger.debug('grace time: {} ({} sec)'.format(self._grace_time,
-                                                              int(self._grace_time.total_seconds())))
+                logger.debug('grace time: {} ({} sec)'.format(self._grace_time, int(self._grace_time.total_seconds())))
             
             self._last_update_timestamp = time.time()
             logger.debug('new internal state set')
@@ -213,7 +213,7 @@ class TimeTable():
     
     
     @settings.setter
-    def settings(self,new_settings):
+    def settings(self, new_settings):
         """Set new settings from JSON string.
         
         @param new_settings the new settings JSON-encoded
@@ -404,7 +404,8 @@ class TimeTable():
             self._grace_time = timedelta(seconds=nvalue)
             self._has_been_validated = False
             self._last_update_timestamp = time.time()
-            logger.debug('new grace time set: {} ({} sec)'.format(self._grace_time, nvalue))
+            logger.debug('new grace time set: {} ({} sec)'
+                         .format(self._grace_time, nvalue))
     
     
     @property
@@ -545,6 +546,48 @@ class TimeTable():
                      'temperature "{}"'.format(_day, _hour, _quarter, _temp))
     
     
+    def update_days(self, json_data):
+        """Update timetable for single or multiples day.
+        
+        The provided `json_data` must be a part of the whole JSON settings in
+        `thermod.config.json_schema` containing all the informations for the
+        days under update.
+        """
+        
+        logger.debug('updating timetable days')
+        
+        data = json.loads(json_data)
+        days = []
+        
+        if not isinstance(data, dict):
+            logger.debug('cannot update timetable, the provided JSON data '
+                         'is not a dictonary and cannot contains days')
+            raise JsonValueError('the provided JSON data does not contain days')
+        
+        with self._lock:
+            logger.debug('lock acquired to update the following days {}'
+                         .format(list(data.keys())))
+            
+            old_state = self.__getstate__()
+            new_state = copy.deepcopy(old_state)
+            
+            logger.debug('updating data for each provided day')
+            for day, timetable in data.items():
+                _day = config.json_get_day_name(day)
+                new_state[config.json_timetable][_day] = timetable
+                days.append(_day)
+            
+            try:
+                self.__setstate__(new_state)
+            except:
+                self.__setstate__(old_state)
+                logger.debug('cannot update timetable, the provided JSON data '
+                             'is invalid: {}'.format(json_data))
+                raise
+        
+        return days
+    
+    
     def degrees(self, temperature):
         """Convert the name of a temperature in its corresponding number value.
         
@@ -571,7 +614,7 @@ class TimeTable():
             else:
                 value = temp
         
-        logger.debug('temperature "{}" converted to {}'.format(temperature,value))
+        logger.debug('temperature "{}" converted to {}'.format(temperature, value))
         
         return float(value)
     

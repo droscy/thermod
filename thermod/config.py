@@ -3,7 +3,7 @@
 import os
 import calendar
 
-__updated__ = '2015-12-06'
+__updated__ = '2015-12-07'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -101,8 +101,11 @@ json_schema = {
 
 
 class JsonValueError(ValueError):
-    """Exception for invalid settings values in JSON file."""
-    pass
+    """Exception for invalid settings values in JSON file or socket messages."""
+    
+    @property
+    def message(self):
+        return str(self)
 
 
 def is_valid_temperature(temperature):
@@ -193,14 +196,18 @@ def json_get_day_name(day):
             result = json_days_name_map[day]
         elif str(day).lower() in set(json_days_name_map.values()):
             result = str(day).lower()
-        elif str(day).lower() in calendar.day_name:
-            idx =  (list(calendar.day_name).index(str(day).lower())+1) % 7
-            result = json_days_name_map[idx]
-        elif str(day).lower() in calendar.day_abbr:
-            idx =  (list(calendar.day_abbr).index(str(day).lower())+1) % 7
-            result = json_days_name_map[idx]
         else:
-            raise Exception
+            day_name = [name.lower() for name in list(calendar.day_name)]
+            day_abbr = [name.lower() for name in list(calendar.day_abbr)]
+            
+            if str(day).lower() in day_name:
+                idx =  (day_name.index(str(day).lower())+1) % 7
+                result = json_days_name_map[idx]
+            elif str(day).lower() in day_abbr:
+                idx =  (day_abbr.index(str(day).lower())+1) % 7
+                result = json_days_name_map[idx]
+            else:
+                raise Exception
     
     except:
         #logger.debug('invalid day name or number: {}'.format(day))

@@ -5,25 +5,29 @@ import sys
 import json
 import logging
 import time
-from jsonschema import ValidationError
 from threading import Thread
+from jsonschema import ValidationError
+from json.decoder import JSONDecodeError
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from . import config
 from .timetable import TimeTable
 from .config import JsonValueError
 
-# TODO aggiungere modo per aggiornare l'orario di un singolo giorno
 # TODO write test cases for thermod.socket
 
-__updated__ = '2015-12-05'
-__version__ = '0.1'
+# TODO ControlThread and ControlServer require a function to be called
+# after update to check temperature immediately, this functions should be
+# passed by the main thread upon creating the ControlThread
+
+__updated__ = '2015-12-07'
+__version__ = '0.2'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
 
 req_settings_all = 'settings'
-#req_settings_day = 'day'
+req_settings_days = 'days'
 req_settings_status = config.json_status
 req_settings_t0 = config.json_t0_str
 req_settings_tmin = config.json_tmin_str
@@ -183,6 +187,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             logger.debug('{} POST content-type: {}'.format(self.client_address, ctype))
             logger.debug('{} POST variables: {}'.format(self.client_address, postvars))
             
+            # updating all settings
             if req_settings_all in postvars:
                 with self.server.timetable.lock:
                     logger.info('{} updating Thermod settings'.format(self.client_address))
@@ -191,7 +196,16 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         self.server.timetable.settings = postvars[req_settings_all]
                         self.server.timetable.save()  # saving changes to filesystem
                     
-                    except ValidationError as ve:
+                    except JSONDecodeError as jde:
+                        code = 400
+                        logger.warning('{} cannot update settings, the POST '
+                                       'request contains invalid JSON data: {}'
+                                       .format(self.client_address, jde))
+                        
+                        message = 'invalid JSON data'
+                        response = {rsp_error: message, rsp_fullmsg: str(jde)}
+                    
+                    except (ValidationError, JsonValueError) as ve:
                         code = 400
                         
                         logger.warning('{} cannot update settings, the POST '
@@ -245,6 +259,80 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         data = json.dumps(response).encode('utf-8')
                         self._send_header(code, message, data)
             
+            # updating only some days
+            elif req_settings_days in postvars:
+                with self.server.timetable.lock:
+                    logger.info('{} updating one or more days in Thermod '
+                                'settings'.format(self.client_address))
+                    
+                    try:
+                        days = self.server.timetable.update_days(postvars[req_settings_days])
+                        self.server.timetable.save()  # saving changes to filesystem
+                    
+                    except JSONDecodeError as jde:
+                        code = 400
+                        logger.warning('{} cannot update settings, the POST '
+                                       'request contains invalid JSON data: {}'
+                                       .format(self.client_address, jde))
+                        
+                        message = 'invalid JSON data'
+                        response = {rsp_error: message, rsp_fullmsg: str(jde)}
+                    
+                    except (ValidationError, JsonValueError) as ve:
+                        code = 400
+                        
+                        logger.warning('{} cannot update settings, the POST '
+                                       'request contains incomplete or invalid '
+                                       'days: {}'.format(self.client_address,
+                                                         ve.message))
+                        
+                        message = 'incomplete or invalid JSON-encoded days'
+                        response = {rsp_error: message, rsp_fullmsg: ve.message}
+                    
+                    except IOError as ioe:
+                        # can be raised only by timetable.save() method, so the
+                        # internal settings have already been updated and a
+                        # reload of the old settings is required
+                        code = 500
+                        logger.critical('{} cannot save new settings to '
+                            'fileystem: {}'.format(self.client_address, ioe))
+                        
+                        message = 'cannot save new settings to filesystem'
+                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
+                        
+                        # reloading old settings still present on filesystem
+                        self.server.timetable.reload()
+                    
+                    except Exception as e:
+                        code = 500
+                        
+                        logger.critical('{} Cannot update days, the POST '
+                                        'request produced an unhandled '
+                                        'exception; in order to diagnose what '
+                                        'happened execute Thermod in debug '
+                                        'mode and resubmit the last request.'
+                                        .format(self.client_address))
+                        
+                        logger.debug('{} {}: {}'.format(self.client_address,
+                                                        type(e).__name__, e))
+                        
+                        message = 'cannot process the request'
+                        response = {rsp_error: message, rsp_fullmsg: str(e)}
+                        
+                        # reloading old settings still present on filesystem
+                        self.server.timetable.reload()
+                    
+                    else:
+                        code = 200
+                        message = 'days updated {}'.format(days)
+                        logger.info('{} {}'.format(self.client_address, message))
+                        response = {rsp_message: message}
+                    
+                    finally:
+                        data = json.dumps(response).encode('utf-8')
+                        self._send_header(code, message, data)
+            
+            # updating other settings
             elif postvars:
                 with self.server.timetable.lock:
                     try:
@@ -326,7 +414,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     else:
                         code = 200
-                        message = 'settings {} updated'.format(list(postvars.keys()))
+                        message = 'settings updated: {}'.format(postvars)
                         logger.info('{} {}'.format(self.client_address, message))
                         response = {rsp_message: message}
                     
