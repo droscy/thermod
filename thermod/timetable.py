@@ -7,7 +7,7 @@ import jsonschema
 import os.path
 import time
 from threading import RLock
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from . import config
 from .config import JsonValueError
@@ -15,7 +15,7 @@ from .config import JsonValueError
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2015-12-07'
+__updated__ = '2015-12-17'
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +38,11 @@ class TimeTable():
         self._timetable = {}
         
         self._differential = 0.5
-        self._grace_time = timedelta(seconds=3600)
+        self._grace_time = float(3600)
 
         self._lock = RLock()
         self._is_on = False  # if the heating is on
-        self._last_on_time = datetime(1,1,1)  # last switch on time
+        self._last_on_time = datetime.fromtimestamp(0)  # last switch on time
         
         self._has_been_validated = False
         """Used to speedup validation.
@@ -111,7 +111,7 @@ class TimeTable():
             
             settings = {config.json_status: self._status,
                         config.json_differential: self._differential,
-                        config.json_grace_time: int(self._grace_time.total_seconds()),
+                        config.json_grace_time: self._grace_time,
                         config.json_temperatures: self._temperatures,
                         config.json_timetable: self._timetable}
             
@@ -160,7 +160,7 @@ class TimeTable():
                 self._differential = state[config.json_differential]
             
             if config.json_grace_time in state:
-                self._grace_time = timedelta(seconds=state[config.json_grace_time])
+                self._grace_time = float(state[config.json_grace_time])
             
             # validating again to get abnormal behaviours
             try:
@@ -185,7 +185,7 @@ class TimeTable():
                 logger.debug('current status: {}'.format(self._status))
                 logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self._temperatures))
                 logger.debug('differential: {} degrees'.format(self._differential))
-                logger.debug('grace time: {} ({} sec)'.format(self._grace_time, int(self._grace_time.total_seconds())))
+                logger.debug('grace time: {} sec'.format(self._grace_time))
             
             self._last_update_timestamp = time.time()
             logger.debug('new internal state set')
@@ -209,7 +209,7 @@ class TimeTable():
     @property
     def settings(self):
         """Get internal settings as JSON string."""
-        return json.dumps(self.__getstate__())
+        return json.dumps(self.__getstate__(), indent=0, sort_keys=True)
     
     
     @settings.setter
@@ -377,20 +377,29 @@ class TimeTable():
     
     @property
     def grace_time(self):
-        """Return the current grace time in *seconds*."""
+        """Return the current grace time in *seconds*.
+        
+        The returned value is a float and can also be the positive infinity
+        if the grace time has been disabled.
+        """
         with self._lock:
             logger.debug('lock acquired to get current grace time')
-            return int(self._grace_time.total_seconds())
+            return self._grace_time
     
     
     @grace_time.setter
     def grace_time(self, seconds):
-        """Set a new grace time in *seconds*."""
+        """Set a new grace time in *seconds*.
+        
+        The input value must be a number or, to disable the grace time, the
+        string `inf` or `infinity` (case insensitive). If the input is a
+        float number it is rounded to the nearest integer value.
+        """
         with self._lock:
             logger.debug('lock acquired to set a new grace time')
             
             try:
-                nvalue = int(seconds)
+                nvalue = float(seconds)
                 
                 if nvalue < 0:
                     raise ValueError()
@@ -398,14 +407,13 @@ class TimeTable():
             except:
                 logger.debug('invalid new grace time: {}'.format(seconds))
                 raise JsonValueError(
-                    'the new grace time ({}) is invalid, '
-                    'it must be a number expressed in seconds'.format(seconds))
+                    'the new grace time `{}` is invalid, it must be a positive '
+                    'number expressed in seconds or the string `inf`'.format(seconds))
             
-            self._grace_time = timedelta(seconds=nvalue)
+            self._grace_time = round(nvalue, 0)
             self._has_been_validated = False
             self._last_update_timestamp = time.time()
-            logger.debug('new grace time set: {} ({} sec)'
-                         .format(self._grace_time, nvalue))
+            logger.debug('new grace time set: {} sec'.format(self._grace_time))
     
     
     @property
@@ -429,7 +437,7 @@ class TimeTable():
             except:
                 logger.debug('invalid new value for t0 temperature: {}'.format(value))
                 raise JsonValueError(
-                    'the new value ({}) for t0 temperature '
+                    'the new value `{}` for t0 temperature '
                     'is invalid, it must be a number'.format(value))
             
             self._temperatures[config.json_t0_str] = nvalue
@@ -459,7 +467,7 @@ class TimeTable():
             except:
                 logger.debug('invalid new value for tmin temperature: {}'.format(value))
                 raise JsonValueError(
-                    'the new value ({}) for tmin temperature '
+                    'the new value `{}` for tmin temperature '
                     'is invalid, it must be a number'.format(value))
             
             self._temperatures[config.json_tmin_str] = nvalue
@@ -489,7 +497,7 @@ class TimeTable():
             except:
                 logger.debug('invalid new value for tmax temperature: {}'.format(value))
                 raise JsonValueError(
-                    'the new value ({}) for tmax temperature '
+                    'the new value `{}` for tmax temperature '
                     'is invalid, it must be a number'.format(value))
             
             self._temperatures[config.json_tmax_str] = nvalue
@@ -667,12 +675,13 @@ class TimeTable():
                                  .format(day, hour, quarter, target))
                 
                 ison = self._is_on
-                laston = self._last_on_time
+                nowts = now.timestamp()
+                laston = self._last_on_time.timestamp()
                 grace = self._grace_time
                 
                 shoud_be_on = (
                     (current <= (target - diff))
-                    or ((current < target) and ((now - laston) > grace))
+                    or ((current < target) and ((nowts - laston) > grace))
                     or ((current < (target + diff)) and ison))
         
         logger.debug('the heating should be: {}'
@@ -694,7 +703,7 @@ class TimeTable():
             logger.debug('lock acquired to set on')
             self._is_on = True
             self._last_on_time = datetime.now()
-            logger.debug('is-on set to "{}" and last-on-time set to "{}"'
+            logger.debug('is-on set to `{}` and last-on-time set to `{}`'
                          .format(self._is_on, self._last_on_time))
     
     
@@ -704,4 +713,4 @@ class TimeTable():
         with self._lock:
             logger.debug('lock acquired to set off')
             self._is_on = False
-            logger.debug('is-on set to "{}"'.format(self._is_on))
+            logger.debug('is-on set to `{}`'.format(self._is_on))

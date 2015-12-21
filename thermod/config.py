@@ -3,7 +3,7 @@
 import os
 import calendar
 
-__updated__ = '2015-12-07'
+__updated__ = '2015-12-15'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -61,7 +61,8 @@ json_schema = {
     'properties': {
         'status': {'enum': list(json_all_statuses)},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
-        'grace_time': {'type': 'integer', 'minimum': 0},
+        'grace_time': {'anyOf': [{'type': 'number', 'minimum': 0},
+                                 {'type': 'string', 'pattern': '[+]?[Ii][Nn][Ff]'}]},
         'temperatures': {
             'type': 'object',
             'properties': {

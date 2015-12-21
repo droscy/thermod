@@ -20,7 +20,7 @@ from .config import JsonValueError
 # after update to check temperature immediately, this functions should be
 # passed by the main thread upon creating the ControlThread
 
-__updated__ = '2015-12-07'
+__updated__ = '2015-12-15'
 __version__ = '0.2'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -55,7 +55,7 @@ class ControlThread(Thread):
     
     def run(self):
         (host, port) = self.server.server_address
-        logger.info('control server listening on {}:{}'.format(host, port))
+        logger.info('control socket listening on {}:{}'.format(host, port))
         self.server.serve_forever()
 
 
@@ -80,6 +80,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     """Receive and manages control commands."""
     
     BaseHTTPRequestHandler.server_version = 'Thermod/{}'.format(__version__)
+    
+    def finish(self):
+        super().finish()
+        logger.info('{} connection closed'.format(self.client_address))
     
     @property
     def stripped_lowered_path(self):
@@ -109,13 +113,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         """Send the HTTP header equal to the one of the GET request."""
         
-        logger.info('{} received "{} {}" command'
+        logger.info('{} received "{} {}" request'
                     .format(self.client_address, self.command, self.path))
         
         data = None
         
         if self.stripped_lowered_path in req_settings_paths:
-            logger.info('{} sending back Thermod settings'.format(self.client_address))
+            logger.debug('{} sending back Thermod settings'.format(self.client_address))
             
             with self.server.timetable.lock:
                 data = self.server.timetable.settings.encode('utf-8')
@@ -128,12 +132,12 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             logger.warning('{} invalid request path, sending back error '
                            'code {:d}'.format(self.client_address, error))
             
-            message = 'path not found'
+            message = 'invalid request'
             data = json.dumps({rsp_error: message}).encode('utf-8')
             self._send_header(404, message, data)
         
         self.end_headers()
-        logger.info('{} header sent'.format(self.client_address))
+        logger.debug('{} header sent'.format(self.client_address))
         
         return data
     
@@ -146,7 +150,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(settings)
             logger.info('{} response sent'.format(self.client_address))
         
-        logger.info('{} closing connection'.format(self.client_address))
+        logger.debug('{} closing connection'.format(self.client_address))
     
     def do_POST(self):
         """Manage the POST request updating timetable settings.
@@ -161,7 +165,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         """
         # TODO completare la documentazione con la descrizione dei campi accettati
         
-        logger.info('{} received "{} {}" command'
+        logger.info('{} received "{} {}" request'
                     .format(self.client_address, self.command, self.path))
         
         code = None
@@ -190,7 +194,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             # updating all settings
             if req_settings_all in postvars:
                 with self.server.timetable.lock:
-                    logger.info('{} updating Thermod settings'.format(self.client_address))
+                    logger.debug('{} updating Thermod settings'.format(self.client_address))
                     
                     try:
                         self.server.timetable.settings = postvars[req_settings_all]
@@ -251,7 +255,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     else:
                         code = 200
-                        message = 'settings updated'
+                        message = 'all settings updated'
                         logger.info('{} {}'.format(self.client_address, message))
                         response = {rsp_message: message}
                     
@@ -262,8 +266,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             # updating only some days
             elif req_settings_days in postvars:
                 with self.server.timetable.lock:
-                    logger.info('{} updating one or more days in Thermod '
-                                'settings'.format(self.client_address))
+                    logger.debug('{} updating one or more days'.format(self.client_address))
                     
                     try:
                         days = self.server.timetable.update_days(postvars[req_settings_days])
@@ -271,7 +274,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     except JSONDecodeError as jde:
                         code = 400
-                        logger.warning('{} cannot update settings, the POST '
+                        logger.warning('{} cannot update any days, the POST '
                                        'request contains invalid JSON data: {}'
                                        .format(self.client_address, jde))
                         
@@ -281,9 +284,9 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     except (ValidationError, JsonValueError) as ve:
                         code = 400
                         
-                        logger.warning('{} cannot update settings, the POST '
+                        logger.warning('{} cannot update any days, the POST '
                                        'request contains incomplete or invalid '
-                                       'days: {}'.format(self.client_address,
+                                       'data: {}'.format(self.client_address,
                                                          ve.message))
                         
                         message = 'incomplete or invalid JSON-encoded days'
@@ -306,7 +309,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     except Exception as e:
                         code = 500
                         
-                        logger.critical('{} Cannot update days, the POST '
+                        logger.critical('{} Cannot update any days, the POST '
                                         'request produced an unhandled '
                                         'exception; in order to diagnose what '
                                         'happened execute Thermod in debug '
@@ -324,9 +327,12 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     else:
                         code = 200
-                        message = 'days updated {}'.format(days)
-                        logger.info('{} {}'.format(self.client_address, message))
-                        response = {rsp_message: message}
+                        
+                        logger.info('{} updated the following days: {}'
+                                    .format(self.client_address, message, days))
+                        
+                        message = 'days updated'
+                        response = {rsp_message: '{}: {}'.format(message, days)}
                     
                     finally:
                         data = json.dumps(response).encode('utf-8')
@@ -335,22 +341,31 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             # updating other settings
             elif postvars:
                 with self.server.timetable.lock:
+                    logger.debug('{} updating one or more settings'.format(self.client_address))
+                    
+                    newvalues = {}
                     try:
                         for var, value in postvars.items():
                             if var == req_settings_status:
                                 self.server.timetable.status = value
+                                newvalues[var] = self.server.timetable.status
                             elif var == req_settings_t0:
                                 self.server.timetable.t0 = value
+                                newvalues[var] = self.server.timetable.t0
                             elif var == req_settings_tmin:
                                 self.server.timetable.tmin = value
+                                newvalues[var] = self.server.timetable.tmin
                             elif var == req_settings_tmax:
                                 self.server.timetable.tmax = value
+                                newvalues[var] = self.server.timetable.tmax
                             elif var == req_settings_differential:
                                 self.server.timetable.differential = value
+                                newvalues[var] = self.server.timetable.differential
                             elif var == req_settings_grace_time:
                                 self.server.timetable.grace_time = value
+                                newvalues[var] = self.server.timetable.grace_time
                             else:
-                                raise ValidationError('invalid variable `{}` '
+                                raise ValidationError('invalid field `{}` '
                                                       'in request body'
                                                       .format(var))
                         
@@ -414,9 +429,9 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     else:
                         code = 200
-                        message = 'settings updated: {}'.format(postvars)
-                        logger.info('{} {}'.format(self.client_address, message))
-                        response = {rsp_message: message}
+                        message = 'settings updated'
+                        logger.info('{} {}: {}'.format(self.client_address, message, newvalues))
+                        response = {rsp_message: '{}: {}'.format(message, newvalues)}
                     
                     finally:
                         data = json.dumps(response).encode('utf-8')
@@ -433,25 +448,24 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         
         else:
             code = 404
-            logger.warning('{} invalid request path'.format(self.client_address))
-            
-            message = 'path not found'
+            message = 'invalid request'
+            logger.warning('{} {}'.format(self.client_address, message))
             data = json.dumps({rsp_error: message}).encode('utf-8')
             self._send_header(404, message, data)
         
-        logger.info('{} sending back {} code {:d}'
-                    .format(self.client_address,
-                            ((code>=400) and 'error' or 'status'),
-                            code))
+        logger.debug('{} sending back {} code {:d}'
+                     .format(self.client_address,
+                             ((code>=400) and 'error' or 'status'),
+                             code))
         
         self.end_headers()
         logger.debug('{} header sent'.format(self.client_address))
         
         if data:
             self.wfile.write(data)
-            logger.info('{} response sent'.format(self.client_address))
+            logger.debug('{} response sent'.format(self.client_address))
         
-        logger.info('{} closing connection'.format(self.client_address))
+        logger.debug('{} closing connection'.format(self.client_address))
 
 
 # only for debug purpose

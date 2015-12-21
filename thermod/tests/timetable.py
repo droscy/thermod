@@ -13,7 +13,7 @@ from json.decoder import JSONDecodeError
 from datetime import datetime, timedelta
 from thermod import TimeTable, JsonValueError, config as tconf
 
-__updated__ = '2015-12-07'
+__updated__ = '2015-12-15'
 
 
 def fill_timetable(timetable):
@@ -125,6 +125,13 @@ class TestTimeTable(TestCase):
         for grace in range(0, 12000, 120):
             self.timetable.grace_time = grace
             self.assertEqual(grace, self.timetable.grace_time)
+        
+        # test float inf value
+        self.timetable.grace_time = 'inf'
+        self.assertEqual(float('inf'), self.timetable.grace_time)
+        
+        self.timetable.grace_time = float('inf')
+        self.assertEqual(float('inf'), self.timetable.grace_time)
         
         # invalid values
         with self.assertRaises(JsonValueError):
@@ -330,7 +337,7 @@ class TestTimeTable(TestCase):
         self.timetable.update_days(json_data)
         
         day6 = tconf.json_get_day_name(6)
-        day3 = tconf.json_get_day_name('Wed')
+        day3 = tconf.json_get_day_name(3)
         state = self.timetable.__getstate__()
         
         for h in range(24):
