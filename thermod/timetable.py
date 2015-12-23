@@ -10,12 +10,12 @@ from threading import RLock
 from datetime import datetime
 
 from . import config
-from .config import JsonValueError
+from .config import JsonValueError, elstr
 
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2015-12-17'
+__updated__ = '2015-12-23'
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +184,7 @@ class TimeTable():
             finally:
                 logger.debug('current status: {}'.format(self._status))
                 logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}'.format(**self._temperatures))
-                logger.debug('differential: {} degrees'.format(self._differential))
+                logger.debug('differential: {} deg'.format(self._differential))
                 logger.debug('grace time: {} sec'.format(self._grace_time))
             
             self._last_update_timestamp = time.time()
@@ -555,7 +555,7 @@ class TimeTable():
     
     
     def update_days(self, json_data):
-        """Update timetable for single or multiples day.
+        """Update timetable for one or more days.
         
         The provided `json_data` must be a part of the whole JSON settings in
         `thermod.config.json_schema` containing all the informations for the
@@ -567,10 +567,10 @@ class TimeTable():
         data = json.loads(json_data)
         days = []
         
-        if not isinstance(data, dict):
+        if not isinstance(data, dict) or not data:
             logger.debug('cannot update timetable, the provided JSON data '
-                         'is not a dictonary and cannot contains days')
-            raise JsonValueError('the provided JSON data does not contain days')
+                         'is empty or invalid and doesn\'t contain any days')
+            raise JsonValueError('the provided JSON data doesn\'t contain any days')
         
         with self._lock:
             logger.debug('lock acquired to update the following days {}'
@@ -588,9 +588,10 @@ class TimeTable():
             try:
                 self.__setstate__(new_state)
             except:
+                logger.debug('cannot update timetable, reverting to old '
+                             'settings, the provided JSON data is invalid: {}'
+                             .format(elstr(json_data)))
                 self.__setstate__(old_state)
-                logger.debug('cannot update timetable, the provided JSON data '
-                             'is invalid: {}'.format(json_data))
                 raise
         
         return days

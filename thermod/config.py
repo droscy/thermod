@@ -3,7 +3,7 @@
 import os
 import calendar
 
-__updated__ = '2015-12-15'
+__updated__ = '2015-12-23'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -215,3 +215,12 @@ def json_get_day_name(day):
         raise JsonValueError('the provided day name or number `{}` is not valid'.format(day))
     
     return result
+
+
+def elstr(msg, maxlen=75):
+    """Return message `msg` truncated at `maxlen` adding ellipsis '...'."""
+    
+    if not isinstance(msg, str):
+        msg = str(msg)
+    
+    return (msg[:(maxlen-3)] + '...') if len(msg) > maxlen else msg

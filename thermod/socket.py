@@ -11,16 +11,35 @@ from json.decoder import JSONDecodeError
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from . import config
+from .config import JsonValueError, elstr
 from .timetable import TimeTable
-from .config import JsonValueError
 
 # TODO write test cases for thermod.socket
+# TODO missing do_PUT, PATCH and DELETE methods
 
 # TODO ControlThread and ControlServer require a function to be called
 # after update to check temperature immediately, this functions should be
 # passed by the main thread upon creating the ControlThread
 
-__updated__ = '2015-12-15'
+# TODO al posto della soluzione sopra si può usare threading.Condition
+# passandogli come RLock quello interno del TimeTable, in questo modo usiamo
+# lo stesso TimeTable per notificare il demone di controllare la temperatura.
+# Nel thread principale mettiamo un ciclo del tipo
+#     while running:
+#         condition.wait(30)  # secondi da decidere
+#         t = get_temp()
+#         if tt.should_the_heating_be_on(t):
+#             switch_on()
+#             tt.seton()
+#         else:
+#             switch_off()
+#             tt.setoff()
+# 
+# mentre nel socket mettiamo condition.notify() dopo che sono state aggiornate
+# correttamente alcune impostazioni. In questo modo ogni 30 secondi si controlla
+# la temperatura oppure quando vengono aggiornate delle impostazioni.
+
+__updated__ = '2015-12-23'
 __version__ = '0.2'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -57,6 +76,11 @@ class ControlThread(Thread):
         (host, port) = self.server.server_address
         logger.info('control socket listening on {}:{}'.format(host, port))
         self.server.serve_forever()
+    
+    def stop(self):
+        # TODO scrivere documentazione
+        self.server.shutdown()
+        logger.info('control socket halted')
 
 
 class ControlServer(HTTPServer):
@@ -189,11 +213,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             postvars = {k.decode('utf-8'): v[0].decode('utf-8') for k,v in postvars.items()}
             
             logger.debug('{} POST content-type: {}'.format(self.client_address, ctype))
-            logger.debug('{} POST variables: {}'.format(self.client_address, postvars))
+            logger.debug('{} POST variables: {}'.format(self.client_address, elstr(postvars)))
             
-            # updating all settings
-            if req_settings_all in postvars:
-                with self.server.timetable.lock:
+            with self.server.timetable.lock:
+                # updating all settings
+                if req_settings_all in postvars:
                     logger.debug('{} updating Thermod settings'.format(self.client_address))
                     
                     try:
@@ -263,9 +287,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         data = json.dumps(response).encode('utf-8')
                         self._send_header(code, message, data)
             
-            # updating only some days
-            elif req_settings_days in postvars:
-                with self.server.timetable.lock:
+                # updating only some days
+                elif req_settings_days in postvars:
                     logger.debug('{} updating one or more days'.format(self.client_address))
                     
                     try:
@@ -329,7 +352,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 200
                         
                         logger.info('{} updated the following days: {}'
-                                    .format(self.client_address, message, days))
+                                    .format(self.client_address, days))
                         
                         message = 'days updated'
                         response = {rsp_message: '{}: {}'.format(message, days)}
@@ -338,9 +361,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         data = json.dumps(response).encode('utf-8')
                         self._send_header(code, message, data)
             
-            # updating other settings
-            elif postvars:
-                with self.server.timetable.lock:
+                # updating other settings
+                elif postvars:
                     logger.debug('{} updating one or more settings'.format(self.client_address))
                     
                     newvalues = {}
@@ -437,14 +459,14 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         data = json.dumps(response).encode('utf-8')
                         self._send_header(code, message, data)
             
-            else:
-                code = 400
-                logger.warning('{} cannot update settings, the POST request '
-                               'contains no data'.format(self.client_address))
-                
-                message = 'no settings provided'
-                data = json.dumps({rsp_error: message}).encode('utf-8')
-                self._send_header(code, message, data)
+                else:
+                    code = 400
+                    logger.warning('{} cannot update settings, the POST request '
+                                   'contains no data'.format(self.client_address))
+                    
+                    message = 'no settings provided'
+                    data = json.dumps({rsp_error: message}).encode('utf-8')
+                    self._send_header(code, message, data)
         
         else:
             code = 404
@@ -491,5 +513,4 @@ if __name__ == '__main__':
         cc.start()
         cc.join()
     except:
-        cc.server.shutdown()
-        logger.info('control server stopped')
+        cc.stop()
