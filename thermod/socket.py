@@ -17,11 +17,8 @@ else:
     JSONDecodeError = ValueError
 
 from . import config
-from .config import JsonValueError, elstr
+from .config import JsonValueError
 from .timetable import TimeTable
-
-# TODO write test cases for thermod.socket
-# TODO missing do_PUT, PATCH and DELETE methods
 
 # TODO ControlThread and ControlServer require a function to be called
 # after update to check temperature immediately, this functions should be
@@ -45,8 +42,8 @@ from .timetable import TimeTable
 # correttamente alcune impostazioni. In questo modo ogni 30 secondi si controlla
 # la temperatura oppure quando vengono aggiornate delle impostazioni.
 
-__updated__ = '2015-12-23'
-__version__ = '0.2'
+__updated__ = '2015-12-28'
+__version__ = '0.3'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -112,6 +109,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     BaseHTTPRequestHandler.server_version = 'Thermod/{}'.format(__version__)
     
     def finish(self):
+        """Execute the base-class `finish()` method and log a message."""
         super().finish()
         logger.info('{} connection closed'.format(self.client_address))
     
@@ -127,10 +125,47 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         
         return rpath.lower()
     
-    def _send_header(self, code, message=None, json_data=None, last_modified=None):
-        self.send_response_only(code, message)
+    def _send_header(self, code, message=None, data=None, last_modified=None):
+        """Send default response header.
         
-        if json_data:
+        If `data` is a dictonary it will be converted to JSON, if it is a
+        string it will be JSON-checked and encoded in UTF-8, if it is already
+        encoded in UTF-8 it is JSON-checked and sent as is.
+        
+        @param code is the status code of the HTTP response
+        @param message is the message sent with the status code
+        @param data is the data to be sent (dictonary or JSON string)
+        @param last_modified is the timestamp of last modification of data
+        
+        @return the JSON-encoded byte-string to be sent
+        """
+        
+        self.send_response_only(code, message)
+        json_data = None
+        
+        if data:
+            if isinstance(data, dict):
+                json_data = json.dumps(data).encode('utf-8')
+            else:
+                if isinstance(data, str):
+                    try:
+                        json.loads(data)
+                    except:
+                        raise TypeError('the provided string is not in JSON format')
+                    
+                    json_data = data.encode('utf-8')
+                
+                elif isinstance(data, bytes):
+                    try:
+                        json.loads(data.decode('utf-8'))
+                    except:
+                        raise TypeError('the provided byte-string is not in JSON format')
+                    
+                    json_data = data
+                
+                else:
+                    raise TypeError('the provided data is not valid for JSON format')
+            
             self.send_header('Content-Type', 'application/json;charset=utf-8')
             self.send_header('Content-Length', len(json_data))
             self.send_header('Last-Modified',
@@ -139,9 +174,15 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         self.send_header('Connection', 'close')
         self.send_header('Server', self.version_string())
         self.send_header('Date', self.date_time_string())
+        
+        return json_data
     
     def do_HEAD(self):
-        """Send the HTTP header equal to the one of the GET request."""
+        """Send the HTTP header equal to the one of the GET request.
+        
+        Return the byte-string to be sent in HTTP response body if the request
+        is using the GET method.
+        """
         
         logger.info('{} received "{} {}" request'
                     .format(self.client_address, self.command, self.path))
@@ -152,10 +193,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             logger.debug('{} sending back Thermod settings'.format(self.client_address))
             
             with self.server.timetable.lock:
-                data = self.server.timetable.settings.encode('utf-8')
+                settings = self.server.timetable.settings
                 last_updt = self.server.timetable.last_update_timestamp()
             
-            self._send_header(200, json_data=data, last_modified=last_updt)
+            data = self._send_header(200, data=settings, last_modified=last_updt)
             
         else:
             error = 404
@@ -163,8 +204,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                            'code {:d}'.format(self.client_address, error))
             
             message = 'invalid request'
-            data = json.dumps({rsp_error: message}).encode('utf-8')
-            self._send_header(404, message, data)
+            data = self._send_header(404, message, {rsp_error: message})
         
         self.end_headers()
         logger.debug('{} header sent'.format(self.client_address))
@@ -219,7 +259,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             postvars = {k.decode('utf-8'): v[0].decode('utf-8') for k,v in postvars.items()}
             
             logger.debug('{} POST content-type: {}'.format(self.client_address, ctype))
-            logger.debug('{} POST variables: {}'.format(self.client_address, elstr(postvars)))
+            logger.debug('{} POST variables: {}'.format(self.client_address, postvars))
             
             with self.server.timetable.lock:
                 # updating all settings
@@ -233,10 +273,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     except JSONDecodeError as jde:
                         code = 400
                         logger.warning('{} cannot update settings, the POST '
-                                       'request contains invalid JSON data: {}'
-                                       .format(self.client_address, jde))
+                                       'request contains invalid JSON syntax: '
+                                       '{}'.format(self.client_address, jde))
                         
-                        message = 'invalid JSON data'
+                        message = 'invalid JSON syntax'
                         response = {rsp_error: message, rsp_fullmsg: str(jde)}
                     
                     except (ValidationError, JsonValueError) as ve:
@@ -290,8 +330,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         response = {rsp_message: message}
                     
                     finally:
-                        data = json.dumps(response).encode('utf-8')
-                        self._send_header(code, message, data)
+                        data = self._send_header(code, message, response)
             
                 # updating only some days
                 elif req_settings_days in postvars:
@@ -304,10 +343,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     except JSONDecodeError as jde:
                         code = 400
                         logger.warning('{} cannot update any days, the POST '
-                                       'request contains invalid JSON data: {}'
-                                       .format(self.client_address, jde))
+                                       'request contains invalid JSON syntax: '
+                                       '{}'.format(self.client_address, jde))
                         
-                        message = 'invalid JSON data'
+                        message = 'invalid JSON syntax'
                         response = {rsp_error: message, rsp_fullmsg: str(jde)}
                     
                     except (ValidationError, JsonValueError) as ve:
@@ -364,8 +403,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         response = {rsp_message: '{}: {}'.format(message, days)}
                     
                     finally:
-                        data = json.dumps(response).encode('utf-8')
-                        self._send_header(code, message, data)
+                        data = self._send_header(code, message, response)
             
                 # updating other settings
                 elif postvars:
@@ -462,8 +500,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         response = {rsp_message: '{}: {}'.format(message, newvalues)}
                     
                     finally:
-                        data = json.dumps(response).encode('utf-8')
-                        self._send_header(code, message, data)
+                        data = self._send_header(code, message, response)
             
                 else:
                     code = 400
@@ -471,15 +508,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                    'contains no data'.format(self.client_address))
                     
                     message = 'no settings provided'
-                    data = json.dumps({rsp_error: message}).encode('utf-8')
-                    self._send_header(code, message, data)
+                    data = self._send_header(code, message, {rsp_error: message})
         
         else:
             code = 404
             message = 'invalid request'
             logger.warning('{} {}'.format(self.client_address, message))
-            data = json.dumps({rsp_error: message}).encode('utf-8')
-            self._send_header(404, message, data)
+            data = self._send_header(404, message, {rsp_error: message})
         
         logger.debug('{} sending back {} code {:d}'
                      .format(self.client_address,
@@ -494,6 +529,28 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             logger.debug('{} response sent'.format(self.client_address))
         
         logger.debug('{} closing connection'.format(self.client_address))
+    
+    def _do_other(self):
+        logger.info('{} received "{} {}" request'
+                    .format(self.client_address, self.command, self.path))
+        
+        code = 501
+        self._send_header(code)
+        logger.warning('{} unsupported method `{}`, sending back error code {}'
+                       .format(self.client_address, self.command, code))
+        
+        self.end_headers()
+        logger.debug('{} header sent'.format(self.client_address))
+        
+    
+    def do_PUT(self):
+        self._do_other()
+    
+    def do_PATCH(self):
+        self._do_other()
+    
+    def do_DELETE(self):
+        self._do_other()
 
 
 # only for debug purpose

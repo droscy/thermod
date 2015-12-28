@@ -1,6 +1,8 @@
 """Test suite for `thermod.socket` module."""
 
 import os
+import copy
+import json
 import logging
 import tempfile
 import unittest
@@ -10,11 +12,13 @@ import thermod.socket as socket
 from thermod import TimeTable, ControlThread, config
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2015-12-23'
+__updated__ = '2015-12-28'
 __url__ = 'http://localhost:4344/settings'
 
+# TODO cercare di capire come mai ogni tanto i test falliscono per "OSError: [Errno 98] Address already in use"
 
 class TestSocket(unittest.TestCase):
+    """Test cases for `thermod.socket` module."""
 
     def setUp(self):
         self.timetable = TimeTable()
@@ -50,47 +54,120 @@ class TestSocket(unittest.TestCase):
         self.assertEqual(self.timetable, tt)
     
     
-    def test_post_settings(self):
+    def test_post_wrong_messages(self):
         # wrong url
         wrong = requests.post('http://localhost:4344/wrong', {})
         self.assertEqual(wrong.status_code, 404)
         wrong.close()
         
-        # wrong value
-        wrong = requests.post(__url__, {config.json_status: 'invalid'})
+        # wrong value for status
+        wrong = requests.post(__url__, {socket.req_settings_status: 'invalid'})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
-        # wrong value
-        wrong = requests.post(__url__, {config.json_differential: 1.1})
+        # wrong value (greater then max allowed)
+        wrong = requests.post(__url__, {socket.req_settings_differential: 1.1})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
-        # wrong JSON data
+        # wrong JSON data for days
         wrong = requests.post(__url__, {socket.req_settings_days: '{"monday":["invalid"]}'})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
+        # invalid JSON syntax for days
+        wrong = requests.post(__url__, {socket.req_settings_days: '{"monday":["missing quote]}'})
+        self.assertEqual(wrong.status_code, 400)
+        wrong.close()
         
-        # TODO write more wrong requests to handle the error code
+        # wrong JSON data for settings
+        settings = self.timetable.__getstate__()
+        settings[config.json_temperatures][config.json_tmax_str] = 'inf'
+        wrong = requests.post(__url__, {socket.req_settings_all: settings})
+        self.assertEqual(wrong.status_code, 400)
+        wrong.close()
         
-        # right url
-        p = requests.post(__url__, {config.json_status: config.json_status_off})
+        # invalid JSON syntax for settings
+        settings = self.timetable.settings
+        wrong = requests.post(__url__, {socket.req_settings_all: settings[0:30]})
+        self.assertEqual(wrong.status_code, 400)
+        wrong.close()
+        
+        # check original paramethers
+        self.assertAlmostEqual(self.timetable.differential, 0.5, delta=0.01)
+        self.assertAlmostEqual(self.timetable.tmax, 21, delta=0.01)
+    
+    
+    def test_post_right_messages(self):
+        # single settings
+        p = requests.post(__url__, {socket.req_settings_status: config.json_status_off})
         self.assertEqual(p.status_code, 200)
         self.assertEqual(self.timetable.status, config.json_status_off)
         p.close()
         
-        p = requests.post(__url__, {config.json_status: config.json_status_tmax,
-                                    config.json_tmax_str: 32.3,
-                                    config.json_grace_time: 'inf'})
+        # multiple settings
+        q = requests.post(__url__, {socket.req_settings_status: config.json_status_tmax,
+                                    socket.req_settings_tmax: 32.3,
+                                    socket.req_settings_grace_time: 'inf'})
         
-        self.assertEqual(p.status_code, 200)
+        self.assertEqual(q.status_code, 200)
         self.assertEqual(self.timetable.status, config.json_status_tmax)
         self.assertAlmostEqual(self.timetable.tmax, 32.3, delta=0.01)
         self.assertEqual(self.timetable.grace_time, float('inf'))
-        p.close()
+        q.close()
         
-        # TODO write more right requests
+        # some days
+        old_set = self.timetable.__getstate__()
+        friday = old_set[config.json_timetable][config.json_get_day_name(5)]
+        sunday = old_set[config.json_timetable][config.json_get_day_name(7)]
+        
+        friday['12'][0] = 44
+        friday['15'][1] = 45
+        sunday['06'][2] = 46
+        sunday['07'][3] = 47
+        
+        r = requests.post(__url__,
+            {socket.req_settings_days:
+                json.dumps({config.json_get_day_name(5): friday,
+                            config.json_get_day_name(7): sunday})})
+        
+        self.assertEqual(r.status_code, 200)
+        new_set = self.timetable.__getstate__()
+        new_friday = new_set[config.json_timetable][config.json_get_day_name(5)]
+        new_sunday = new_set[config.json_timetable][config.json_get_day_name(7)]
+        
+        self.assertEqual(new_friday['12'][0], 44)
+        self.assertEqual(new_friday['15'][1], 45)
+        self.assertEqual(new_sunday['06'][2], 46)
+        self.assertEqual(new_sunday['07'][3], 47)
+        
+        # all settings
+        tt2 = copy.deepcopy(self.timetable)
+        tt2.status = config.json_status_tmax
+        tt2.grace_time = 3600
+        tt2.update('thursday', 4, 1, 36.5)
+        
+        self.assertNotEqual(self.timetable, tt2)  # different before update
+        
+        s = requests.post(__url__, {socket.req_settings_all: tt2.settings})
+        self.assertEqual(s.status_code, 200)
+        s.close()
+        
+        self.assertEqual(self.timetable, tt2)  # equal after update
+    
+    
+    def test_unsupported_http_methods(self):
+        pa = requests.patch(__url__, {})
+        self.assertEqual(pa.status_code, 501)
+        pa.close()
+        
+        pu = requests.put(__url__, {})
+        self.assertEqual(pu.status_code, 501)
+        pu.close()
+        
+        de = requests.delete(__url__)
+        self.assertEqual(de.status_code, 501)
+        de.close()
 
 
 if __name__ == "__main__":
