@@ -1,11 +1,11 @@
 """Manage the timetable of thermod."""
 
-import copy
 import json
 import logging
 import jsonschema
 import os.path
 import time
+from copy import deepcopy
 from threading import RLock
 from datetime import datetime
 
@@ -15,7 +15,7 @@ from .config import JsonValueError, elstr
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2015-12-23'
+__updated__ = '2015-12-28'
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class TimeTable():
     def __getstate__(self):
         """Validate the internal state and return it as a dictonary.
         
-        The returned dictonary can be used to save the data in a JSON file.
+        The returned dictonary is a deep copy of the internal state.
         The validation is performed even if `TimeTable._has_been_validated`
         is True.
         """
@@ -119,7 +119,7 @@ class TimeTable():
             logger.debug('the timetable is valid')
         
         logger.debug('returning internal state')
-        return settings
+        return deepcopy(settings)
     
     
     def __setstate__(self, state):
@@ -128,6 +128,9 @@ class TimeTable():
         The `state` is first validated, if it's valid it will be set,
         otherwise a `jsonschema.ValidationError` exception is raised and the
         old state remains unchanged.
+        
+        The new state is deep copied before saving internally to prevent
+        unwanted update to any array.
         """
         
         logger.debug('setting new internal state')
@@ -153,8 +156,8 @@ class TimeTable():
             # storing new values
             logger.debug('data validated: setting new values')
             self._status = state[config.json_status]
-            self._temperatures = state[config.json_temperatures]
-            self._timetable = state[config.json_timetable]
+            self._temperatures = deepcopy(state[config.json_temperatures])
+            self._timetable = deepcopy(state[config.json_timetable])
             
             if config.json_differential in state:
                 self._differential = state[config.json_differential]
@@ -179,6 +182,7 @@ class TimeTable():
                 self._differential = old_differential
                 self._grace_time = old_grace_time
                 
+                # then re-rise the exception
                 raise
             
             finally:
@@ -562,6 +566,8 @@ class TimeTable():
         days under update.
         """
         
+        # TODO fare in modo che accetti sia JSON sia un dictonary con le info del giorno da aggiornare
+        
         logger.debug('updating timetable days')
         
         data = json.loads(json_data)
@@ -577,7 +583,7 @@ class TimeTable():
                          .format(list(data.keys())))
             
             old_state = self.__getstate__()
-            new_state = copy.deepcopy(old_state)
+            new_state = deepcopy(old_state)
             
             logger.debug('updating data for each provided day')
             for day, timetable in data.items():
