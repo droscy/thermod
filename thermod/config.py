@@ -1,9 +1,10 @@
 """Utilities, functions and constants for thermod daemon."""
 
 import os
+import math
 import calendar
 
-__updated__ = '2015-12-23'
+__updated__ = '2015-12-27'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -113,7 +114,8 @@ def is_valid_temperature(temperature):
     """Return True if the provided temperature is valid.
     
     A temperature is considered valid if it is a number or one of the
-    following string values: 't0', 'tmin', 'tmax'.
+    following string values: 't0', 'tmin', 'tmax'. The positive/negative
+    infinity and NaN are considered invalid.
     """
     
     result = None
@@ -122,10 +124,14 @@ def is_valid_temperature(temperature):
         result = True
     else:
         try:
-            float(temperature)
-            result = True
+            t = float(temperature)
         except:
             result = False
+        else:
+            if not math.isinf(t) and not math.isnan(t):
+                result = True
+            else:
+                result = False
 
     return result
 
@@ -186,8 +192,9 @@ def json_format_hour(hour):
 def json_get_day_name(day):
     """Return the name of the provided day as used by Thermod.
     
-    The input `day` can be a number in range 0-6 (0 is Sunday, 1 is Monday, etc)
-    or a day name in English or in the current locale.
+    The input `day` can be a number in range 0-7 (0 and 7 are Sunday,
+    1 is Monday, 2 is Tuesday, etc) or a day name in English or in the
+    current locale.
     """
     
     result = None
@@ -195,6 +202,8 @@ def json_get_day_name(day):
     try:
         if day in json_days_name_map.keys():
             result = json_days_name_map[day]
+        elif isinstance(day, int) and int(day) in range(8):
+            result = json_days_name_map[int(day) % 7]
         elif str(day).lower() in set(json_days_name_map.values()):
             result = str(day).lower()
         else:

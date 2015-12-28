@@ -160,7 +160,10 @@ class TestTimeTable(TestCase):
                 self.timetable.t0 = t
         
         with self.assertRaises(JsonValueError):
-                self.timetable.t0 = 'invalid'
+            self.timetable.t0 = 'invalid'
+        
+        with self.assertRaises(JsonValueError):
+            self.timetable.tmax = 'nan'
     
     
     def test_tmin(self):
@@ -182,7 +185,10 @@ class TestTimeTable(TestCase):
                 self.timetable.tmin = t
         
         with self.assertRaises(JsonValueError):
-                self.timetable.tmin = 'invalid'
+            self.timetable.tmin = 'invalid'
+        
+        with self.assertRaises(JsonValueError):
+            self.timetable.tmax = '-inf'
     
     
     def test_tmax(self):
@@ -204,7 +210,10 @@ class TestTimeTable(TestCase):
                 self.timetable.tmax = t
         
         with self.assertRaises(JsonValueError):
-                self.timetable.tmax = 'invalid'
+            self.timetable.tmax = 'invalid'
+        
+        with self.assertRaises(JsonValueError):
+            self.timetable.tmax = 'inf'
     
     
     def test_degrees(self):
