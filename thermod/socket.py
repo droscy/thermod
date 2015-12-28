@@ -7,8 +7,14 @@ import logging
 import time
 from threading import Thread
 from jsonschema import ValidationError
-from json.decoder import JSONDecodeError
+#from json.decoder import JSONDecodeError
 from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# backward compatibility for Python 3.4 (TODO check for better handling)
+if sys.version[0:3] >= '3.5':
+    from json.decoder import JSONDecodeError
+else:
+    JSONDecodeError = ValueError
 
 from . import config
 from .config import JsonValueError, elstr

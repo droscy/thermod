@@ -1,6 +1,7 @@
 """Test suite for `TimeTable` class."""
 
 import os
+import sys
 import copy
 import json
 import locale
@@ -9,11 +10,18 @@ import tempfile
 import threading
 from unittest import TestCase
 from jsonschema import ValidationError
-from json.decoder import JSONDecodeError
+#from json.decoder import JSONDecodeError
 from datetime import datetime, timedelta
 from thermod import TimeTable, JsonValueError, config as tconf
 
-__updated__ = '2015-12-15'
+# backward compatibility for Python 3.4 (TODO check for better handling)
+if sys.version[0:3] >= '3.5':
+    from json.decoder import JSONDecodeError
+else:
+    JSONDecodeError = ValueError
+
+
+__updated__ = '2015-12-27'
 
 
 def fill_timetable(timetable):
