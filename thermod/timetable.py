@@ -15,12 +15,12 @@ from .config import JsonValueError, elstr
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2015-12-28'
+__updated__ = '2016-01-04'
 
 logger = logging.getLogger(__name__)
 
 
-class TimeTable():
+class TimeTable(object):
     """Represent the timetable to control the heating."""
     
     def __init__(self, filepath=None):
