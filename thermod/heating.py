@@ -4,6 +4,7 @@ import sys
 import json
 import logging
 import subprocess
+from datetime import datetime
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -17,7 +18,6 @@ __updated__ = '2016-01-08'
 logger = logging.getLogger(__name__)
 
 # TODO scrivere unit test
-# TODO prevedere un last_on_time da salvare internamente
 
 
 class HeatingError(RuntimeError):
@@ -36,31 +36,72 @@ class HeatingError(RuntimeError):
 class BaseHeating(object):
     """Abstract class that represents a real heating.
     
-    To model your real heating sublcass this class and implement the
-    three method `BaseHeating.switch_on()`, `BaseHeating.switch_off()`
-    and `BaseHeating.status()`.
+    Every method must be implemented in subclasses to be usable.
     """
     
     def switch_on(self):
-        """Switch on the heating, on failure a `HeatingError` is raised.
+        """Should switch on the heating.
         
-        Subclasses must adhere this behaviour to be compatible.
+        Subclasses, to be fully compatible, must implement this method and,
+        in case of failure, raise a `HeatingError`.
         """
-        raise NotImplementedError('the `switch_on` method is not implemented')
+        raise NotImplementedError('method not implemented')
     
     def switch_off(self):
-        """Switch off the heating, on failure a `HeatingError` is raised.
+        """Should switch off the heating.
         
-        Subclasses must adhere this behaviour to be compatible.
+        Subclasses, to be fully compatible, must implement this method and,
+        in case of failure, raise a `HeatingError`.
         """
-        raise NotImplementedError('the `switch_off` method is not implemented')
+        raise NotImplementedError('method not implemented')
     
     def status(self):
-        """Return the status of the heating as integer: 1=ON, 0=OFF.
+        """Should return the status of the heating as an integer: 1=ON, 0=OFF.
         
-        Subclasses must adhere this behaviour to be compatible.
+        Subclasses must implement this method and return an integer value to be
+        fully compatible.
         """
-        raise NotImplementedError('the `status` method is not implemented')
+        raise NotImplementedError('method not implemented')
+    
+    def is_on(self):
+        """Should return `True` if the heating is currently on, `False` otherwise.
+        
+        Subclasses must implement this method and return a boolean value to be
+        fully compatible.
+        """
+        raise NotImplementedError('method not implemented')
+    
+    def last_on_time(self):
+        """Should return the last time the heating was seen on.
+        
+        Subclasses must implement this method and return a `datetime` object
+        to be fully compatible.
+        """
+        raise NotImplementedError('method not implemented')
+
+
+class FakeHeating(BaseHeating):
+    """Fake implementation to simulate a real heating in some tests."""
+    
+    def __init__(self):
+        self._is_on = False
+        self._last_on_time = datetime.fromtimestamp(0)
+    
+    def switch_on(self):
+        self._is_on = True
+        self._last_on_time = datetime.now()
+    
+    def switch_off(self):
+        self._is_on = False
+    
+    def status(self):
+        return int(self._is_on)
+    
+    def is_on(self):
+        return self._is_on
+    
+    def last_on_time(self):
+        return self._last_on_time
 
 
 class ScriptHeating(BaseHeating):
@@ -68,7 +109,7 @@ class ScriptHeating(BaseHeating):
     
     The three scripts are the interfaces to the hardware of the heating:
     one to retrive the current status, one to switch on the heating and the
-    last one to swith it off.
+    last one to switch it off.
     
     The three scripts must be POSIX compliant and must exit with code
     0 on success and 1 on error. In addition they must write to the standard
@@ -96,98 +137,124 @@ class ScriptHeating(BaseHeating):
         (like `['/usr/local/bin/switchoff', '-j', '-v']`).
         """
         
-        self._switch_on = switchon
-        self._switch_off = switchoff
-        self._status = status
+        self._is_on = None
+        """The last status of the heating.
         
-        if isinstance(self._switch_on, list):
-            self._switchon_shell = False
-        elif isinstance(self._switch_on, str):
-            self._switchon_shell = True
+        The pourpose of this attribute is to avoid too many hardware requests
+        to the heating. Whenever `switch_on()`, `switch_off()` or `status()`
+        methods are executed this value may change to reflect the new current
+        status, while the `is_on()` method simply returns this value.
+        """
+        
+        self._last_on_time = datetime.fromtimestamp(0)
+        
+        self._switch_on_script = switchon
+        self._switch_off_script = switchoff
+        self._status_script = status
+        
+        if isinstance(self._switch_on_script, list):
+            self._switch_on_shell = False
+        elif isinstance(self._switch_on_script, str):
+            self._switch_on_shell = True
         else:
             raise TypeError('the switchon parameter must be string or list')
         
-        if isinstance(self._switch_off, list):
-            self._switchoff_shell = False
-        elif isinstance(self._switch_off, str):
-            self._switchoff_shell = True
+        if isinstance(self._switch_off_script, list):
+            self._switch_off_shell = False
+        elif isinstance(self._switch_off_script, str):
+            self._switch_off_shell = True
         else:
             raise TypeError('the switchoff parameter must be string or list')
         
-        if isinstance(self._status, list):
+        if isinstance(self._status_script, list):
             self._status_shell = False
-        elif isinstance(self._status, str):
+        elif isinstance(self._status_script, str):
             self._status_shell = True
         else:
             raise TypeError('the status parameter must be string or list')
         
         logger.debug('{} initialized with ON=`{}`, OFF=`{}` and STATUS=`{}`'
                      .format(self.__class__.__name__,
-                             self._switch_on,
-                             self._switch_off,
-                             self._status))
+                             self._switch_on_script,
+                             self._switch_off_script,
+                             self._status_script))
     
     def switch_on(self):
-        """Switch on the heating executing the `switchon` script."""
+        """Switch on the heating executing the `switch-on` script."""
         
         logger.debug('switching on the heating')
         
-        try:
-            subprocess.check_output(self._switch_on, shell=self._switchon_shell)
-        
-        except subprocess.CalledProcessError as cpe:
-            suberr = 'the switch-on script exited with return code {}'.format(cpe.returncode)
-            logger.debug(suberr)
-            
+        if not self._is_on:
             try:
-                out = json.loads(cpe.output.decode('utf-8'))
-            except:
-                out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
+                subprocess.check_output(self._switch_on_script,
+                                        shell=self._switch_on_shell)
             
-            if ScriptHeating.ERROR in out:
-                err = str(out[ScriptHeating.ERROR])
-                logger.debug(err)
+            except subprocess.CalledProcessError as cpe:
+                suberr = 'the switch-on script exited with return code {}'.format(cpe.returncode)
+                logger.debug(suberr)
+                
+                try:
+                    out = json.loads(cpe.output.decode('utf-8'))
+                except:
+                    out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
+                
+                if ScriptHeating.ERROR in out:
+                    err = str(out[ScriptHeating.ERROR])
+                    logger.debug(err)
+                
+                raise HeatingError((err or suberr), suberr)
             
-            raise HeatingError((err or suberr), suberr)
+            self._is_on = True
+            logger.debug('heating switched on')
+            
+        else:
+            logger.debug('heating already on')
         
-        logger.debug('heating switched on')
+        self._last_on_time = datetime.now()
     
     def switch_off(self):
-        """Switch off the heating executing the `switchoff` script."""
+        """Switch off the heating executing the `switch-off` script."""
         
         logger.debug('switching off the heating')
         
-        try:
-            subprocess.check_output(self._switch_off, shell=self._switchoff_shell)
-        
-        except subprocess.CalledProcessError as cpe:
-            suberr = 'the switch-off script exited with return code {}'.format(cpe.returncode)
-            logger.debug(suberr)
-            
+        if self._is_on or self._is_on is None:
             try:
-                out = json.loads(cpe.output.decode('utf-8'))
-            except:
-                out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
+                subprocess.check_output(self._switch_off_script,
+                                        shell=self._switch_off_shell)
             
-            if ScriptHeating.ERROR in out:
-                err = str(out[ScriptHeating.ERROR])
-                logger.debug(err)
+            except subprocess.CalledProcessError as cpe:
+                suberr = 'the switch-off script exited with return code {}'.format(cpe.returncode)
+                logger.debug(suberr)
+                
+                try:
+                    out = json.loads(cpe.output.decode('utf-8'))
+                except:
+                    out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
+                
+                if ScriptHeating.ERROR in out:
+                    err = str(out[ScriptHeating.ERROR])
+                    logger.debug(err)
+                
+                raise HeatingError((err or suberr), suberr)
             
-            raise HeatingError((err or suberr), suberr)
+            self._is_on = False
+            logger.debug('heating switched off')
         
-        logger.debug('heating switched off')
+        else:
+            logger.debug('heating already off')
+            
     
     def status(self):
-        """Exec the `status` script and return the current status of the heating.
+        """Execute the `status` script and return the current status of the heating.
         
-        The returned value is an integer: 1 for heating ON and 0 for OFF.
+        The returned value is an integer: 1 for ON and 0 for OFF.
         """
         
         logger.debug('retriving the status of the heating')
         
         try:
             out = json.loads(subprocess.check_output(
-                                self._status,
+                                self._status_script,
                                 shell=self._status_shell).decode('utf-8'))
             
             ststr = out[ScriptHeating.STATUS]
@@ -225,9 +292,30 @@ class ScriptHeating(BaseHeating):
             raise HeatingError('the status script returned an invalid status',
                                str(ve))
             
-        logger.debug('the heating is currently {}'.format((status and 'ON' or 'OFF')))
+        logger.debug('the heating is currently {}'
+                     .format((status and 'ON' or 'OFF')))
         
+        if status:
+            self._last_on_time = datetime.now()
+        
+        self._is_on = bool(status)
         return status
+    
+    def is_on(self):
+        """Return `True` if the heating is ON, `False` otherwise.
+        
+        Does not execute any script, simply returns the last seen status.
+        External classes/applications can execute this method frequently
+        without producing performance issues on the machine.
+        
+        To retrive the real current status as reported by the hardware
+        consider executing the `status()` method.
+        """
+        return self._is_on
+    
+    def last_on_time(self):
+        """Return the last time the heating was seen on."""
+        return self._last_on_time
 
 
 # only for debug purpose
@@ -237,12 +325,16 @@ if __name__ == '__main__':
                             'python3 scripts/switch.py --status -j')
     
     print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
+    print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
     
     heating.switch_off()
     print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
+    print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
     
     heating.switch_on()
     print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
+    print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
     
     heating.switch_on()
     print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
+    print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
