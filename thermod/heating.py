@@ -12,15 +12,21 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-01-06'
+__updated__ = '2016-01-08'
 
 logger = logging.getLogger(__name__)
 
-# TODO scrivere documentazione
 # TODO scrivere unit test
+# TODO prevedere un last_on_time da salvare internamente
 
 
 class HeatingError(RuntimeError):
+    """Main exception for heating-related errors.
+    
+    The attribute `suberror` can contain additional informations about the
+    error. These informations are not printed nor returned by default and
+    must be accessed directly.
+    """
     
     def __init__(self, error=None, suberror=None):
         super().__init__(error)
@@ -36,41 +42,45 @@ class BaseHeating(object):
     """
     
     def switch_on(self):
-        """Switch on the heating, on failure a `HeatingError` is rised.
+        """Switch on the heating, on failure a `HeatingError` is raised.
         
         Subclasses must adhere this behaviour to be compatible.
         """
-        raise NotImplementedError('the `switch_on` method is currently not implemented')
+        raise NotImplementedError('the `switch_on` method is not implemented')
     
     def switch_off(self):
-        """Switch off the heating, on failure a `HeatingError` is rised.
+        """Switch off the heating, on failure a `HeatingError` is raised.
         
         Subclasses must adhere this behaviour to be compatible.
         """
-        raise NotImplementedError('the `switch_off` method is currently not implemented')
+        raise NotImplementedError('the `switch_off` method is not implemented')
     
     def status(self):
-        """Return the boolean status of the heating: 1=ON, 0=OFF.
+        """Return the status of the heating as integer: 1=ON, 0=OFF.
         
-        Subclasses must adhere this boolean status to be compatible.
+        Subclasses must adhere this behaviour to be compatible.
         """
-        raise NotImplementedError('the `status` method is currently not implemented')
+        raise NotImplementedError('the `status` method is not implemented')
 
 
 class ScriptHeating(BaseHeating):
-    """Manage the real heating executing three external scripts.
+    """Manage the real heating through three external scripts.
     
-    The three scripts are the interfaces to the hardware of the heating,
+    The three scripts are the interfaces to the hardware of the heating:
     one to retrive the current status, one to switch on the heating and the
-    last one to swith it off. They must be POSIX compliant and return
-    0 on success and 1 on error. In addition they must write to the standard
-    output a JSON string with three fields:
+    last one to swith it off.
     
-     - `success`: with boolean value `true` for success and `false` for failure;
-     
-     - `status`: with integer value 1 for heating ON and 0 for heating OFF;
-     
-     - `error`: with error message in case of failure (`null` or empty otherwise).
+    The three scripts must be POSIX compliant and must exit with code
+    0 on success and 1 on error. In addition they must write to the standard
+    output a JSON string with the following fields:
+    
+        - `success`: if the operation has been completed successfully or not
+          (boolean value `true` for success and `false` for failure);
+        
+        - `status`: the current status of the heating (as integer: 1=ON, 0=OFF);
+        
+        - `error`: the error message in case of failure, `null` or empty
+          string otherwise.
     """
     
     SUCCESS = 'success'
@@ -82,7 +92,7 @@ class ScriptHeating(BaseHeating):
         
         The three parameters must be strings containing the full paths to the
         scripts with options (like `/usr/local/bin/switchoff -j -v`) or an
-        array with script to be executed followed by options
+        array with the script to be executed followed by the options
         (like `['/usr/local/bin/switchoff', '-j', '-v']`).
         """
         
@@ -118,6 +128,8 @@ class ScriptHeating(BaseHeating):
                              self._status))
     
     def switch_on(self):
+        """Switch on the heating executing the `switchon` script."""
+        
         logger.debug('switching on the heating')
         
         try:
@@ -133,7 +145,7 @@ class ScriptHeating(BaseHeating):
                 out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
             
             if ScriptHeating.ERROR in out:
-                err = out[ScriptHeating.ERROR]
+                err = str(out[ScriptHeating.ERROR])
                 logger.debug(err)
             
             raise HeatingError((err or suberr), suberr)
@@ -141,6 +153,8 @@ class ScriptHeating(BaseHeating):
         logger.debug('heating switched on')
     
     def switch_off(self):
+        """Switch off the heating executing the `switchoff` script."""
+        
         logger.debug('switching off the heating')
         
         try:
@@ -156,7 +170,7 @@ class ScriptHeating(BaseHeating):
                 out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
             
             if ScriptHeating.ERROR in out:
-                err = out[ScriptHeating.ERROR]
+                err = str(out[ScriptHeating.ERROR])
                 logger.debug(err)
             
             raise HeatingError((err or suberr), suberr)
@@ -164,12 +178,20 @@ class ScriptHeating(BaseHeating):
         logger.debug('heating switched off')
     
     def status(self):
+        """Exec the `status` script and return the current status of the heating.
+        
+        The returned value is an integer: 1 for heating ON and 0 for OFF.
+        """
+        
         logger.debug('retriving the status of the heating')
         
         try:
             out = json.loads(subprocess.check_output(
                                 self._status,
                                 shell=self._status_shell).decode('utf-8'))
+            
+            ststr = out[ScriptHeating.STATUS]
+            status = int(ststr)
         
         except subprocess.CalledProcessError as cpe:
             suberr = 'the status script exited with return code {}'.format(cpe.returncode)
@@ -181,20 +203,28 @@ class ScriptHeating(BaseHeating):
                 out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
             
             if ScriptHeating.ERROR in out:
-                err = out[ScriptHeating.ERROR]
+                err = str(out[ScriptHeating.ERROR])
                 logger.debug(err)
             
             raise HeatingError((err or suberr), suberr)
         
         except JSONDecodeError as jde:
             logger.debug('the script output is not in JSON format')
-            raise HeatingError('script output is invalid, cannot get current status', str(jde))
+            raise HeatingError('script output is invalid, cannot get current '
+                               'status', str(jde))
         
-        if ScriptHeating.STATUS not in out:
+        except KeyError as ke:
+            logger.debug('the script output lacks the `{}` item'
+                         .format(ScriptHeating.STATUS))
+            
             raise HeatingError('the status script has not returned the '
-                               'current heating status')
-        
-        status = out[ScriptHeating.STATUS]
+                               'current heating status', str(ke))
+            
+        except ValueError as ve:
+            logger.debug('cannot convert status `{}` to integer'.format(ststr))
+            raise HeatingError('the status script returned an invalid status',
+                               str(ve))
+            
         logger.debug('the heating is currently {}'.format((status and 'ON' or 'OFF')))
         
         return status
