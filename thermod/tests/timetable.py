@@ -21,7 +21,7 @@ else:
     JSONDecodeError = ValueError
 
 
-__updated__ = '2015-12-27'
+__updated__ = '2016-01-11'
 
 
 def fill_timetable(timetable):
@@ -550,7 +550,7 @@ class TestTimeTable(TestCase):
         self.assertTrue(self.timetable.should_the_heating_be_on(19))
         
         # virtually switching on and set internal state
-        self.timetable.seton()
+        self.timetable.heating.switch_on()
         
         # the temperature start increasing
         self.assertTrue(self.timetable.should_the_heating_be_on(20))
@@ -560,7 +560,7 @@ class TestTimeTable(TestCase):
         self.assertFalse(self.timetable.should_the_heating_be_on(21.5))
         
         # virtually switching off and set internal state
-        self.timetable.setoff()
+        self.timetable.heating.switch_off()
         
         # the temperature start decreasing
         self.assertFalse(self.timetable.should_the_heating_be_on(21.4))
@@ -602,8 +602,8 @@ class TestTimeTable(TestCase):
         self.timetable.grace_time = 3600
         
         # the heating was on 30 minutes ego, less than grace time
-        self.timetable._is_on = False
-        self.timetable._last_on_time = (now - timedelta(seconds=1800))
+        self.timetable.heating._is_on = False
+        self.timetable.heating._last_on_time = (now - timedelta(seconds=1800))
         self.assertTrue(self.timetable.should_the_heating_be_on(20.5))
         self.assertFalse(self.timetable.should_the_heating_be_on(20.6))
         self.assertFalse(self.timetable.should_the_heating_be_on(21))
@@ -621,7 +621,7 @@ class TestTimeTable(TestCase):
         self.timetable.status = tconf.json_status_auto
         self.timetable.update(day,hour,quarter,tconf.json_tmax_str)
         self.timetable.grace_time = 60
-        self.timetable.seton()
+        self.timetable.heating.switch_on()
         
         # the heating is on and it remains on untill target temperature
         # plus differential
@@ -631,7 +631,7 @@ class TestTimeTable(TestCase):
         # next quarter is tmin
         self.timetable.update(day,hour,quarter,tconf.json_tmin_str)
         self.assertFalse(self.timetable.should_the_heating_be_on(21))
-        self.timetable.setoff()
+        self.timetable.heating.switch_off()
         
         # even if next quarter is tmax again, the grace time is not passed and
         # the heating remains off

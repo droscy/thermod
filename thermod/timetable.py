@@ -11,11 +11,12 @@ from datetime import datetime
 
 from . import config
 from .config import JsonValueError, elstr
+from .heating import BaseHeating
 
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2016-01-04'
+__updated__ = '2016-01-11'
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +24,16 @@ logger = logging.getLogger(__name__)
 class TimeTable(object):
     """Represent the timetable to control the heating."""
     
-    def __init__(self, filepath=None):
+    def __init__(self, filepath=None, heating=None):
         """Init the timetable.
 
         If `filepath` is not `None`, it must be a full path to a
         JSON file that contains all the informations to setup the
-        timetable.
+        timetable. While `heating` must be a subclass of `BaseHeating`,
+        if `None` a `FakeHeating` is used to provide base functionality.
         """
         
-        logger.debug('initializing timetable')
+        logger.debug('initializing {}'.format(self.__class__.__name__))
 
         self._status = None
         self._temperatures = {}
@@ -41,8 +43,16 @@ class TimeTable(object):
         self._grace_time = float(3600)
 
         self._lock = RLock()
-        self._is_on = False  # if the heating is on
-        self._last_on_time = datetime.fromtimestamp(0)  # last switch on time
+        """Provide single-thread access to methods of this class."""
+        
+        if isinstance(heating, BaseHeating):
+            self._heating = heating
+            """Interface to the real heating."""
+        elif not heating:
+            self._heating = BaseHeating()  # fake heating with basic functions
+        else:
+            logger.debug('the heating must be a subclass of BaseHeating')
+            raise TypeError('the heating must be a subclass of BaseHeating')
         
         self._has_been_validated = False
         """Used to speedup validation.
@@ -510,6 +520,32 @@ class TimeTable(object):
             logger.debug('new tmax temperature set: {}'.format(nvalue))
     
     
+    @property
+    def heating(self):
+        """Return the current heating interface."""
+        with self._lock:
+            logger.debug('lock acquired to get current heating interface')
+            return self._heating
+    
+    
+    @heating.setter
+    def heating(self, heating):
+        """Set a new heating interface.
+        
+        The `heating` must be a subclass of `thermod.heating.BaseHeating` class.
+        """
+        
+        with self._lock:
+            logger.debug('lock acquired to set new heating interface')
+            
+            if not isinstance(heating, BaseHeating):
+                logger.debug('the heating must be a subclass of BaseHeating')
+                raise TypeError('the heating must be a subclass of BaseHeating')
+        
+            self._heating = heating
+            logger.debug('new heating set')
+    
+    
     def update(self, day, hour, quarter, temperature):
         # TODO scrivere documentazione
         logger.debug('updating timetable: day "{}", hour "{}", quarter "{}", '
@@ -681,9 +717,9 @@ class TimeTable(object):
                                  'target_temperature: {}'
                                  .format(day, hour, quarter, target))
                 
-                ison = self._is_on
+                ison = self._heating.is_on()
                 nowts = now.timestamp()
-                laston = self._last_on_time.timestamp()
+                laston = self._heating.last_on_time().timestamp()
                 grace = self._grace_time
                 
                 shoud_be_on = (
@@ -696,28 +732,3 @@ class TimeTable(object):
                              or (not shoud_be_on and 'OFF')))
         
         return shoud_be_on
-    
-    
-    def seton(self):
-        """The heating is ON, set internal variable to reflect this status.
-        
-        In other part of the program someone switched on the heating and
-        the timetable must be informed of this change, thus call this
-        method to set `self._is_on` and `self._last_on_time` attributes.
-        """
-        
-        with self._lock:
-            logger.debug('lock acquired to set on')
-            self._is_on = True
-            self._last_on_time = datetime.now()
-            logger.debug('is-on set to `{}` and last-on-time set to `{}`'
-                         .format(self._is_on, self._last_on_time))
-    
-    
-    def setoff(self):
-        """The heating is OFF, set internal variable to reflect this status."""
-        
-        with self._lock:
-            logger.debug('lock acquired to set off')
-            self._is_on = False
-            logger.debug('is-on set to `{}`'.format(self._is_on))

@@ -5,6 +5,7 @@ import json
 import logging
 import subprocess
 from datetime import datetime
+#from json.decoder import JSONDecodeError
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -32,73 +33,60 @@ class HeatingError(RuntimeError):
 
 
 class BaseHeating(object):
-    """Abstract class that represents a real heating.
+    """Basic implementation to simulate a real heating.
     
-    Every method must be implemented in subclasses to be usable.
+    Every method should be reimplemented in subclasses to interface with the
+    real heating hardware.
     """
-    
-    def switch_on(self):
-        """Should switch on the heating.
-        
-        Subclasses, to be fully compatible, must implement this method and,
-        in case of failure, raise a `HeatingError`.
-        """
-        raise NotImplementedError('method not implemented')
-    
-    def switch_off(self):
-        """Should switch off the heating.
-        
-        Subclasses, to be fully compatible, must implement this method and,
-        in case of failure, raise a `HeatingError`.
-        """
-        raise NotImplementedError('method not implemented')
-    
-    def status(self):
-        """Should return the status of the heating as an integer: 1=ON, 0=OFF.
-        
-        Subclasses must implement this method and return an integer value to be
-        fully compatible.
-        """
-        raise NotImplementedError('method not implemented')
-    
-    def is_on(self):
-        """Should return `True` if the heating is currently on, `False` otherwise.
-        
-        Subclasses must implement this method and return a boolean value to be
-        fully compatible.
-        """
-        raise NotImplementedError('method not implemented')
-    
-    def last_on_time(self):
-        """Should return the last time the heating was seen on.
-        
-        Subclasses must implement this method and return a `datetime` object
-        to be fully compatible.
-        """
-        raise NotImplementedError('method not implemented')
-
-
-class FakeHeating(BaseHeating):
-    """Fake implementation to simulate a real heating in some tests."""
     
     def __init__(self):
         self._is_on = False
         self._last_on_time = datetime.fromtimestamp(0)
     
     def switch_on(self):
+        """Switch on the heating, raise a `HeatingError` in case of failure.
+        
+        Subclasses that reimplement this method should adhere to this beahviour
+        and raise a `HeatingError` in case of failure
+        """
+        
         self._is_on = True
         self._last_on_time = datetime.now()
     
     def switch_off(self):
+        """Switch off the heating, raise a `HeatingError` in case of failure.
+        
+        Subclasses that reimplement this method should adhere to this beahviour
+        and raise a `HeatingError` in case of failure
+        """
+        
         self._is_on = False
     
     def status(self):
+        """Return the status of the heating as an integer: 1=ON, 0=OFF.
+        
+        Subclasses that reimplement this method should return an integer
+        value to be fully compatible.
+        """
+        
         return int(self._is_on)
     
     def is_on(self):
+        """Return `True` if the heating is currently on, `False` otherwise.
+        
+        Subclasses that reimplement this method should return a boolean
+        value to be fully compatible.
+        """
+        
         return self._is_on
     
     def last_on_time(self):
+        """Return the last time the heating was seen on.
+        
+        Subclasses that reimplement this method should return a `datetime`
+        object to be fully compatible.
+        """
+        
         return self._last_on_time
 
 
@@ -213,6 +201,7 @@ class ScriptHeating(BaseHeating):
             logger.debug('heating already on')
         
         self._last_on_time = datetime.now()
+        logger.debug('last-on-time se to `{}`'.format(self._last_on_time))
     
     def switch_off(self):
         """Switch off the heating executing the `switch-off` script."""
@@ -244,7 +233,6 @@ class ScriptHeating(BaseHeating):
         
         else:
             logger.debug('heating already off')
-            
     
     def status(self):
         """Execute the `status` script and return the current status of the heating.
@@ -299,6 +287,7 @@ class ScriptHeating(BaseHeating):
         
         if status:
             self._last_on_time = datetime.now()
+            logger.debug('last-on-time se to `{}`'.format(self._last_on_time))
         
         self._is_on = bool(status)
         return status
