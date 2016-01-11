@@ -13,11 +13,9 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-01-08'
+__updated__ = '2016-01-11'
 
 logger = logging.getLogger(__name__)
-
-# TODO scrivere unit test
 
 
 class HeatingError(RuntimeError):
@@ -107,9 +105,9 @@ class FakeHeating(BaseHeating):
 class ScriptHeating(BaseHeating):
     """Manage the real heating through three external scripts.
     
-    The three scripts are the interfaces to the hardware of the heating:
-    one to retrive the current status, one to switch on the heating and the
-    last one to switch it off.
+    The three scripts, provided during initialization, are the interfaces to
+    the hardware of the heating: one to retrive the current status, one to
+    switch on the heating and the last one to switch it off.
     
     The three scripts must be POSIX compliant and must exit with code
     0 on success and 1 on error. In addition they must write to the standard
@@ -118,7 +116,8 @@ class ScriptHeating(BaseHeating):
         - `success`: if the operation has been completed successfully or not
           (boolean value `true` for success and `false` for failure);
         
-        - `status`: the current status of the heating (as integer: 1=ON, 0=OFF);
+        - `status`: the current status of the heating (as integer: 1=ON, 0=OFF,
+          or `null` if an error occurred);
         
         - `error`: the error message in case of failure, `null` or empty
           string otherwise.
@@ -137,6 +136,8 @@ class ScriptHeating(BaseHeating):
         (like `['/usr/local/bin/switchoff', '-j', '-v']`).
         """
         
+        logger.debug('initializing {}'.format(self.__class__.__name__))
+        
         self._is_on = None
         """The last status of the heating.
         
@@ -147,6 +148,7 @@ class ScriptHeating(BaseHeating):
         """
         
         self._last_on_time = datetime.fromtimestamp(0)
+        """The last time the heating was seen on."""
         
         self._switch_on_script = switchon
         self._switch_off_script = switchoff
@@ -173,7 +175,7 @@ class ScriptHeating(BaseHeating):
         else:
             raise TypeError('the status parameter must be string or list')
         
-        logger.debug('{} initialized with ON=`{}`, OFF=`{}` and STATUS=`{}`'
+        logger.debug('{} initialized with scripts ON=`{}`, OFF=`{}` and STATUS=`{}`'
                      .format(self.__class__.__name__,
                              self._switch_on_script,
                              self._switch_off_script,

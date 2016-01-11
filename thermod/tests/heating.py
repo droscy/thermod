@@ -4,10 +4,9 @@ import os
 import logging
 import tempfile
 import unittest
+from thermod.heating import ScriptHeating, HeatingError
 
-__updated__ = '2016-01-08'
-
-# TODO completare
+__updated__ = '2016-01-11'
 
 
 class TestHeating(unittest.TestCase):
@@ -27,12 +26,22 @@ class TestHeating(unittest.TestCase):
 '''#!/usr/bin/env python
 import json
 
-with open(r'%s','w') as f:
-    f.write('1')
+retcode = 0
+status = None
+error = None
 
-print(json.dumps({'success': True, 'status': 1, 'error': None}))
+try:
+    with open(r'%s','w') as f:
+        f.write('1')
+    
+    status = 1
+except Exception as e:
+    retcode = 1
+    error = str(e)
 
-exit(0)
+print(json.dumps({'success': not bool(retcode), 'status': status, 'error': error}))
+
+exit(retcode)
 ''' % self.status_data)
         
         with open(self.switch_off_script, 'w') as file:
@@ -40,12 +49,22 @@ exit(0)
 '''#!/usr/bin/env python
 import json
 
-with open(r'%s','w') as f:
-    f.write('0')
+retcode = 0
+status = None
+error = None
 
-print(json.dumps({'success': True, 'status': 0, 'error': None}))
+try:
+    with open(r'%s','w') as f:
+        f.write('0')
+    
+    status = 0
+except Exception as e:
+    retcode = 1
+    error = str(e)
 
-exit(0)
+print(json.dumps({'success': not bool(retcode), 'status': status, 'error': error}))
+
+exit(retcode)
 ''' % self.status_data)
             
             with open(self.status_script, 'w') as file:
@@ -53,29 +72,78 @@ exit(0)
 '''#!/usr/bin/env python
 import json
 
-with open(r'%s','r') as f:
-    status = int(f.read())
+retcode = 0
+status = None
+error = None
 
-print(json.dumps({'success': True, 'status': status, 'error': None}))
+try:
+    with open(r'%s','r') as f:
+        status = int(f.read())
+except Exception as e:
+    retcode = 1
+    error = str(e)
 
-exit(0)
+print(json.dumps({'success': not bool(retcode), 'status': status, 'error': error}))
+
+exit(retcode)
 ''' % self.status_data)
-   
-
-    def tearDown(self):
-        os.remove(self.switch_on_script)
-        os.remove(self.switch_off_script)
-        os.remove(self.status_script)
-        os.remove(self.status_data)
-        #print(self.switch_on_script)
-        #print(self.switch_off_script)
-        #print(self.status_script)
-        #print(self.status_data)
+        
+        os.chmod(self.switch_on_script,0o700)
+        os.chmod(self.switch_off_script,0o700)
+        os.chmod(self.status_script,0o700)
+        
+        self.heating = ScriptHeating(self.switch_on_script,
+                                     self.switch_off_script,
+                                     self.status_script)
     
-    def test_prova(self):
-        # TODO
-        pass
-
+    def tearDown(self):
+        try:
+            os.remove(self.switch_on_script)
+        except FileNotFoundError:
+            pass
+        
+        try:
+            os.remove(self.switch_off_script)
+        except FileNotFoundError:
+            pass
+        
+        try:
+            os.remove(self.status_script)
+        except FileNotFoundError:
+            pass
+        
+        try:
+            os.remove(self.status_data)
+        except FileNotFoundError:
+            pass
+    
+    def test_heating(self):
+        self.assertEqual(self.heating.status(), 0)
+        self.assertEqual(self.heating.is_on(), False)
+        
+        self.heating.switch_on()
+        self.assertEqual(self.heating.status(), 1)
+        self.assertEqual(self.heating.is_on(), True)
+        
+        self.heating.switch_on()
+        self.assertEqual(self.heating.is_on(), True)
+        
+        self.heating.switch_off()
+        self.assertEqual(self.heating.status(), 0)
+        self.assertEqual(self.heating.is_on(), False)
+    
+    def test_errors(self):
+        os.remove(self.status_data)
+        self.assertRaises(HeatingError, self.heating.status)
+        
+        self.heating.switch_on()
+        self.assertEqual(self.heating.status(), 1)
+        
+        os.chmod(self.status_data,0o400)
+        self.assertRaises(HeatingError, self.heating.switch_off)
+        self.assertEqual(self.heating.is_on(), True)
+        self.assertEqual(self.heating.status(), 1)
+        os.chmod(self.status_data,0o600)
 
 
 if __name__ == "__main__":

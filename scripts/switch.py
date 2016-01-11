@@ -20,9 +20,9 @@ from serial import Serial, SerialException
 from thermod import config
 
 
-__version__ = '1.0.0~beta2'
+__version__ = '1.0.0~beta3'
 __date__ = '2015-10-02'
-__updated__ = '2015-10-10'
+__updated__ = '2016-01-11'
 
 
 # Control commands
@@ -256,7 +256,7 @@ def main(argv=None):
     
     if args.json:
         logger.debug('printing result as json encoded string')
-        print(json.dumps({'success': not result,
+        print(json.dumps({'success': not bool(result),
                           'status': status,
                           'error': error}))
     
