@@ -15,6 +15,7 @@ from .heating import BaseHeating
 
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
+# TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __updated__ = '2016-01-12'
 
@@ -312,7 +313,6 @@ class TimeTable(object):
     @property
     def lock(self):
         """Return the internal reentrant `threading.Condition` lock."""
-        logger.debug('returning internal lock')
         return self._lock
     
     
@@ -722,6 +722,10 @@ class TimeTable(object):
                 nowts = now.timestamp()
                 laston = self._heating.last_on_time().timestamp()
                 grace = self._grace_time
+                
+                # TODO messaggio di debug con i parametri mancanti, mostrare laston in modo intellegibile
+                logger.debug('is_on: {}, last_on_time: {}, grace_time: {}'
+                             .format(ison, laston, grace))
                 
                 shoud_be_on = (
                     (current <= (target - diff))

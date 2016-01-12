@@ -14,7 +14,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-01-11'
+__updated__ = '2016-01-12'
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +201,7 @@ class ScriptHeating(BaseHeating):
             logger.debug('heating already on')
         
         self._last_on_time = datetime.now()
-        logger.debug('last-on-time se to `{}`'.format(self._last_on_time))
+        logger.debug('last-on-time set to `{}`'.format(self._last_on_time))
     
     def switch_off(self):
         """Switch off the heating executing the `switch-off` script."""
@@ -287,7 +287,7 @@ class ScriptHeating(BaseHeating):
         
         if status:
             self._last_on_time = datetime.now()
-            logger.debug('last-on-time se to `{}`'.format(self._last_on_time))
+            logger.debug('last-on-time set to `{}`'.format(self._last_on_time))
         
         self._is_on = bool(status)
         return status

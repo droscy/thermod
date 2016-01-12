@@ -92,6 +92,7 @@ if True:
             
             with timetable.lock:
                 if timetable.should_the_heating_be_on(t):
+                    # TODO spostare qui la chiamata a is_on() e rimuoverla dagli switch
                     heating.switch_on()
                 else:
                     heating.switch_off()
