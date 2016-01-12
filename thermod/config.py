@@ -4,7 +4,7 @@ import os
 import math
 import calendar
 
-__updated__ = '2015-12-27'
+__updated__ = '2016-01-12'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -136,15 +136,19 @@ def is_valid_temperature(temperature):
     return result
 
 
-def json_format_main_temperature(temperature):
+def temperature_to_float(temperature):
     """Format the provided temperature as a float with one decimal.
     
-    Can be used both for timetable and main temperatures in JSON file.
+    Can be used both for timetable and main temperatures in JSON file or for
+    any other simple formattingh. The input value must be a number except
+    positive/negative infinity and NaN.
+    
+    @raise ValueError: if the provided temperature cannot be converted to float.
     """
     
     if not is_valid_temperature(temperature) or temperature in json_all_temperatures:
-        raise JsonValueError('the provided temperature is not valid ({}), '
-                             'it must be a number'.format(temperature))
+        raise ValueError('the provided temperature is not valid `{}`, '
+                         'it must be a number'.format(temperature))
     
     return round(float(temperature), 1)
 

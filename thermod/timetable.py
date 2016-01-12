@@ -6,7 +6,7 @@ import jsonschema
 import os.path
 import time
 from copy import deepcopy
-from threading import RLock
+from threading import Condition
 from datetime import datetime
 
 from . import config
@@ -16,7 +16,7 @@ from .heating import BaseHeating
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 
-__updated__ = '2016-01-11'
+__updated__ = '2016-01-12'
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class TimeTable(object):
         self._differential = 0.5
         self._grace_time = float(3600)
 
-        self._lock = RLock()
+        self._lock = Condition()
         """Provide single-thread access to methods of this class."""
         
         if isinstance(heating, BaseHeating):
@@ -311,7 +311,7 @@ class TimeTable(object):
     
     @property
     def lock(self):
-        """Return the internal reentrant lock."""
+        """Return the internal reentrant `threading.Condition` lock."""
         logger.debug('returning internal lock')
         return self._lock
     
@@ -371,7 +371,7 @@ class TimeTable(object):
             logger.debug('lock acquired to set a new differential value')
             
             try:
-                nvalue = config.json_format_main_temperature(value)
+                nvalue = config.temperature_to_float(value)
                 
                 if nvalue < 0 or nvalue > 1:
                     raise ValueError()
@@ -445,7 +445,7 @@ class TimeTable(object):
             logger.debug('lock acquired to set a new t0 value')
             
             try:
-                nvalue = config.json_format_main_temperature(value)
+                nvalue = config.temperature_to_float(value)
             
             # i catch and raise again the same exception to change the message
             except:
@@ -475,7 +475,7 @@ class TimeTable(object):
             logger.debug('lock acquired to set a new tmin value')
             
             try:
-                nvalue = config.json_format_main_temperature(value)
+                nvalue = config.temperature_to_float(value)
             
             # i catch and raise again the same exception to change the message
             except:
@@ -505,7 +505,7 @@ class TimeTable(object):
             logger.debug('lock acquired to set a new tmax value')
             
             try:
-                nvalue = config.json_format_main_temperature(value)
+                nvalue = config.temperature_to_float(value)
             
             # i catch and raise again the same exception to change the message
             except:
@@ -643,7 +643,9 @@ class TimeTable(object):
         """Convert the name of a temperature in its corresponding number value.
         
         If temperature is already a number, the number itself is returned.
-        If the main temperatures aren't set yet a `RuntimeError` is raised.
+        
+        @raise RuntimeError: if the main temperatures aren't yet set
+        @raise JsonValueError: if the provided temperature is invalid
         """
         
         logger.debug('converting temperature name to degrees')
@@ -673,10 +675,9 @@ class TimeTable(object):
     def should_the_heating_be_on(self, current_temperature):
         """Return `True` if now the heating *should be* ON, `False` otherwise.
         
-        This method doesn't update any of the internal variables,
-        i.e. if the heating should be on, `self._is_on` and
-        `self._last_on_time` remain the same until `self.seton()`
-        is executed.
+        This method doesn't update any of the internal variables.
+        
+        @raise JsonValueError: if the provided temperature is invalid
         """
         
         logger.debug('checking current should-be status of the heating')

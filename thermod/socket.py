@@ -42,7 +42,12 @@ from .timetable import TimeTable
 # correttamente alcune impostazioni. In questo modo ogni 30 secondi si controlla
 # la temperatura oppure quando vengono aggiornate delle impostazioni.
 
-__updated__ = '2015-12-28'
+# FIXME si può verificare un problema se viene modificato il timetable sul
+# filesystem senza eseguire un reload, poi qualcuno via socket tenta di aggiornare
+# le impostazioni e questo aggiornamento va male, vengono ricaricate le
+# impostazioni del file che però nel frattempo era stato aggiornato
+
+__updated__ = '2016-01-12'
 __version__ = '0.3'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -69,10 +74,6 @@ class ControlThread(Thread):
     
     def __init__(self, timetable, host='localhost', port=4344):
         super().__init__()
-        
-        if not isinstance(timetable, TimeTable):
-            raise TypeError('ControlThread requires a TimeTable object')
-        
         self.server = ControlServer(timetable, (host, port), ControlRequestHandler)
     
     def run(self):
@@ -509,6 +510,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     message = 'no settings provided'
                     data = self._send_header(code, message, {rsp_error: message})
+                
+                # if some settings of timetable have been updated, we'll notify
+                # this changes in order to recheck current temperature
+                if code==200:
+                    self.server.timetable.lock.notify()
         
         else:
             code = 404

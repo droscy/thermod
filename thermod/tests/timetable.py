@@ -359,9 +359,9 @@ class TestTimeTable(TestCase):
         
         for h in range(24):
             hour = tconf.json_format_hour(h)
-            t1_6 = tconf.json_format_main_temperature(state[tconf.json_timetable][day6][hour][0])
-            t1_3 = tconf.json_format_main_temperature(state[tconf.json_timetable][day3][hour][0])
-            t2 = tconf.json_format_main_temperature(h)
+            t1_6 = tconf.temperature_to_float(state[tconf.json_timetable][day6][hour][0])
+            t1_3 = tconf.temperature_to_float(state[tconf.json_timetable][day3][hour][0])
+            t2 = tconf.temperature_to_float(h)
             self.assertEqual(t1_6, t2)
             self.assertEqual(t1_3, t2)
         
@@ -386,15 +386,15 @@ class TestTimeTable(TestCase):
             day = tconf.json_get_day_name(1)
             hour = tconf.json_format_hour(10)
             quarter = 1
-            t1 = tconf.json_format_main_temperature(settings[tconf.json_timetable][day][hour][quarter])
-            t2 = tconf.json_format_main_temperature(30)
+            t1 = tconf.temperature_to_float(settings[tconf.json_timetable][day][hour][quarter])
+            t2 = tconf.temperature_to_float(30)
             self.assertEqual(t1, t2)
     
             day = tconf.json_get_day_name(3)
             hour = tconf.json_format_hour(11)
             quarter = 2
-            t1 = tconf.json_format_main_temperature(settings[tconf.json_timetable][day][hour][quarter])
-            t2 = tconf.json_format_main_temperature(20)
+            t1 = tconf.temperature_to_float(settings[tconf.json_timetable][day][hour][quarter])
+            t2 = tconf.temperature_to_float(20)
             self.assertEqual(t1, t2)
     
     
