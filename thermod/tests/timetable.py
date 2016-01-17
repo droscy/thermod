@@ -21,7 +21,7 @@ else:
     JSONDecodeError = ValueError
 
 
-__updated__ = '2016-01-11'
+__updated__ = '2016-01-17'
 
 
 def fill_timetable(timetable):
@@ -581,9 +581,9 @@ class TestTimeTable(TestCase):
         self.timetable.status = tconf.json_status_auto
         self.timetable.update(day,hour,quarter,tconf.json_tmax_str)
         
-        # the heating was on 2 hours ego, more than grace time
-        self.timetable._is_on = False
-        self.timetable._last_on_time = (now - timedelta(seconds=7200))
+        # the heating was on 2 hours ago, more than grace time
+        self.timetable.heating._is_on = False
+        self.timetable.heating._switch_off_time = (now - timedelta(seconds=7200))
         self.assertTrue(self.timetable.should_the_heating_be_on(20.9))
         self.assertFalse(self.timetable.should_the_heating_be_on(21))
         self.assertFalse(self.timetable.should_the_heating_be_on(21.1))
@@ -603,7 +603,7 @@ class TestTimeTable(TestCase):
         
         # the heating was on 30 minutes ego, less than grace time
         self.timetable.heating._is_on = False
-        self.timetable.heating._last_on_time = (now - timedelta(seconds=1800))
+        self.timetable.heating._switch_off_time = (now - timedelta(seconds=1800))
         self.assertTrue(self.timetable.should_the_heating_be_on(20.5))
         self.assertFalse(self.timetable.should_the_heating_be_on(20.6))
         self.assertFalse(self.timetable.should_the_heating_be_on(21))

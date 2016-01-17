@@ -14,7 +14,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-01-12'
+__updated__ = '2016-01-17'
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,10 @@ class BaseHeating(object):
     
     def __init__(self):
         self._is_on = False
-        self._last_on_time = datetime.fromtimestamp(0)
+        """If the heating is currently on."""
+        
+        self._switch_off_time = datetime.fromtimestamp(0)
+        """Time of last switch off."""
     
     def switch_on(self):
         """Switch on the heating, raise a `HeatingError` in case of failure.
@@ -51,7 +54,6 @@ class BaseHeating(object):
         """
         
         self._is_on = True
-        self._last_on_time = datetime.now()
     
     def switch_off(self):
         """Switch off the heating, raise a `HeatingError` in case of failure.
@@ -61,6 +63,7 @@ class BaseHeating(object):
         """
         
         self._is_on = False
+        self._switch_off_time = datetime.now()
     
     def status(self):
         """Return the status of the heating as an integer: 1=ON, 0=OFF.
@@ -80,14 +83,14 @@ class BaseHeating(object):
         
         return self._is_on
     
-    def last_on_time(self):
-        """Return the last time the heating was seen on.
+    def switch_off_time(self):
+        """Return the last time the heating has been switched off.
         
         Subclasses that reimplement this method should return a `datetime`
         object to be fully compatible.
         """
         
-        return self._last_on_time
+        return self._switch_off_time
 
 
 class ScriptHeating(BaseHeating):
@@ -131,12 +134,12 @@ class ScriptHeating(BaseHeating):
         
         The pourpose of this attribute is to avoid too many hardware requests
         to the heating. Whenever `switch_on()`, `switch_off()` or `status()`
-        methods are executed this value may change to reflect the new current
+        methods are executed this value changes to reflect the new current
         status, while the `is_on()` method simply returns this value.
         """
         
-        self._last_on_time = datetime.fromtimestamp(0)
-        """The last time the heating was seen on."""
+        self._switch_off_time = datetime.fromtimestamp(0)
+        """The last time the heating has been switched off."""
         
         self._switch_on_script = switchon
         self._switch_off_script = switchoff
@@ -174,65 +177,55 @@ class ScriptHeating(BaseHeating):
         
         logger.debug('switching on the heating')
         
-        if not self._is_on:
-            try:
-                subprocess.check_output(self._switch_on_script,
-                                        shell=self._switch_on_shell)
-            
-            except subprocess.CalledProcessError as cpe:
-                suberr = 'the switch-on script exited with return code {}'.format(cpe.returncode)
-                logger.debug(suberr)
-                
-                try:
-                    out = json.loads(cpe.output.decode('utf-8'))
-                except:
-                    out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
-                
-                if ScriptHeating.ERROR in out:
-                    err = str(out[ScriptHeating.ERROR])
-                    logger.debug(err)
-                
-                raise HeatingError((err or suberr), suberr)
-            
-            self._is_on = True
-            logger.debug('heating switched on')
-            
-        else:
-            logger.debug('heating already on')
+        try:
+            subprocess.check_output(self._switch_on_script,
+                                    shell=self._switch_on_shell)
         
-        self._last_on_time = datetime.now()
-        logger.debug('last-on-time set to `{}`'.format(self._last_on_time))
+        except subprocess.CalledProcessError as cpe:
+            suberr = 'the switch-on script exited with return code `{}`'.format(cpe.returncode)
+            logger.debug(suberr)
+            
+            try:
+                out = json.loads(cpe.output.decode('utf-8'))
+            except:
+                out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
+            
+            if ScriptHeating.ERROR in out:
+                err = str(out[ScriptHeating.ERROR])
+                logger.debug(err)
+            
+            raise HeatingError((err or suberr), suberr)
+        
+        self._is_on = True
+        logger.debug('heating switched on')
     
     def switch_off(self):
         """Switch off the heating executing the `switch-off` script."""
         
         logger.debug('switching off the heating')
         
-        if self._is_on or self._is_on is None:
-            try:
-                subprocess.check_output(self._switch_off_script,
-                                        shell=self._switch_off_shell)
-            
-            except subprocess.CalledProcessError as cpe:
-                suberr = 'the switch-off script exited with return code {}'.format(cpe.returncode)
-                logger.debug(suberr)
-                
-                try:
-                    out = json.loads(cpe.output.decode('utf-8'))
-                except:
-                    out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
-                
-                if ScriptHeating.ERROR in out:
-                    err = str(out[ScriptHeating.ERROR])
-                    logger.debug(err)
-                
-                raise HeatingError((err or suberr), suberr)
-            
-            self._is_on = False
-            logger.debug('heating switched off')
+        try:
+            subprocess.check_output(self._switch_off_script,
+                                    shell=self._switch_off_shell)
         
-        else:
-            logger.debug('heating already off')
+        except subprocess.CalledProcessError as cpe:
+            suberr = 'the switch-off script exited with return code {}'.format(cpe.returncode)
+            logger.debug(suberr)
+            
+            try:
+                out = json.loads(cpe.output.decode('utf-8'))
+            except:
+                out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
+            
+            if ScriptHeating.ERROR in out:
+                err = str(out[ScriptHeating.ERROR])
+                logger.debug(err)
+            
+            raise HeatingError((err or suberr), suberr)
+        
+        self._is_on = False
+        self._switch_off_time = datetime.now()
+        logger.debug('heating switched off at {}'.format(self._switch_off_time))
     
     def status(self):
         """Execute the `status` script and return the current status of the heating.
@@ -240,7 +233,7 @@ class ScriptHeating(BaseHeating):
         The returned value is an integer: 1 for ON and 0 for OFF.
         """
         
-        logger.debug('retriving the status of the heating')
+        logger.debug('retriving current status of the heating')
         
         try:
             out = json.loads(subprocess.check_output(
@@ -282,12 +275,8 @@ class ScriptHeating(BaseHeating):
             raise HeatingError('the status script returned an invalid status',
                                str(ve))
             
-        logger.debug('the heating is currently {}'
-                     .format((status and 'ON' or 'OFF')))
-        
-        if status:
-            self._last_on_time = datetime.now()
-            logger.debug('last-on-time set to `{}`'.format(self._last_on_time))
+        logger.debug('the heating is currently {}'.format((status and 'ON' or 'OFF')))
+        logger.debug('last switch off time: {}'.format(self._switch_off_time))
         
         self._is_on = bool(status)
         return status
@@ -304,9 +293,9 @@ class ScriptHeating(BaseHeating):
         """
         return self._is_on
     
-    def last_on_time(self):
-        """Return the last time the heating was seen on."""
-        return self._last_on_time
+    def switch_off_time(self):
+        """Return the last time the heating has been switched off."""
+        return self._switch_off_time
 
 
 # only for debug purpose

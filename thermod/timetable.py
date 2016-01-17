@@ -17,7 +17,7 @@ from .heating import BaseHeating
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-01-12'
+__updated__ = '2016-01-17'
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class TimeTable(object):
         If `filepath` is not `None`, it must be a full path to a
         JSON file that contains all the informations to setup the
         timetable. While `heating` must be a subclass of `BaseHeating`,
-        if `None` a `FakeHeating` is used to provide base functionality.
+        if `None` a `BaseHeating` is used to provide base functionality.
         """
         
         logger.debug('initializing {}'.format(self.__class__.__name__))
@@ -84,8 +84,8 @@ class TimeTable(object):
         
         The check is performed only on status, main temperatures, timetable,
         differential value and grace time because the other attributes
-        (is_on, last_on_time, is_valid, filepath and last_update_timestamp)
-        are relative to the current usage of the `TimeTable` object.
+        (is_valid, filepath and last_update_timestamp) are relative to the
+        current usage of the `TimeTable` object.
         """
         
         result = None
@@ -335,7 +335,7 @@ class TimeTable(object):
         with self._lock:
             logger.debug('lock acquired to set a new status')
             
-            if status not in config.json_all_statuses:
+            if status.lower() not in config.json_all_statuses:
                 logger.debug('invalid new status: {}'.format(status))
                 raise JsonValueError(
                     'the new status `{}` is invalid, it must be one of [{}]. '
@@ -344,7 +344,7 @@ class TimeTable(object):
                         ', '.join(config.json_all_statuses),
                         self._status))
             
-            self._status = status
+            self._status = status.lower()
             
             # Note: cannot call _validate() method after simple update (like
             # this method, like tmax, t0, etc because those methods can be
@@ -353,7 +353,7 @@ class TimeTable(object):
             self._has_been_validated = False
             
             self._last_update_timestamp = time.time()
-            logger.debug('new status set: {}'.format(status))
+            logger.debug('new status set: {}'.format(self._status))
     
     
     @property
@@ -680,7 +680,7 @@ class TimeTable(object):
         @raise JsonValueError: if the provided temperature is invalid
         """
         
-        logger.debug('checking current should-be status of the heating')
+        logger.debug('checking should-be status of the heating')
         
         shoud_be_on = None
         self._validate()
@@ -720,20 +720,18 @@ class TimeTable(object):
                 
                 ison = self._heating.is_on()
                 nowts = now.timestamp()
-                laston = self._heating.last_on_time().timestamp()
+                offts = self._heating.switch_off_time().timestamp()
                 grace = self._grace_time
                 
-                # TODO messaggio di debug con i parametri mancanti, mostrare laston in modo intellegibile
-                logger.debug('is_on: {}, last_on_time: {}, grace_time: {}'
-                             .format(ison, laston, grace))
+                logger.debug('is_on: {}, switch_off_time: {}, grace_time: {}'
+                             .format(ison, datetime.fromtimestamp(offts), grace))
                 
                 shoud_be_on = (
                     (current <= (target - diff))
-                    or ((current < target) and ((nowts - laston) > grace))
+                    or ((current < target) and ((nowts - offts) > grace))
                     or ((current < (target + diff)) and ison))
         
         logger.debug('the heating should be: {}'
-                     .format((shoud_be_on and 'ON')
-                             or (not shoud_be_on and 'OFF')))
+                     .format(shoud_be_on and 'ON' or 'OFF'))
         
         return shoud_be_on

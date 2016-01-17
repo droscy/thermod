@@ -88,14 +88,23 @@ if True:
     logger.info('daemon started')
     while running:
         try:
-            t = subprocess.check_output(scripts['sensor'], shell=True)
+            logger.debug('retriving current temperature')
+            t = subprocess.check_output(scripts['sensor'], shell=True).decode('utf-8').strip()
+            logger.debug('current temperature: {}'.format(t))
             
             with timetable.lock:
                 if timetable.should_the_heating_be_on(t):
-                    # TODO spostare qui la chiamata a is_on() e rimuoverla dagli switch
-                    heating.switch_on()
+                    if not heating.is_on():
+                        heating.switch_on()
+                        logger.info('switch on heating')
+                    else:
+                        logger.debug('heating already on')
                 else:
-                    heating.switch_off()
+                    if heating.is_on():
+                        heating.switch_off()
+                        logger.info('switch off heating')
+                    else:
+                        logger.debug('heating already off')
         
         except subprocess.CalledProcessError as cpe:
             # TODO

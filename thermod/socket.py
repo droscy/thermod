@@ -47,7 +47,9 @@ from .timetable import TimeTable
 # le impostazioni e questo aggiornamento va male, vengono ricaricate le
 # impostazioni del file che però nel frattempo era stato aggiornato
 
-__updated__ = '2016-01-12'
+# TODO migliorare i log del socket
+
+__updated__ = '2016-01-17'
 __version__ = '0.3'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -112,7 +114,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     def finish(self):
         """Execute the base-class `finish()` method and log a message."""
         super().finish()
-        logger.info('{} connection closed'.format(self.client_address))
+        logger.debug('{} connection closed'.format(self.client_address))
     
     @property
     def stripped_lowered_path(self):
@@ -201,11 +203,12 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
         else:
             error = 404
-            logger.warning('{} invalid request path, sending back error '
-                           'code {:d}'.format(self.client_address, error))
-            
             message = 'invalid request'
-            data = self._send_header(404, message, {rsp_error: message})
+            logger.warning('{} {} "{} {}" received'
+                           .format(self.client_address, message,
+                                   self.command, self.path))
+                       
+            data = self._send_header(error, message, {rsp_error: message})
         
         self.end_headers()
         logger.debug('{} header sent'.format(self.client_address))
@@ -219,7 +222,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         
         if settings:
             self.wfile.write(settings)
-            logger.info('{} response sent'.format(self.client_address))
+            logger.debug('{} response sent'.format(self.client_address))
         
         logger.debug('{} closing connection'.format(self.client_address))
     
@@ -236,8 +239,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         """
         # TODO completare la documentazione con la descrizione dei campi accettati
         
-        logger.info('{} received "{} {}" request'
-                    .format(self.client_address, self.command, self.path))
+        logger.debug('{} received "{} {}" request'
+                     .format(self.client_address, self.command, self.path))
         
         code = None
         data = None
@@ -519,8 +522,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         else:
             code = 404
             message = 'invalid request'
-            logger.warning('{} {}'.format(self.client_address, message))
-            data = self._send_header(404, message, {rsp_error: message})
+            logger.warning('{} {} "{} {}" received'
+                           .format(self.client_address, message,
+                                   self.command, self.path))
+            
+            data = self._send_header(code, message, {rsp_error: message})
         
         logger.debug('{} sending back {} code {:d}'
                      .format(self.client_address,
