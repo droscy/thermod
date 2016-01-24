@@ -11,18 +11,19 @@ Switch on/off or get the status of the heating using a serial TTL relay.
 
 import sys
 import json
-import logging.handlers
+import logging
 import serial
 
 from argparse import ArgumentParser
 from configparser import ConfigParser
+from logging.handlers import SysLogHandler
 from serial import Serial, SerialException
 from thermod import config
 
 
-__version__ = '1.0.0~beta3'
+__version__ = '1.0.0~beta4'
 __date__ = '2015-10-02'
-__updated__ = '2016-01-11'
+__updated__ = '2016-01-24'
 
 
 # Control commands
@@ -187,6 +188,11 @@ def main(argv=None):
     
     args = parser.parse_args()
     
+    global logger
+    logger = logging.getLogger('thermod.{}'.format(args.on and 'switchon'
+                                                   or (args.off and 'switchoff'
+                                                       or 'status')))
+    
     if args.debug:
         logger.setLevel(logging.DEBUG)
     else:
@@ -197,12 +203,13 @@ def main(argv=None):
         # or when json and debug but no syslog
         console = logging.StreamHandler(sys.stderr)
         console.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
-                                               datefmt=config.logger_fmt_date))
+                                               datefmt=config.logger_fmt_time,
+                                               style=config.logger_fmt_style))
         logger.addHandler(console)
     
     if args.syslog:
-        syslog = logging.handlers.SysLogHandler(address='/dev/log')
-        syslog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_syslog))
+        syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_USER)
+        syslog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_syslog, style=config.logger_fmt_style))
         logger.addHandler(syslog)
     
     logger.debug('reading thermod configuration from files {}'.format(config.main_config_files))
@@ -216,30 +223,23 @@ def main(argv=None):
         device = (args.device or cfg['scripts']['device']).strip('"')
 
     try:
-        
         if device is None:
             raise SerialException('device not provided, cannot continue')
         
         if args.on:
             logger.debug('switching on the heating')
             status = switch_on(device)
-            logger.info('heating switched on')
+            logger.info('heating switched ON')
         
         elif args.off:
             logger.debug('switching off the heating')
             status = switch_off(device)
-            logger.info('heating switched off')
+            logger.info('heating switched OFF')
         
         else:
             logger.debug('getting current status of the heating')
             status = get_status(device)
-            
-            if status == 1:
-                _st_str = 'on'
-            else:
-                _st_str = 'off'
-            
-            logger.info('the heating is {}'.format(_st_str))
+            logger.info('the heating is %s',((status == 1) and 'ON' or 'OFF'))
         
         result = 0
     
@@ -260,7 +260,7 @@ def main(argv=None):
                           'status': status,
                           'error': error}))
     
-    logger.debug('exiting with return code = {}'.format(result))
+    logger.debug('exiting with return code = %d', result)
     
     return result
 

@@ -17,7 +17,7 @@ from .heating import BaseHeating
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-01-17'
+__updated__ = '2016-01-23'
 
 logger = logging.getLogger(__name__)
 
@@ -731,7 +731,7 @@ class TimeTable(object):
                     or ((current < target) and ((nowts - offts) > grace))
                     or ((current < (target + diff)) and ison))
         
-        logger.debug('the heating should be: {}'
+        logger.debug('the heating should be {}'
                      .format(shoud_be_on and 'ON' or 'OFF'))
         
         return shoud_be_on

@@ -49,7 +49,7 @@ from .timetable import TimeTable
 
 # TODO migliorare i log del socket
 
-__updated__ = '2016-01-17'
+__updated__ = '2016-01-23'
 __version__ = '0.3'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -299,7 +299,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         # internal settings have already been updated and a
                         # reload of the old settings is required
                         code = 500
-                        logger.critical('{} cannot save new settings to '
+                        logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
                         message = 'cannot save new settings to filesystem'
@@ -307,6 +307,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         
                         # reloading old settings still present on filesystem
                         self.server.timetable.reload()
+                        # TODO ci può essere un IOError anche qui e in tutti i
+                        # punti in cui si esegue reload(), questa cosa deve
+                        # essere gestita come errore critico che porta allo
+                        # shutdown del demone
                     
                     except Exception as e:
                         code = 500
@@ -369,7 +373,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         # internal settings have already been updated and a
                         # reload of the old settings is required
                         code = 500
-                        logger.critical('{} cannot save new settings to '
+                        logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
                         message = 'cannot save new settings to filesystem'
@@ -469,7 +473,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         # internal settings have already been updated and a
                         # reload of the old settings is required
                         code = 500
-                        logger.critical('{} cannot save new settings to '
+                        logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
                         message = 'cannot save new settings to filesystem'

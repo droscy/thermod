@@ -4,7 +4,7 @@ import os
 import math
 import calendar
 
-__updated__ = '2016-01-12'
+__updated__ = '2016-01-23'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -16,9 +16,11 @@ main_config_files = ('thermod.conf',
                     '/etc/thermod/thermod.conf')
 
 # logger common settings
-logger_fmt_msg = '%(asctime)s %(name)-8s %(levelname)-8s %(message)s'
-logger_fmt_msg_syslog = '%(name)s: %(levelname)s %(message)s'
-logger_fmt_date = '%H:%M:%S'
+logger_fmt_msg = '{asctime},{msecs:03.0f} {name:17s} {levelname:8s} {message}'
+logger_fmt_msg_syslog = '{name}[{process:d}]: {levelname} {message}'
+logger_fmt_time = '%H:%M:%S'
+logger_fmt_datetime = '%y-%m-%d %H:%M:%S'
+logger_fmt_style = '{'
 
 # thermod name convention (from json file)
 json_status = 'status'
