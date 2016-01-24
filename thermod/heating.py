@@ -4,7 +4,9 @@ import sys
 import json
 import logging
 import subprocess
+from copy import deepcopy
 from datetime import datetime
+from docutils.nodes import status
 #from json.decoder import JSONDecodeError
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
@@ -97,12 +99,13 @@ class ScriptHeating(BaseHeating):
     """Manage the real heating through three external scripts.
     
     The three scripts, provided during initialization, are the interfaces to
-    the hardware of the heating: one to retrive the current status, one to
-    switch on the heating and the last one to switch it off.
+    the hardware of the heating: one to switch on the heating, one to switch it
+    off and the last one to retrive the current status.
     
-    The three scripts must be POSIX compliant and must exit with code
-    0 on success and 1 on error. In addition they must write to the standard
-    output a JSON string with the following fields:
+    The three scripts must be POSIX compliant, must exit with code 0 on success
+    and 1 on error and must accept (or at least ignore) '--debug' argument that
+    is appended when the daemon is executed in debug mode. In addition they
+    must write to the standard output a JSON string with the following fields:
     
         - `success`: if the operation has been completed successfully or not
           (boolean value `true` for success and `false` for failure);
@@ -118,13 +121,16 @@ class ScriptHeating(BaseHeating):
     STATUS = 'status'
     ERROR = 'error'
     
-    def __init__(self, switchon, switchoff, status):
+    def __init__(self, switchon, switchoff, status, debug=False):
         """Init the `ScriptHeating` object.
         
-        The three parameters must be strings containing the full paths to the
-        scripts with options (like `/usr/local/bin/switchoff -j -v`) or an
+        The first three parameters must be strings containing the full paths to
+        the scripts with options (like `/usr/local/bin/switchoff -j -v`) or an
         array with the script to be executed followed by the options
         (like `['/usr/local/bin/switchoff', '-j', '-v']`).
+        
+        If the scripts must be executed with '--debug' option appended, set the
+        `debug` parameter to `True`.
         """
         
         logger.debug('initializing {}'.format(self.__class__.__name__))
@@ -141,27 +147,52 @@ class ScriptHeating(BaseHeating):
         self._switch_off_time = datetime.fromtimestamp(0)
         """The last time the heating has been switched off."""
         
-        self._switch_on_script = switchon
-        self._switch_off_script = switchoff
-        self._status_script = status
-        
-        if isinstance(self._switch_on_script, list):
+        if isinstance(switchon, list):
+            self._switch_on_script = deepcopy(switchon)
             self._switch_on_shell = False
-        elif isinstance(self._switch_on_script, str):
+            
+            if debug:
+                self._switch_on_script.append('--debug')
+            
+        elif isinstance(switchon, str):
+            if debug:
+                self._switch_on_script = '{} --debug'.format(switchon)
+            else:
+                self._switch_on_script = switchon
+            
             self._switch_on_shell = True
         else:
             raise TypeError('the switchon parameter must be string or list')
         
-        if isinstance(self._switch_off_script, list):
+        if isinstance(switchoff, list):
+            self._switch_off_script = deepcopy(switchoff)
             self._switch_off_shell = False
-        elif isinstance(self._switch_off_script, str):
+            
+            if debug:
+                self._switch_off_script.append('--debug')
+            
+        elif isinstance(switchoff, str):
+            if debug:
+                self._switch_off_script = '{} --debug'.format(switchoff)
+            else:
+                self._switch_off_script = switchoff
+            
             self._switch_off_shell = True
         else:
             raise TypeError('the switchoff parameter must be string or list')
         
-        if isinstance(self._status_script, list):
+        if isinstance(status, list):
+            self._status_script = deepcopy(status)
             self._status_shell = False
-        elif isinstance(self._status_script, str):
+            
+            if debug:
+                self._status_script.append('--debug')
+        elif isinstance(status, str):
+            if debug:
+                self._status_script = '{} --debug'.format(status)
+            else:
+                self._status_script = status
+            
             self._status_shell = True
         else:
             raise TypeError('the status parameter must be string or list')

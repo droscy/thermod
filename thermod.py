@@ -19,10 +19,8 @@ from thermod.config import JsonValueError
 # TODO mettere un SMTPHandler per i log di tipo WARNING e CRITICAL
 # TODO usare impostazione "enable" del file di config
 
-prog_version = '0.0.0~alpha1'
+prog_version = '0.0.0~alpha2'
 script_path = os.path.dirname(os.path.realpath(__file__))
-config_files = [os.path.abspath(os.path.join(script_path,'thermod.conf'))]
-config_files.extend(list(config.main_config_files))
 
 # parsing input arguments
 parser = argparse.ArgumentParser(description='thermod daemon')
@@ -45,11 +43,13 @@ if args.foreground:
                                            datefmt=config.logger_fmt_time,
                                            style=config.logger_fmt_style))
     logger.addHandler(console)
+    logger.debug('executing in foreground, created console logging')
 else:
     syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
     syslog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_syslog,
                                           style=config.logger_fmt_style))
     logger.addHandler(syslog)
+    logger.debug('executing in background, created syslog logging')
 
 if args.log:
     logfile = logging.FileHandler(args.log, mode='w')  # TODO forse mode='a'
@@ -57,12 +57,13 @@ if args.log:
                                            datefmt=config.logger_fmt_datetime,
                                            style=config.logger_fmt_style))
     logger.addHandler(logfile)
+    logger.debug('added logging to file `%s`', args.log)
 
-# reading main config file
+# reading main config files
 cfg = ConfigParser()
 cfg.read_string('[global] enabled = 0')
-logger.debug('reading config files')
-cfg.read(config_files) # TODO in caso di più file quale ha precedenza?
+logger.debug('reading main configuration from files {}'.format(config.main_config_files))
+cfg.read(config.main_config_files) # TODO in caso di più file quale ha precedenza?
 scripts = cfg['scripts']
 # TODO inserire un controllo sui valori presenti nel file di config
 
@@ -71,9 +72,8 @@ if int(cfg['global']['debug']) == 1:
 
 # initializing base objects
 logger.debug('creating base classes')
-heating = ScriptHeating(scripts['switchon'], scripts['switchoff'], scripts['status'])
+heating = ScriptHeating(scripts['switchon'], scripts['switchoff'], scripts['status'], args.debug)
 timetable = TimeTable(cfg['global']['timetable'], heating)
-socket = ControlThread(timetable)
 running = True
 
 # TODO come si ricaricano le impostazioni? con funzione di reload() e variabili global?
@@ -90,6 +90,7 @@ daemon.signal_map={signal.SIGTERM: shutdown,
                    signal.SIGUSR1: timetable.reload}
 
 if args.log:
+    #daemon.files_preserve = [logfile.stream, socket.server.socket]
     daemon.files_preserve = [logfile.stream]
 
 # TODO questo segnale va intercettato solo per forground
@@ -97,11 +98,12 @@ signal.signal(signal.SIGTERM, shutdown)
 
 logger.debug('starting daemon')
 # TODO fare sì che l'opzione -F non faccia partire il demone
-#with daemon:
-if True:
+with daemon:
+#if True:
     logger.info('daemon started')
     
-    # TODO forse il socket va fatto avvia dentro il demone?
+    # starting control socket
+    socket = ControlThread(timetable)
     socket.start()
     
     while running:
