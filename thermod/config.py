@@ -4,18 +4,18 @@ import os
 import math
 import calendar
 
-__updated__ = '2016-01-23'
+__updated__ = '2016-01-28'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
 
-# path to main config file
-# TODO mettere controllo se siamo su Windows o su Unix
+# paths to main config files
 main_config_files = ('thermod.conf',
                      os.path.expanduser('~/.thermod.conf'),
                     '/etc/thermod/thermod.conf')
 
 # logger common settings
+logger_base_name = 'thermod'
 logger_fmt_msg = '{asctime},{msecs:03.0f} {name:17s} {levelname:8s} {message}'
 logger_fmt_msg_syslog = '{name}[{process:d}]: {levelname} {message}'
 logger_fmt_time = '%H:%M:%S'
@@ -142,7 +142,7 @@ def temperature_to_float(temperature):
     """Format the provided temperature as a float with one decimal.
     
     Can be used both for timetable and main temperatures in JSON file or for
-    any other simple formattingh. The input value must be a number except
+    any other simple formatting. The input value must be a number except
     positive/negative infinity and NaN.
     
     @raise ValueError: if the provided temperature cannot be converted to float.
@@ -156,7 +156,7 @@ def temperature_to_float(temperature):
 
 
 def json_format_temperature(temperature):
-    """Format the provided temperature as a string for timetable.
+    """Format the provided temperature as a string for timetable JSON file.
     
     The output can be a number string with one single decimal (XX.Y) or
     one of the following string: 't0', 'tmin', 'tmax'.
@@ -189,7 +189,7 @@ def json_format_hour(hour):
         if int(float(hour)) not in range(24):
             raise Exception()
     except:
-        raise JsonValueError('the provided hour is not valid ({}), '
+        raise JsonValueError('the provided hour is not valid `{}`, '
                              'it must be in range 0-23'.format(hour))
 
     return format(int(float(hour)), '0>2d')

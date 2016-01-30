@@ -6,7 +6,6 @@ import logging
 import subprocess
 from copy import deepcopy
 from datetime import datetime
-from docutils.nodes import status
 #from json.decoder import JSONDecodeError
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
@@ -16,7 +15,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-01-24'
+__updated__ = '2016-01-30'
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +201,9 @@ class ScriptHeating(BaseHeating):
                              self._switch_on_script,
                              self._switch_off_script,
                              self._status_script))
+        
+        # initializing current status
+        self.status()
     
     def switch_on(self):
         """Switch on the heating executing the `switch-on` script."""

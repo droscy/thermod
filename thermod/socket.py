@@ -49,7 +49,7 @@ from .timetable import TimeTable
 
 # TODO migliorare i log del socket
 
-__updated__ = '2016-01-23'
+__updated__ = '2016-01-30'
 __version__ = '0.3'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -75,6 +75,7 @@ class ControlThread(Thread):
     """Start a HTTP server ready to receive commands."""
     
     def __init__(self, timetable, host='localhost', port=4344):
+        logger.debug('initializing {}'.format(self.__class__.__name__))
         super().__init__()
         self.server = ControlServer(timetable, (host, port), ControlRequestHandler)
     
@@ -93,6 +94,7 @@ class ControlServer(HTTPServer):
     """Receive HTTP connections and dispatch a reequest handler."""
     
     def __init__(self, timetable, server_address, RequestHandlerClass):
+        logger.debug('initializing {}'.format(self.__class__.__name__))
         super().__init__(server_address, RequestHandlerClass)
         
         if not isinstance(timetable, TimeTable):
@@ -171,8 +173,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
             self.send_header('Content-Type', 'application/json;charset=utf-8')
             self.send_header('Content-Length', len(json_data))
-            self.send_header('Last-Modified',
-                             self.date_time_string(last_modified or time.time()))
+            self.send_header('Last-Modified', self.date_time_string(last_modified or time.time()))
         
         self.send_header('Connection', 'close')
         self.send_header('Server', self.version_string())
@@ -200,6 +201,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 last_updt = self.server.timetable.last_update_timestamp()
             
             data = self._send_header(200, data=settings, last_modified=last_updt)
+        
+        # TODO mettere altri possibili richieste: temperatura corrente, stato del riscaldamento, ecc.
             
         else:
             error = 404
@@ -557,7 +560,6 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         
         self.end_headers()
         logger.debug('{} header sent'.format(self.client_address))
-        
     
     def do_PUT(self):
         self._do_other()
@@ -579,7 +581,7 @@ if __name__ == '__main__':
     
     console = logging.StreamHandler(sys.stdout)
     console.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
-                                           datefmt=config.logger_fmt_date))
+                                           datefmt=config.logger_fmt_datetime))
     logger.addHandler(console)
     
     file = 'timetable.json'

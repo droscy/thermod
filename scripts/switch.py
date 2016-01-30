@@ -18,12 +18,12 @@ from argparse import ArgumentParser
 from configparser import ConfigParser
 from logging.handlers import SysLogHandler
 from serial import Serial, SerialException
-from thermod import config
+from thermod import config, ScriptHeating
 
 
-__version__ = '1.0.0~beta4'
+__version__ = '1.0.0~beta5'
 __date__ = '2015-10-02'
-__updated__ = '2016-01-24'
+__updated__ = '2016-01-28'
 
 
 # Control commands
@@ -49,7 +49,7 @@ relay_com2close_rsp = b'\x33\x3C\x00\x00\x00\x00\x02\x71'
 
 
 # defult logger for this scripts
-logger = logging.getLogger('thermod.switch')
+logger = logging.getLogger('{}.switch'.format(config.logger_base_name))
 
 
 def switch_on(device, timeout=5):
@@ -184,14 +184,15 @@ def main(argv=None):
     parser.add_argument('-j', '--json', action='store_true', help='output result in json format for thermod daemon')
     parser.add_argument('-s', '--syslog', action='store_true', help='log messages to syslog')
     parser.add_argument('-D', '--debug', action='store_true', help='print debug messages too')
-    parser.add_argument('-V', '--version', action='version', version=prog_version_msg)
+    parser.add_argument('-v', '--version', action='version', version=prog_version_msg)
     
     args = parser.parse_args()
     
     global logger
-    logger = logging.getLogger('thermod.{}'.format(args.on and 'switchon'
-                                                   or (args.off and 'switchoff'
-                                                       or 'status')))
+    logger = logging.getLogger('{}.{}'.format(config.logger_base_name,
+                                              args.on and 'switchon'
+                                              or (args.off and 'switchoff'
+                                                   or 'status')))
     
     if args.debug:
         logger.setLevel(logging.DEBUG)
@@ -209,7 +210,8 @@ def main(argv=None):
     
     if args.syslog:
         syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_USER)
-        syslog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_syslog, style=config.logger_fmt_style))
+        syslog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_syslog,
+                                              style=config.logger_fmt_style))
         logger.addHandler(syslog)
     
     logger.debug('reading thermod configuration from files {}'.format(config.main_config_files))
@@ -247,7 +249,7 @@ def main(argv=None):
         error = str(se)
         
         # do not print critical messages when json output is on and neither
-        # debug nor syslog are on because the error is reporte in the json
+        # debug nor syslog are on because the error is reported in the json
         # output string
         if not args.json or args.debug or args.syslog:
             logger.critical(se)
@@ -256,9 +258,9 @@ def main(argv=None):
     
     if args.json:
         logger.debug('printing result as json encoded string')
-        print(json.dumps({'success': not bool(result),
-                          'status': status,
-                          'error': error}))
+        print(json.dumps({ScriptHeating.SUCCESS: not bool(result),
+                          ScriptHeating.STATUS: status,
+                          ScriptHeating.ERROR: error}))
     
     logger.debug('exiting with return code = %d', result)
     

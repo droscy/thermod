@@ -17,25 +17,33 @@ from thermod.socket import ControlThread
 from thermod.config import JsonValueError
 
 # TODO mettere un SMTPHandler per i log di tipo WARNING e CRITICAL
-# TODO usare impostazione "enable" del file di config
+# TODO verificare il corretto spelling di thermod o Thermod in tutti i sorgenti
 
-prog_version = '0.0.0~alpha2'
+prog_version = '0.0.0~alpha3'
 script_path = os.path.dirname(os.path.realpath(__file__))
 
 # parsing input arguments
 parser = argparse.ArgumentParser(description='thermod daemon')
-parser.add_argument('--version', action='version', version='%(prog)s {}'.format(prog_version))
-parser.add_argument('-D','--debug', action='store_true', help='start the daemon in debug mode')
-parser.add_argument('-F','--foreground', action='store_true', help='start the daemon in foreground')
-parser.add_argument('-L','--log', action='store', default=None, help='write messages to log file')
+parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(prog_version))
+parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
+parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground')
+parser.add_argument('-L', '--log', action='store', default=None, help='write messages to log file')
 args = parser.parse_args()
 
 # setting up logging system
-logger = logging.getLogger('thermod')
+logger = logging.getLogger(config.logger_base_name)
 logger.setLevel(logging.INFO)
 
 if args.debug:
     logger.setLevel(logging.DEBUG)
+
+if args.log:
+    # TODO cosa succede se non riesce a scrivere nel log?
+    logfile = logging.FileHandler(args.log, mode='w')  # TODO forse mode='a'
+    logfile.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
+                                           datefmt=config.logger_fmt_datetime,
+                                           style=config.logger_fmt_style))
+    logger.addHandler(logfile)
 
 if args.foreground:
     console = logging.StreamHandler(sys.stdout)
@@ -43,80 +51,122 @@ if args.foreground:
                                            datefmt=config.logger_fmt_time,
                                            style=config.logger_fmt_style))
     logger.addHandler(console)
-    logger.debug('executing in foreground, created console logging')
+    logger.debug('executing in foreground, logging to console')
 else:
     syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
     syslog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_syslog,
                                           style=config.logger_fmt_style))
     logger.addHandler(syslog)
-    logger.debug('executing in background, created syslog logging')
+    logger.debug('executing in background, logging to syslog (daemon)')
 
-if args.log:
-    logfile = logging.FileHandler(args.log, mode='w')  # TODO forse mode='a'
-    logfile.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
-                                           datefmt=config.logger_fmt_datetime,
-                                           style=config.logger_fmt_style))
-    logger.addHandler(logfile)
-    logger.debug('added logging to file `%s`', args.log)
-
-# reading main config files
+# reading configuration files
 cfg = ConfigParser()
-cfg.read_string('[global] enabled = 0')
-logger.debug('reading main configuration from files {}'.format(config.main_config_files))
-cfg.read(config.main_config_files) # TODO in caso di più file quale ha precedenza?
-scripts = cfg['scripts']
-# TODO inserire un controllo sui valori presenti nel file di config
+cfg.read_string('[global] enabled = 0')  # basic settings to immediatly shutdown if config file is missing
+logger.debug('searching main configuration in files {}'.format(config.main_config_files))
+# TODO mettere un errore se i file mancano
+_cfg_files_found = cfg.read(config.main_config_files) # TODO in caso di più file quale ha precedenza?
+logger.debug('configuration files found: {}'.format(_cfg_files_found))
 
-if int(cfg['global']['debug']) == 1:
+# parsing main settings
+try:
+    # TODO finire controllo sui valori presenti nel file di config
+    enabled = cfg['global'].getboolean('enabled')
+    debug = cfg['global'].getboolean('debug') or args.debug
+    tt_file = cfg['global']['timetable']
+    
+    scripts = {'tsensor': cfg['scripts']['sensor'],
+               'on': cfg['scripts']['switchon'],
+               'off': cfg['scripts']['switchoff'],
+               'status': cfg['scripts']['status']}
+    
+    # TODO documentare che questo non viene usato internamente
+    # può essere usato dagli script, a disposizione del programmatore
+    #device = cfg['scripts']['device']
+    
+    host = cfg['socket']['host']  # TODO decidere come gestire l'ascolto su tutte le interfacce
+    port = int(cfg['socket']['port'])
+
+except KeyError as ke:
+    ret_code = 1
+    logger.critical('incomplete configuration file: `{}`'.format(ke))
+
+except ValueError as ve:
+    ret_code = 2
+    logger.critical('invalid configuration file: `{}`'.format(ve))
+
+except Exception as e:
+    ret_code = 255
+    logger.critical('unknown error in configuration file: `{}`'.format(e))
+
+else:
+    ret_code = 0
+
+finally:
+    if ret_code == 0:
+        logger.debug('main settings read')
+    else:
+        logger.info('closing daemon with return code {}'.format(ret_code))
+        exit(ret_code)
+
+# if the daemon is disabled in configuration file we exit immediatly
+if not enabled:
+    logger.info('daemon disabled in configuration file, exiting...')
+    exit(0)
+
+if debug:
     logger.setLevel(logging.DEBUG)
 
 # initializing base objects
-logger.debug('creating base classes')
-heating = ScriptHeating(scripts['switchon'], scripts['switchoff'], scripts['status'], args.debug)
-timetable = TimeTable(cfg['global']['timetable'], heating)
-running = True
+try:
+    logger.debug('creating base classes')
+    heating = ScriptHeating(scripts['on'], scripts['off'], scripts['status'], debug)
+    timetable = TimeTable(tt_file, heating)
+
+except FileNotFoundError as fnfe:
+    ret_code = 3
+    logger.critical('cannot find timetable file `{}`'.format(tt_file))
+
+except Exception as e:
+    ret_code = 255
+    logger.critical('unknown error during daemon initialization: `{}`'.format(e))
+
+else:
+    ret_code = 0
+    
+finally:
+    if ret_code != 0:
+        logger.info('closing daemon with return code {}'.format(ret_code))
+        exit(ret_code)
 
 # TODO come si ricaricano le impostazioni? con funzione di reload() e variabili global?
 
-def shutdown(a=None, b=None):
-    global running, timetable, logger
+def shutdown(signum=None, frame=None):
+    global enabled
     logger.info('shutdown requested')
     with timetable.lock:
-        running = False
+        enabled = False
         timetable.lock.notify()
 
-daemon = DaemonContext()
-daemon.signal_map={signal.SIGTERM: shutdown,
-                   signal.SIGUSR1: timetable.reload}
-
-if args.log:
-    #daemon.files_preserve = [logfile.stream, socket.server.socket]
-    daemon.files_preserve = [logfile.stream]
-
-# TODO questo segnale va intercettato solo per forground
-signal.signal(signal.SIGTERM, shutdown)
-
-logger.debug('starting daemon')
-# TODO fare sì che l'opzione -F non faccia partire il demone
-with daemon:
-#if True:
+def thermostat_cycle():
+    # TODO scrivere documentazione
     logger.info('daemon started')
     
     # starting control socket
-    socket = ControlThread(timetable)
+    socket = ControlThread(timetable, host, port)
     socket.start()
     
-    while running:
+    logger.info('the heating is currently %s', (heating.is_on() and 'ON' or 'OFF'))
+    
+    while enabled:
         try:
             logger.debug('retriving current temperature')
-            t = subprocess.check_output(scripts['sensor'], shell=True).decode('utf-8').strip()
+            t = subprocess.check_output(scripts['tsensor'], shell=True).decode('utf-8').strip()
             logger.debug('current temperature: %s',t)
             
             with timetable.lock:
                 if timetable.should_the_heating_be_on(t):
                     if not heating.is_on():
                         heating.switch_on()
-                        
                         logger.info('heating switched ON')
                     else:
                         logger.debug('heating already ON')
@@ -161,8 +211,32 @@ with daemon:
         socket.stop()
         socket.join(10)
         
-        logger.info('switch off the heating')
         heating.switch_off()
+        logger.info('heating switched OFF')
         # TODO gestire eccezioni
 
     logger.info('daemon stopped')
+
+
+# main
+if args.foreground:
+    logger.debug('starting daemon in foreground')
+    
+    # TODO aggiungere gli altri segnali
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGUSR1, timetable.reload)
+    
+    thermostat_cycle()
+
+else:
+    logger.debug('starting daemon in background')
+    
+    daemon = DaemonContext()
+    daemon.signal_map={signal.SIGTERM: shutdown,
+                       signal.SIGUSR1: timetable.reload}  # TODO aggiungere gli altri segnali
+
+    if args.log:
+        daemon.files_preserve = [logfile.stream]
+
+    with daemon:
+        thermostat_cycle()
