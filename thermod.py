@@ -6,6 +6,7 @@ import logging
 import argparse
 import signal
 import subprocess
+import configparser
 
 from daemon import DaemonContext
 from configparser import ConfigParser
@@ -18,6 +19,7 @@ from thermod.config import JsonValueError
 
 # TODO mettere un SMTPHandler per i log di tipo WARNING e CRITICAL
 # TODO verificare il corretto spelling di thermod o Thermod in tutti i sorgenti
+# TODO documentare return code
 
 prog_version = '0.0.0~alpha3'
 script_path = os.path.dirname(os.path.realpath(__file__))
@@ -59,44 +61,107 @@ else:
     logger.addHandler(syslog)
     logger.debug('executing in background, logging to syslog (daemon)')
 
+
 # reading configuration files
-cfg = ConfigParser()
-cfg.read_string('[global] enabled = 0')  # basic settings to immediatly shutdown if config file is missing
-logger.debug('searching main configuration in files {}'.format(config.main_config_files))
-# TODO mettere un errore se i file mancano
-_cfg_files_found = cfg.read(config.main_config_files) # TODO in caso di più file quale ha precedenza?
-logger.debug('configuration files found: {}'.format(_cfg_files_found))
+try:
+    cfg = ConfigParser()
+    cfg.read_string('[global] enabled = 0')  # basic settings to immediatly shutdown if config file is missing
+    logger.debug('searching main configuration in files {}'.format(config.main_config_files))
+    # TODO mettere un errore se i file mancano
+    _cfg_files_found = cfg.read(config.main_config_files) # TODO in caso di più file quale ha precedenza?
+    logger.debug('configuration files found: {}'.format(_cfg_files_found))
+
+except configparser.MissingSectionHeaderError as mshe:
+    ret_code = 10
+    logger.critical('invalid syntax in configuration file `%s`, '
+                    'missing sections', mshe.source)
+
+except configparser.ParsingError as pe:
+    ret_code = 11
+    (_lineno, _line) = pe.errors[0]
+    logger.critical('invalid syntax in configuration file `%s` at line %d: %s',
+                    pe.source, _lineno, _line)
+
+except configparser.DuplicateSectionError as dse:
+    ret_code = 12
+    logger.critical('duplicate section `%s` in configuration file `%s`',
+                    dse.section, dse.source)
+
+except configparser.DuplicateOptionError as doe:
+    ret_code = 13
+    logger.critical('duplicate option `%s` in section `%s` of configuration '
+                    'file `%s`', doe.option, doe.section, doe.source)
+
+except configparser.Error as cpe:
+    ret_code = 14
+    logger.critical('unknown error in configuration file: `%s`', cpe)
+
+except Exception as e:
+    ret_code = 15
+    logger.critical('unknown error in configuration file: `%s`', e)
+
+except:
+    ret_code = 15
+    logger.critical('unknown error in configuration file, no more details')
+
+else:
+    ret_code = 0
+
+finally:
+    if ret_code == 0:
+        logger.debug('main configuration files read')
+    else:
+        logger.info('closing daemon with return code {}'.format(ret_code))
+        exit(ret_code)
 
 # parsing main settings
 try:
     # TODO finire controllo sui valori presenti nel file di config
-    enabled = cfg['global'].getboolean('enabled')
-    debug = cfg['global'].getboolean('debug') or args.debug
-    tt_file = cfg['global']['timetable']
+    enabled = cfg.getboolean('global', 'enabled')
+    debug = cfg.getboolean('global', 'debug') or args.debug
+    tt_file = cfg.get('global', 'timetable')
+    interval = cfg.getint('global', 'interval')
     
-    scripts = {'tsensor': cfg['scripts']['sensor'],
-               'on': cfg['scripts']['switchon'],
-               'off': cfg['scripts']['switchoff'],
-               'status': cfg['scripts']['status']}
+    scripts = {'tsensor': cfg.get('scripts', 'sensor'),
+               'on': cfg.get('scripts', 'switchon'),
+               'off': cfg.get('scripts', 'switchoff'),
+               'status': cfg.get('scripts', 'status')}
     
     # TODO documentare che questo non viene usato internamente
     # può essere usato dagli script, a disposizione del programmatore
     #device = cfg['scripts']['device']
     
-    host = cfg['socket']['host']  # TODO decidere come gestire l'ascolto su tutte le interfacce
-    port = int(cfg['socket']['port'])
+    host = cfg.get('socket', 'host')  # TODO decidere come gestire l'ascolto su tutte le interfacce
+    port = cfg.getint('socket', 'port')
+    
+    if (port < 0) or (port > 65535):
+        raise ValueError('socket port is outside range 0-65535')
 
-except KeyError as ke:
-    ret_code = 1
-    logger.critical('incomplete configuration file: `{}`'.format(ke))
+except configparser.NoSectionError as nse:
+    ret_code = 16
+    logger.critical('incomplete configuration file, missing `%s` section',
+                    nse.section)
+
+except configparser.NoOptionError as noe:
+    ret_code = 17
+    logger.critical('incomplete configuration file, missing option `%s` '
+                    'in section `%s`', noe.option, noe.section)
+
+except configparser.Error as cpe:
+    ret_code = 18
+    logger.critical('unknown error in configuration file: `%s`', cpe)
 
 except ValueError as ve:
-    ret_code = 2
-    logger.critical('invalid configuration file: `{}`'.format(ve))
+    ret_code = 19
+    logger.critical('invalid configuration file: {}'.format(ve))
 
 except Exception as e:
-    ret_code = 255
+    ret_code = 20
     logger.critical('unknown error in configuration file: `{}`'.format(e))
+
+except:
+    ret_code = 20
+    logger.critical('unknown error in configuration file, no more details')
 
 else:
     ret_code = 0
@@ -113,6 +178,7 @@ if not enabled:
     logger.info('daemon disabled in configuration file, exiting...')
     exit(0)
 
+# re-setting debug level read from configuration file
 if debug:
     logger.setLevel(logging.DEBUG)
 
@@ -123,12 +189,16 @@ try:
     timetable = TimeTable(tt_file, heating)
 
 except FileNotFoundError as fnfe:
-    ret_code = 3
-    logger.critical('cannot find timetable file `{}`'.format(tt_file))
+    ret_code = 20
+    logger.critical('cannot find timetable file `%s`', tt_file)
 
 except Exception as e:
-    ret_code = 255
-    logger.critical('unknown error during daemon initialization: `{}`'.format(e))
+    ret_code = 21
+    logger.critical('unknown error during daemon initialization: %s', e)
+
+except:
+    ret_code = 21
+    logger.critical('unknown error during daemon initialization, no more details')
 
 else:
     ret_code = 0
@@ -138,13 +208,17 @@ finally:
         logger.info('closing daemon with return code {}'.format(ret_code))
         exit(ret_code)
 
-# TODO come si ricaricano le impostazioni? con funzione di reload() e variabili global?
-
 def shutdown(signum=None, frame=None):
     global enabled
     logger.info('shutdown requested')
     with timetable.lock:
         enabled = False
+        timetable.lock.notify()
+
+def reload_timetable(signum=None, frame=None):
+    logger.info('timetable reload requested')
+    with timetable.lock:
+        timetable.reload()
         timetable.lock.notify()
 
 def thermostat_cycle():
@@ -201,7 +275,7 @@ def thermostat_cycle():
             with timetable.lock:
                 # TODO se c'è stato uno shutdown prima di arrivare qui, si deve
                 # uscire senza andare in wait, trovare come fare
-                timetable.lock.wait(30)
+                timetable.lock.wait(interval)
         
         except KeyboardInterrupt:
             shutdown()
@@ -224,7 +298,7 @@ if args.foreground:
     
     # TODO aggiungere gli altri segnali
     signal.signal(signal.SIGTERM, shutdown)
-    signal.signal(signal.SIGUSR1, timetable.reload)
+    signal.signal(signal.SIGUSR1, reload_timetable)
     
     thermostat_cycle()
 
@@ -233,7 +307,7 @@ else:
     
     daemon = DaemonContext()
     daemon.signal_map={signal.SIGTERM: shutdown,
-                       signal.SIGUSR1: timetable.reload}  # TODO aggiungere gli altri segnali
+                       signal.SIGUSR1: reload_timetable}  # TODO aggiungere gli altri segnali
 
     if args.log:
         daemon.files_preserve = [logfile.stream]
