@@ -9,6 +9,7 @@ from threading import Thread
 from jsonschema import ValidationError
 #from json.decoder import JSONDecodeError
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -20,37 +21,17 @@ from . import config
 from .config import JsonValueError
 from .timetable import TimeTable
 
-# TODO ControlThread and ControlServer require a function to be called
-# after update to check temperature immediately, this functions should be
-# passed by the main thread upon creating the ControlThread
-
-# TODO al posto della soluzione sopra si può usare threading.Condition
-# passandogli come RLock quello interno del TimeTable, in questo modo usiamo
-# lo stesso TimeTable per notificare il demone di controllare la temperatura.
-# Nel thread principale mettiamo un ciclo del tipo
-#     while running:
-#         condition.wait(30)  # secondi da decidere
-#         t = get_temp()
-#         if tt.should_the_heating_be_on(t):
-#             switch_on()
-#             tt.seton()
-#         else:
-#             switch_off()
-#             tt.setoff()
-# 
-# mentre nel socket mettiamo condition.notify() dopo che sono state aggiornate
-# correttamente alcune impostazioni. In questo modo ogni 30 secondi si controlla
-# la temperatura oppure quando vengono aggiornate delle impostazioni.
-
 # FIXME si può verificare un problema se viene modificato il timetable sul
 # filesystem senza eseguire un reload, poi qualcuno via socket tenta di aggiornare
 # le impostazioni e questo aggiornamento va male, vengono ricaricate le
-# impostazioni del file che però nel frattempo era stato aggiornato
+# impostazioni del file che però nel frattempo era stato aggiornato.
+# Per evitare questo problema è necessario salvarsi le impostazioni prima
+# di aggiornare e in caso di errore risettare le impostazioni salvate.
 
 # TODO migliorare i log del socket
 
-__updated__ = '2016-01-30'
-__version__ = '0.3'
+__updated__ = '2016-02-05'
+__version__ = '0.4'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -64,7 +45,11 @@ req_settings_tmax = config.json_tmax_str
 req_settings_differential = config.json_differential
 req_settings_grace_time = config.json_grace_time
 
-req_settings_paths = ('/settings', '/settings/')
+req_heating_status = 'status'
+req_heating_temperature = 'temperature'
+
+req_path_settings = ('settings')
+req_path_heating = ('heating')
 
 rsp_error = 'error'
 rsp_message = 'message'
@@ -119,16 +104,14 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         logger.debug('{} connection closed'.format(self.client_address))
     
     @property
-    def stripped_lowered_path(self):
-        """Strip arguments from path and lower the result."""
-        idx = self.path.find('?')
+    def pathlist(self):
+        """Return the full path splitted in a list of lowered case subpath.
         
-        if idx >= 0:
-            rpath = self.path[:idx]
-        else:
-            rpath = self.path
-        
-        return rpath.lower()
+        If the requested path is '/settings/STATUS/auto' this method returns
+        a list containing: 'settings', 'status' and 'auto'.
+        """
+        rpath = urlparse(self.path)
+        return rpath.path.lower().strip('/').split('/')
     
     def _send_header(self, code, message=None, data=None, last_modified=None):
         """Send default response header.
@@ -184,16 +167,17 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         """Send the HTTP header equal to the one of the GET request.
         
-        Return the byte-string to be sent in HTTP response body if the request
-        is using the GET method.
+        Returns the byte-string to be sent in HTTP response body if the request
+        is a GET and not simply a HEAD.
         """
         
         logger.info('{} received "{} {}" request'
                     .format(self.client_address, self.command, self.path))
         
         data = None
+        pathlist = self.pathlist
         
-        if self.stripped_lowered_path in req_settings_paths:
+        if pathlist[0] in req_path_settings:
             logger.debug('{} sending back Thermod settings'.format(self.client_address))
             
             with self.server.timetable.lock:
@@ -201,6 +185,27 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 last_updt = self.server.timetable.last_update_timestamp()
             
             data = self._send_header(200, data=settings, last_modified=last_updt)
+        
+        elif pathlist[0] in req_path_heating:
+            data = {}
+            
+            if len(pathlist) == 1:
+                pathlist.append(req_heating_status)
+                pathlist.append(req_heating_temperature)
+            
+            for item in set(pathlist[1:]):
+                if item == req_heating_status:
+                    data[req_heating_status] = self.server.timetable.heating.status()
+                elif item == req_heating_temperature:
+                    # TODO la temperatura deve essere recuperata da TimeTable
+                    # praticamente si deve creare una classe per Thermometer
+                    # da gestire tipo Heating che si passa al costruttore del
+                    # TimeTable. Di conseguenza should_the_heating_be_one()
+                    # prenderà due parametri opzionali (temperature, data), in
+                    # assenza recupererà la temperature dal Thermometer e now()
+                    # come data, altrimenti utilizza quelli indicati.
+                    pass
+                
         
         # TODO mettere altri possibili richieste: temperatura corrente, stato del riscaldamento, ecc.
             
@@ -248,7 +253,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         code = None
         data = None
         
-        if self.stripped_lowered_path in req_settings_paths:
+        if self.pathlist[0] in req_path_settings:
             logger.debug('{} parsing received POST data'.format(self.client_address))
             
             # code copied from http://stackoverflow.com/a/13330449
@@ -581,7 +586,8 @@ if __name__ == '__main__':
     
     console = logging.StreamHandler(sys.stdout)
     console.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
-                                           datefmt=config.logger_fmt_datetime))
+                                           datefmt=config.logger_fmt_datetime,
+                                           style=config.logger_fmt_style))
     logger.addHandler(console)
     
     file = 'timetable.json'
