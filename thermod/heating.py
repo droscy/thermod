@@ -169,6 +169,7 @@ class ScriptHeating(BaseHeating):
                 self._switch_on_script = switchon
             
             self._switch_on_shell = True
+        
         else:
             raise TypeError('the switchon parameter must be string or list')
         
@@ -186,6 +187,7 @@ class ScriptHeating(BaseHeating):
                 self._switch_off_script = switchoff
             
             self._switch_off_shell = True
+        
         else:
             raise TypeError('the switchoff parameter must be string or list')
         
@@ -202,6 +204,7 @@ class ScriptHeating(BaseHeating):
                 self._status_script = status
             
             self._status_shell = True
+        
         else:
             raise TypeError('the status parameter must be string or list')
         

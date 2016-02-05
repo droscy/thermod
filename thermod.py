@@ -20,6 +20,7 @@ from thermod.config import JsonValueError
 # TODO mettere un SMTPHandler per i log di tipo WARNING e CRITICAL
 # TODO verificare il corretto spelling di thermod o Thermod in tutti i sorgenti
 # TODO documentare return code
+# TODO rivedere i messaggi di log, decidere se usare format oppure %s
 
 prog_version = '0.0.0~alpha3'
 script_path = os.path.dirname(os.path.realpath(__file__))

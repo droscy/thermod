@@ -208,10 +208,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     # TODO la temperatura deve essere recuperata da TimeTable
                     # praticamente si deve creare una classe per Thermometer
                     # da gestire tipo Heating che si passa al costruttore del
-                    # TimeTable. Di conseguenza should_the_heating_be_one()
-                    # prenderà due parametri opzionali (temperature, data), in
-                    # assenza recupererà la temperature dal Thermometer e now()
-                    # come data, altrimenti utilizza quelli indicati.
+                    # TimeTable. Di conseguenza should_the_heating_be_on()
+                    # prenderà due parametri opzionali (temperature, date), in
+                    # assenza recupererà la temperatura dal Thermometer e now()
+                    # come data da controllare, altrimenti utilizza quelli indicati.
                     pass
                 
         
