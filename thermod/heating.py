@@ -15,7 +15,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-01-30'
+__updated__ = '2016-02-05'
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,15 @@ class BaseHeating(object):
         
         self._switch_off_time = datetime.fromtimestamp(0)
         """Time of last switch off."""
+    
+    def __repr__(self, *args, **kwargs):
+        return '{}.{}()'.format(self.__module__, self.__class__.__name__)
+    
+    def __str__(self, *args, **kwargs):
+        return (self._is_on and 'ON' or 'OFF')
+    
+    def __format__(self, format_spec, *args, **kwargs):
+        return '{:{}}'.format(str(self), format_spec)
     
     def switch_on(self):
         """Switch on the heating, raise a `HeatingError` in case of failure.
@@ -204,6 +213,14 @@ class ScriptHeating(BaseHeating):
         
         # initializing current status
         self.status()
+    
+    def __repr__(self, *args, **kwargs):
+        return "{module}.{cls}('{on}', '{off}', '{status}')".format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    on=self._switch_on_script,
+                    off=self._switch_off_script,
+                    status=self._status_script)
     
     def switch_on(self):
         """Switch on the heating executing the `switch-on` script."""

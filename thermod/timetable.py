@@ -17,7 +17,7 @@ from .heating import BaseHeating
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-01-23'
+__updated__ = '2016-02-05'
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,14 @@ class TimeTable(object):
         
         if self.filepath is not None:
             self.reload()
+    
+    
+    def __repr__(self, *args, **kwargs):
+        return "{module}.{cls}('{filepath}', {heating!r})".format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    filepath=self.filepath,
+                    heating=self._heating)
     
     
     def __eq__(self, other):

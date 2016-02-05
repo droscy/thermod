@@ -64,6 +64,14 @@ class ControlThread(Thread):
         super().__init__()
         self.server = ControlServer(timetable, (host, port), ControlRequestHandler)
     
+    def __repr__(self):
+        return "{module}.{cls}({timetable!r}, '{host}', {port:d})".format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    timetable=self.server.timetable,
+                    host=self.server.server_address[0],
+                    port=self.server.server_address[1])
+    
     def run(self):
         (host, port) = self.server.server_address
         logger.info('control socket listening on {}:{}'.format(host, port))
