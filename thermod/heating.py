@@ -15,7 +15,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-02-05'
+__updated__ = '2016-02-08'
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +112,9 @@ class ScriptHeating(BaseHeating):
     
     The three scripts must be POSIX compliant, must exit with code 0 on success
     and 1 on error and must accept (or at least ignore) '--debug' argument that
-    is appended when the daemon is executed in debug mode. In addition they
-    must write to the standard output a JSON string with the following fields:
+    is appended when this class is instantiated with `debug==True` (i.e. when
+    Thermod daemon is executed in debug mode). In addition they must write to
+    the standard output a JSON string with the following fields:
     
         - `success`: if the operation has been completed successfully or not
           (boolean value `true` for success and `false` for failure);
@@ -296,7 +297,7 @@ class ScriptHeating(BaseHeating):
             ststr = out[ScriptHeating.STATUS]
             status = int(ststr)
         
-        except subprocess.CalledProcessError as cpe:
+        except subprocess.CalledProcessError as cpe:  # error in subprocess
             suberr = 'the status script exited with return code {}'.format(cpe.returncode)
             logger.debug(suberr)
             
@@ -311,19 +312,19 @@ class ScriptHeating(BaseHeating):
             
             raise HeatingError((err or suberr), suberr)
         
-        except JSONDecodeError as jde:
+        except JSONDecodeError as jde:  # error in json.loads()
             logger.debug('the script output is not in JSON format')
             raise HeatingError('script output is invalid, cannot get current '
                                'status', str(jde))
         
-        except KeyError as ke:
+        except KeyError as ke:  # error in retriving element from out dict
             logger.debug('the script output lacks the `{}` item'
                          .format(ScriptHeating.STATUS))
             
             raise HeatingError('the status script has not returned the '
                                'current heating status', str(ke))
             
-        except ValueError as ve:
+        except ValueError as ve:  # error converting to int
             logger.debug('cannot convert status `{}` to integer'.format(ststr))
             raise HeatingError('the status script returned an invalid status',
                                str(ve))

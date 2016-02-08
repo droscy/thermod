@@ -123,7 +123,7 @@ try:
     tt_file = cfg.get('global', 'timetable')
     interval = cfg.getint('global', 'interval')
     
-    scripts = {'tsensor': cfg.get('scripts', 'sensor'),
+    scripts = {'thermometer': cfg.get('scripts', 'thermometer'),
                'on': cfg.get('scripts', 'switchon'),
                'off': cfg.get('scripts', 'switchoff'),
                'status': cfg.get('scripts', 'status')}
@@ -235,7 +235,7 @@ def thermostat_cycle():
     while enabled:
         try:
             logger.debug('retriving current temperature')
-            t = subprocess.check_output(scripts['tsensor'], shell=True).decode('utf-8').strip()
+            t = subprocess.check_output(scripts['thermometer'], shell=True).decode('utf-8').strip()
             logger.debug('current temperature: %s',t)
             
             with timetable.lock:
