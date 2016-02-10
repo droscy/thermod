@@ -14,7 +14,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2016-02-08'
+__updated__ = '2016-02-10'
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +26,6 @@ def celsius2fahrenheit(value):
 def fahrenheit2celsius(value):
     """Convert fahrenheit temperature to celsius degrees."""
     return ((value - 32.0) / 1.8)
-
-# TODO scrivere test suite
 
 
 class ThermometerError(RuntimeError):
@@ -56,7 +54,7 @@ class BaseThermometer(object):
     DEGREE_CELSIUS = 'C'
     DEGREE_FAHRENHEIT = 'F'
     
-    def __init__(self, scale=BaseThermometer.DEGREE_CELSIUS):
+    def __init__(self, scale=DEGREE_CELSIUS):
         """Init the thermometer with a choosen degree scale."""
         
         logger.debug('initializing %s with %s degrees',
@@ -90,14 +88,14 @@ class BaseThermometer(object):
     
     def to_celsius(self):
         """Return the current temperature in Celsius degrees."""
-        if self._scale == self.DEGREE_CELSIUS:
+        if self._scale == BaseThermometer.DEGREE_CELSIUS:
             return self.temperature
         else:
             return fahrenheit2celsius(self.temperature)
     
     def to_fahrenheit(self):
         """Return the current temperature in Fahrenheit dgrees."""
-        if self._scale == self.DEGREE_FAHRENHEIT:
+        if self._scale == BaseThermometer.DEGREE_FAHRENHEIT:
             return self.temperature
         else:
             return celsius2fahrenheit(self.temperature)
@@ -123,7 +121,7 @@ class ScriptThermometer(BaseThermometer):
     JSON_TEMPERATURE = 'temperature'
     JSON_ERROR = 'error'
     
-    def __init__(self, script, scale=BaseThermometer.DEGREE_CELSIUS, debug=False):
+    def __init__(self, script, debug=False, scale=BaseThermometer.DEGREE_CELSIUS):
         super().__init__(scale)
         
         if isinstance(script, list):
@@ -172,6 +170,7 @@ class ScriptThermometer(BaseThermometer):
             except:
                 out = {ScriptThermometer.JSON_ERROR: '{} and the output is invalid'.format(suberr)}
             
+            err = None
             if ScriptThermometer.JSON_ERROR in out:
                 err = out[ScriptThermometer.JSON_ERROR]
                 logger.debug(err)
@@ -190,10 +189,10 @@ class ScriptThermometer(BaseThermometer):
             raise ThermometerError('the temperature script has not returned '
                                    'the current temperature', str(ke))
             
-        except ValueError as ve:  # error converting to float
+        except (ValueError, TypeError) as vte:  # error converting to float
             logger.debug('cannot convert temperature `%s` to number', tstr)
             raise ThermometerError('the temperature script returned an '
-                                   'invalid value', str(ve))
+                                   'invalid value', str(vte))
         
-        logger.debug('current temperature: %.4f', t)
+        logger.debug('current temperature: %.2f', t)
         return t

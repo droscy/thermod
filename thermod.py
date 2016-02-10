@@ -12,11 +12,13 @@ from daemon import DaemonContext
 from configparser import ConfigParser
 from logging.handlers import SysLogHandler
 from thermod import config
+from thermod.thermometer import ScriptThermometer, ThermometerError
 from thermod.heating import ScriptHeating, HeatingError
 from thermod.timetable import TimeTable
 from thermod.socket import ControlThread
 from thermod.config import JsonValueError
 
+# TODO usare /usr/bin/python3 al posto di env in tutti gli script e script generati dai test
 # TODO mettere un SMTPHandler per i log di tipo WARNING e CRITICAL
 # TODO verificare il corretto spelling di thermod o Thermod in tutti i sorgenti
 # TODO documentare return code
@@ -123,7 +125,7 @@ try:
     tt_file = cfg.get('global', 'timetable')
     interval = cfg.getint('global', 'interval')
     
-    scripts = {'thermometer': cfg.get('scripts', 'thermometer'),
+    scripts = {'thermo': cfg.get('scripts', 'thermometer'),
                'on': cfg.get('scripts', 'switchon'),
                'off': cfg.get('scripts', 'switchoff'),
                'status': cfg.get('scripts', 'status')}
@@ -186,6 +188,7 @@ if debug:
 # initializing base objects
 try:
     logger.debug('creating base classes')
+    thermometer = ScriptThermometer(scripts['thermo'], debug)
     heating = ScriptHeating(scripts['on'], scripts['off'], scripts['status'], debug)
     timetable = TimeTable(tt_file, heating)
 
@@ -234,9 +237,7 @@ def thermostat_cycle():
     
     while enabled:
         try:
-            logger.debug('retriving current temperature')
-            t = subprocess.check_output(scripts['thermometer'], shell=True).decode('utf-8').strip()
-            logger.debug('current temperature: %s',t)
+            t = thermometer.temperature
             
             with timetable.lock:
                 if timetable.should_the_heating_be_on(t):
@@ -252,9 +253,10 @@ def thermostat_cycle():
                     else:
                         logger.debug('heating already OFF')
         
-        except subprocess.CalledProcessError as cpe:
+        except ThermometerError as te:
             # TODO
-            logger.critical(str(cpe))
+            logger.critical(str(te))
+            logger.debug(te.suberror)
         
         except JsonValueError as jve:
             # TODO

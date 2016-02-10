@@ -15,7 +15,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-02-08'
+__updated__ = '2016-02-10'
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +244,7 @@ class ScriptHeating(BaseHeating):
             except:
                 out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
             
+            err = None
             if ScriptHeating.ERROR in out:
                 err = 'switch-on: {}'.format(str(out[ScriptHeating.ERROR]))
                 logger.debug(err)
@@ -271,6 +272,7 @@ class ScriptHeating(BaseHeating):
             except:
                 out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
             
+            err = None
             if ScriptHeating.ERROR in out:
                 err = 'switch-off: {}'.format(str(out[ScriptHeating.ERROR]))
                 logger.debug(err)
@@ -306,6 +308,7 @@ class ScriptHeating(BaseHeating):
             except:
                 out = {ScriptHeating.ERROR: '{} and the output is invalid'.format(suberr)}
             
+            err = None
             if ScriptHeating.ERROR in out:
                 err = 'status: {}'.format(str(out[ScriptHeating.ERROR]))
                 logger.debug(err)
@@ -324,10 +327,10 @@ class ScriptHeating(BaseHeating):
             raise HeatingError('the status script has not returned the '
                                'current heating status', str(ke))
             
-        except ValueError as ve:  # error converting to int
+        except (ValueError, TypeError) as vte:  # error converting to int
             logger.debug('cannot convert status `{}` to integer'.format(ststr))
             raise HeatingError('the status script returned an invalid status',
-                               str(ve))
+                               str(vte))
             
         logger.debug('the heating is currently {}'.format((status and 'ON' or 'OFF')))
         logger.debug('last switch off time: {}'.format(self._switch_off_time))

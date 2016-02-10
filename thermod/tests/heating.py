@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from thermod.heating import ScriptHeating, HeatingError
 
-__updated__ = '2016-01-11'
+__updated__ = '2016-02-10'
 
 
 class TestHeating(unittest.TestCase):
@@ -67,8 +67,8 @@ print(json.dumps({'success': not bool(retcode), 'status': status, 'error': error
 exit(retcode)
 ''' % self.status_data)
             
-            with open(self.status_script, 'w') as file:
-                file.write(
+        with open(self.status_script, 'w') as file:
+            file.write(
 '''#!/usr/bin/env python
 import json
 
