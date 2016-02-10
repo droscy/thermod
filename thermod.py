@@ -5,7 +5,6 @@ import sys
 import logging
 import argparse
 import signal
-import subprocess
 import configparser
 
 from daemon import DaemonContext
@@ -23,8 +22,9 @@ from thermod.config import JsonValueError
 # TODO verificare il corretto spelling di thermod o Thermod in tutti i sorgenti
 # TODO documentare return code
 # TODO rivedere i messaggi di log, decidere se usare format oppure %s
+# TODO provare la generazione della documentazione con doxygen
 
-prog_version = '0.0.0~alpha3'
+prog_version = '0.0.0~alpha4'
 script_path = os.path.dirname(os.path.realpath(__file__))
 
 # parsing input arguments
@@ -188,9 +188,9 @@ if debug:
 # initializing base objects
 try:
     logger.debug('creating base classes')
-    thermometer = ScriptThermometer(scripts['thermo'], debug)
     heating = ScriptHeating(scripts['on'], scripts['off'], scripts['status'], debug)
-    timetable = TimeTable(tt_file, heating)
+    thermometer = ScriptThermometer(scripts['thermo'], debug)
+    timetable = TimeTable(tt_file, heating, thermometer)
 
 except FileNotFoundError as fnfe:
     ret_code = 20
@@ -237,10 +237,8 @@ def thermostat_cycle():
     
     while enabled:
         try:
-            t = thermometer.temperature
-            
             with timetable.lock:
-                if timetable.should_the_heating_be_on(t):
+                if timetable.should_the_heating_be_on():
                     if not heating.is_on():
                         heating.switch_on()
                         logger.info('heating switched ON')

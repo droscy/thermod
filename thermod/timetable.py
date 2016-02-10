@@ -10,14 +10,16 @@ from threading import Condition
 from datetime import datetime
 
 from . import config
-from .config import JsonValueError, elstr
+from .config import JsonValueError
 from .heating import BaseHeating
+from .thermometer import BaseThermometer, FakeThermometer
 
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
+# TODO scrivere test per il TimeTable con thermometro incorportato
 
-__updated__ = '2016-02-05'
+__updated__ = '2016-02-10'
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 class TimeTable(object):
     """Represent the timetable to control the heating."""
     
-    def __init__(self, filepath=None, heating=None):
+    def __init__(self, filepath=None, heating=None, thermometer=None):
         """Init the timetable.
 
         If `filepath` is not `None`, it must be a full path to a
@@ -50,10 +52,21 @@ class TimeTable(object):
             self._heating = heating
             """Interface to the real heating."""
         elif not heating:
-            self._heating = BaseHeating()  # fake heating with basic functions
+            # fake heating with basic functionality
+            self._heating = BaseHeating()
         else:
             logger.debug('the heating must be a subclass of BaseHeating')
             raise TypeError('the heating must be a subclass of BaseHeating')
+        
+        if isinstance(thermometer, BaseThermometer):
+            self._thermometer = thermometer
+            """Interface to the real thermometer."""
+        elif not thermometer:
+            # fake thermometer with basic functionality
+            self._thermometer = FakeThermometer()
+        else:
+            logger.debug('the thermometer must be a subclass of BaseThermometer')
+            raise TypeError('the thermometer must be a subclass of BaseThermometer')
         
         self._has_been_validated = False
         """Used to speedup validation.
@@ -80,11 +93,12 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return "{module}.{cls}('{filepath}', {heating!r})".format(
+        return "{module}.{cls}('{filepath}', {heating!r}, {thermo!r})".format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     filepath=self.filepath,
-                    heating=self._heating)
+                    heating=self._heating,
+                    thermo=self._thermometer)
     
     
     def __eq__(self, other):
@@ -92,8 +106,8 @@ class TimeTable(object):
         
         The check is performed only on status, main temperatures, timetable,
         differential value and grace time because the other attributes
-        (is_valid, filepath and last_update_timestamp) are relative to the
-        current usage of the `TimeTable` object.
+        (is_valid, filepath, last_update_timestamp, heating, thermometer)
+        are relative to the specific usage of the `TimeTable` object.
         """
         
         result = None
@@ -149,7 +163,7 @@ class TimeTable(object):
         old state remains unchanged.
         
         The new state is deep copied before saving internally to prevent
-        unwanted update to any array.
+        unwanted update to any external array.
         """
         
         logger.debug('setting new internal state')
@@ -159,7 +173,7 @@ class TimeTable(object):
         # TimeTable object.
         if not hasattr(self, '_lock'):
             logger.debug('the timetable is empty')
-            self.__init__(None)
+            self.__init__()
         
         with self._lock:
             logger.debug('lock acquired, validating the provided state')
@@ -173,7 +187,7 @@ class TimeTable(object):
             old_grace_time = self._grace_time
             
             # storing new values
-            logger.debug('data validated: setting new values')
+            logger.debug('data validated, setting new values')
             self._status = state[config.json_status]
             self._temperatures = deepcopy(state[config.json_temperatures])
             self._timetable = deepcopy(state[config.json_timetable])
@@ -190,7 +204,7 @@ class TimeTable(object):
             
             except:
                 logger.critical('something strange happened because the new '
-                                'state was VALID before storing it into '
+                                'state was VALID before storing into '
                                 'timetable and INVALID after that, resetting '
                                 'to old state')
                 
@@ -554,6 +568,33 @@ class TimeTable(object):
             logger.debug('new heating set')
     
     
+    @property
+    def thermometer(self):
+        """Return the current thermometer interface."""
+        with self._lock:
+            logger.debug('lock acquired to get current thermometer interface')
+            return self._thermometer
+    
+    
+    @thermometer.setter
+    def thermometer(self, thermometer):
+        """Set a new thermometer interface.
+        
+        The `thermometer` must be a subclass of
+        `thermod.thermometer.BaseThermometer` class.
+        """
+        
+        with self._lock:
+            logger.debug('lock acquired to set new thermometer interface')
+            
+            if not isinstance(thermometer, BaseThermometer):
+                logger.debug('the thermometer must be a subclass of BaseThermometer')
+                raise TypeError('the thermometer must be a subclass of BaseThermometer')
+        
+            self._thermometer = thermometer
+            logger.debug('new thermometer set')
+    
+    
     def update(self, day, hour, quarter, temperature):
         # TODO scrivere documentazione
         logger.debug('updating timetable: day "{}", hour "{}", quarter "{}", '
@@ -640,7 +681,7 @@ class TimeTable(object):
             except:
                 logger.debug('cannot update timetable, reverting to old '
                              'settings, the provided JSON data is invalid: {}'
-                             .format(elstr(json_data)))
+                             .format(json_data))
                 self.__setstate__(old_state)
                 raise
         
@@ -680,13 +721,22 @@ class TimeTable(object):
         return float(value)
     
     
-    def should_the_heating_be_on(self, current_temperature):
+    def should_the_heating_be_on(self, current_temperature=None):
         """Return `True` if now the heating *should be* ON, `False` otherwise.
+        
+        If the provided temperature is `None` the thermometer interface is
+        queried to retrive the current temperature.
         
         This method doesn't update any of the internal variables.
         
         @raise JsonValueError: if the provided temperature is invalid
         """
+        
+        # TODO aggiungere test per current_temperature==None
+        # TODO modificare questo metodo per accettae in ingresso oltre ad una
+        # temperature anche una data, in tal caso si può controllare se il
+        # riscaldamente dovrebbe essere acceso, con l'attuale temperatura,
+        # in un momento specifico. Aggiungere quindi i relativi test.
         
         logger.debug('checking should-be status of the heating')
         
@@ -695,6 +745,9 @@ class TimeTable(object):
         
         with self._lock:
             logger.debug('lock acquired to check the should-be status')
+            
+            if current_temperature is None:
+                current_temperature = self._thermometer.temperature
             
             current = self.degrees(current_temperature)
             diff = self.degrees(self._differential)

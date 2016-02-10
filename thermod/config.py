@@ -4,7 +4,7 @@ import os
 import math
 import calendar
 
-__updated__ = '2016-01-28'
+__updated__ = '2016-02-10'
 
 # TODO inserire logger
 # TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
@@ -232,6 +232,7 @@ def json_get_day_name(day):
     return result
 
 
+# TODO questa funzione non si usa più, se non serve toglierla
 def elstr(msg, maxlen=75):
     """Return message `msg` truncated at `maxlen` adding ellipsis '...'."""
     

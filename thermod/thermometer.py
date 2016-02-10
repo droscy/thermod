@@ -70,6 +70,12 @@ class BaseThermometer(object):
                                     self.__class__.__name__,
                                     self._scale)
     
+    def __str__(self, *args, **kwargs):
+        return '{:.2f} °{}'.format(self.temperature, self._scale)
+    
+    def __format__(self, format_spec, *args, **kwargs):
+        return '{:{}}'.format(self.temperature, format_spec)
+    
     @property
     def temperature(self):
         """This method must be implemented in subclasses.
@@ -79,12 +85,6 @@ class BaseThermometer(object):
         to correctly handle conversion methods.
         """
         raise NotImplementedError()
-    
-    def __str__(self, *args, **kwargs):
-        return '{:.2f} °{}'.format(self.temperature, self._scale)
-    
-    def __format__(self, format_spec, *args, **kwargs):
-        return '{:{}}'.format(self.temperature, format_spec)
     
     def to_celsius(self):
         """Return the current temperature in Celsius degrees."""
@@ -99,6 +99,18 @@ class BaseThermometer(object):
             return self.temperature
         else:
             return celsius2fahrenheit(self.temperature)
+
+
+class FakeThermometer(BaseThermometer):
+    """Fake thermometer that always returns 20.0 degrees celsius or 68.0 fahrenheit."""
+    
+    @property
+    def temperature(self):
+        t = 20.0
+        if self._scale == BaseThermometer.DEGREE_CELSIUS:
+            return t
+        else:
+            return celsius2fahrenheit(t)
 
 
 class ScriptThermometer(BaseThermometer):

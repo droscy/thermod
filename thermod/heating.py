@@ -19,6 +19,8 @@ __updated__ = '2016-02-10'
 
 logger = logging.getLogger(__name__)
 
+# TODO introdurre un FakeHeating anche qui, lasciando NotImplementedError in BaseHeating
+
 
 class HeatingError(RuntimeError):
     """Main exception for heating-related errors.
