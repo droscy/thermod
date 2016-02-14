@@ -30,7 +30,7 @@ from .timetable import TimeTable
 
 # TODO migliorare i log del socket
 
-__updated__ = '2016-02-05'
+__updated__ = '2016-02-14'
 __version__ = '0.4'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -47,9 +47,10 @@ req_settings_grace_time = config.json_grace_time
 
 req_heating_status = 'status'
 req_heating_temperature = 'temperature'
+req_heating_target_temp = 'target'
 
-req_path_settings = ('settings')
-req_path_heating = ('heating')
+req_path_settings = ('settings', 'set')
+req_path_heating = ('heating', 'heat')
 
 rsp_error = 'error'
 rsp_message = 'message'
@@ -184,38 +185,27 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         
         data = None
         pathlist = self.pathlist
+        timetable = self.server.timetable
         
         if pathlist[0] in req_path_settings:
             logger.debug('{} sending back Thermod settings'.format(self.client_address))
             
-            with self.server.timetable.lock:
-                settings = self.server.timetable.settings
-                last_updt = self.server.timetable.last_update_timestamp()
+            with timetable.lock:
+                settings = timetable.settings
+                last_updt = timetable.last_update_timestamp()
             
             data = self._send_header(200, data=settings, last_modified=last_updt)
         
         elif pathlist[0] in req_path_heating:
-            data = {}
+            logger.debug('{} sending back heating status'.format(self.client_address))
             
-            if len(pathlist) == 1:
-                pathlist.append(req_heating_status)
-                pathlist.append(req_heating_temperature)
-            
-            for item in set(pathlist[1:]):
-                if item == req_heating_status:
-                    data[req_heating_status] = self.server.timetable.heating.status()
-                elif item == req_heating_temperature:
-                    # TODO la temperatura deve essere recuperata da TimeTable
-                    # praticamente si deve creare una classe per Thermometer
-                    # da gestire tipo Heating che si passa al costruttore del
-                    # TimeTable. Di conseguenza should_the_heating_be_on()
-                    # prenderà due parametri opzionali (temperature, date), in
-                    # assenza recupererà la temperatura dal Thermometer e now()
-                    # come data da controllare, altrimenti utilizza quelli indicati.
-                    pass
+            with timetable.lock:
+                last_updt = time.time()
+                heating = {req_heating_status: timetable.heating.status(),
+                           req_heating_temperature: timetable.thermometer.temperature,
+                           req_heating_target_temp: timetable.target_temperature()}
                 
-        
-        # TODO mettere altri possibili richieste: temperatura corrente, stato del riscaldamento, ecc.
+            data = self._send_header(200, data=heating, last_modified=last_updt)
             
         else:
             error = 404
@@ -232,7 +222,14 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         return data
     
     def do_GET(self):
-        """Manage the GET request sending back all settings as JSON string."""
+        """Manage the GET requests sending back data as JSON string.
+        
+        Two paths are supported: `/settings` and `/heating`. The first returns
+        all settings as stored in the timetable.json file, the second returns
+        the current informations about the heating: status and temperature.
+        See `BaseHeating.status()` and `BaseThermometer.temperature()` to know
+        the types of returned values.
+        """
         
         settings = self.do_HEAD()
         

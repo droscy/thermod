@@ -17,9 +17,8 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
-# TODO scrivere test per il TimeTable con thermometro incorportato
 
-__updated__ = '2016-02-10'
+__updated__ = '2016-02-14'
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +31,14 @@ class TimeTable(object):
 
         If `filepath` is not `None`, it must be a full path to a
         JSON file that contains all the informations to setup the
-        timetable. While `heating` must be a subclass of `BaseHeating`,
-        if `None` a `BaseHeating` is used to provide base functionality.
+        timetable.
+        
+        `heating` must be a subclass of `BaseHeating`, if `None` a
+        `BaseHeating` is used to provide basic functionality.
+        
+        `thermometer` must be a subclass of `BaseThermometer`, if `None` a
+        `FakeThermometer` is used to provide basic functionality (its
+        `FakeThermometer.temperature` property always returns 20 degress.
         """
         
         logger.debug('initializing {}'.format(self.__class__.__name__))
@@ -596,6 +601,7 @@ class TimeTable(object):
     
     
     def update(self, day, hour, quarter, temperature):
+        """Update the target temperature in internal timetable."""
         # TODO scrivere documentazione
         logger.debug('updating timetable: day "{}", hour "{}", quarter "{}", '
                      'temperature "{}"'.format(day, hour, quarter, temperature))
@@ -721,7 +727,47 @@ class TimeTable(object):
         return float(value)
     
     
-    def should_the_heating_be_on(self, current_temperature=None):
+    def target_temperature(self, target_time=datetime.now()):
+        """Return the target temperature at specific `target_time`.
+        
+        The specific `target_time` must be a 'datetime` object.
+        
+        If the current status is ON the returned value is float `+Inf`, if
+        the current status is OFF the returned value is float `-Inf`.
+        """
+        
+        if not isinstance(target_time, datetime):
+            raise TypeError('target_temperature() requires a datetime object')
+        
+        target = None
+        
+        with self._lock:
+            if self._status == config.json_status_on:  # always on
+                target = float('+Inf')
+            
+            elif self._status == config.json_status_off:  # always off
+                target = float('-Inf')
+            
+            elif self._status in config.json_all_temperatures:
+                # target temperature is set manually
+                target = self.degrees(self._temperatures[self._status])
+                logger.debug('target_temperature: {}'.format(target))
+            
+            elif self._status == config.json_status_auto:
+                # target temperature is retrived from timetable
+                day = config.json_get_day_name(target_time.strftime('%w'))
+                hour = config.json_format_hour(target_time.hour)
+                quarter = int(target_time.minute // 15)
+                
+                target = self.degrees(self._timetable[day][hour][quarter])
+                logger.debug('day: {}, hour: {}, quarter: {}, '
+                             'target_temperature: {}'
+                             .format(day, hour, quarter, target))
+        
+        return target
+    
+    
+    def should_the_heating_be_on(self, room_temperature=None, target_time=datetime.now()):
         """Return `True` if now the heating *should be* ON, `False` otherwise.
         
         If the provided temperature is `None` the thermometer interface is
@@ -732,12 +778,6 @@ class TimeTable(object):
         @raise JsonValueError: if the provided temperature is invalid
         """
         
-        # TODO aggiungere test per current_temperature==None
-        # TODO modificare questo metodo per accettae in ingresso oltre ad una
-        # temperature anche una data, in tal caso si può controllare se il
-        # riscaldamente dovrebbe essere acceso, con l'attuale temperatura,
-        # in un momento specifico. Aggiungere quindi i relativi test.
-        
         logger.debug('checking should-be status of the heating')
         
         shoud_be_on = None
@@ -746,12 +786,12 @@ class TimeTable(object):
         with self._lock:
             logger.debug('lock acquired to check the should-be status')
             
-            if current_temperature is None:
-                current_temperature = self._thermometer.temperature
+            if room_temperature is None:
+                room_temperature = self._thermometer.temperature
             
-            current = self.degrees(current_temperature)
+            current = self.degrees(room_temperature)
             diff = self.degrees(self._differential)
-            logger.debug('status: {}, current_temperature: {}, differential: {}'
+            logger.debug('status: {}, room_temperature: {}, differential: {}'
                          .format(self._status, current, diff))
             
             if self._status == config.json_status_on:  # always on
@@ -761,26 +801,9 @@ class TimeTable(object):
                 shoud_be_on = False
             
             else:  # checking against current temperature and timetable
-                now = datetime.now()
-                
-                if self._status in config.json_all_temperatures:
-                    # target temperature is set manually
-                    target = self.degrees(self._temperatures[self._status])
-                    logger.debug('target_temperature: {}'.format(target))
-                
-                elif self._status == config.json_status_auto:
-                    # target temperature is retrived from timetable
-                    day = config.json_get_day_name(now.strftime('%w'))
-                    hour = config.json_format_hour(now.hour)
-                    quarter = int(now.minute // 15)
-                    
-                    target = self.degrees(self._timetable[day][hour][quarter])
-                    logger.debug('day: {}, hour: {}, quarter: {}, '
-                                 'target_temperature: {}'
-                                 .format(day, hour, quarter, target))
-                
+                target = self.target_temperature(target_time)
                 ison = self._heating.is_on()
-                nowts = now.timestamp()
+                nowts = target_time.timestamp()
                 offts = self._heating.switch_off_time().timestamp()
                 grace = self._grace_time
                 

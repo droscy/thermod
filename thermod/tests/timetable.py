@@ -21,7 +21,7 @@ else:
     JSONDecodeError = ValueError
 
 
-__updated__ = '2016-01-17'
+__updated__ = '2016-02-14'
 
 
 def fill_timetable(timetable):
@@ -637,6 +637,38 @@ class TestTimeTable(TestCase):
         # the heating remains off
         self.timetable.update(day,hour,quarter,tconf.json_tmax_str)
         self.assertFalse(self.timetable.should_the_heating_be_on(21))
+    
+    
+    def test_target_temperature(self):
+        fill_timetable(self.timetable)
+        
+        time = datetime(2016,2,14,17,23,0)
+        day = time.strftime('%w')
+        hour = tconf.json_format_hour(time.hour)
+        quarter = int(time.minute // 15)
+        
+        self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.tmax, delta=0.01)
+        t = 45.0
+        self.timetable.update(day, hour, quarter, t)
+        self.assertAlmostEqual(self.timetable.target_temperature(time), t, delta=0.01)
+        
+        self.assertAlmostEqual(self.timetable.target_temperature(datetime(2016,2,10,9,34,0)), self.timetable.tmin, delta=0.01)
+        self.assertAlmostEqual(self.timetable.target_temperature(datetime(2016,2,10,23,34,0)), self.timetable.t0, delta=0.01)
+        
+        self.timetable.status = tconf.json_status_on
+        self.assertEqual(self.timetable.target_temperature(time), float('+Inf'))
+        
+        self.timetable.status = tconf.json_status_off
+        self.assertEqual(self.timetable.target_temperature(time), float('-Inf'))
+        
+        self.timetable.status = tconf.json_status_tmax
+        self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.tmax, delta=0.01)
+        
+        self.timetable.status = tconf.json_status_tmin
+        self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.tmin, delta=0.01)
+        
+        self.timetable.status = tconf.json_status_t0
+        self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.t0, delta=0.01)
     
     
     # TODO write more concurrent tests

@@ -12,8 +12,9 @@ import thermod.socket as socket
 from thermod import TimeTable, ControlThread, config
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2015-12-28'
-__url__ = 'http://localhost:4344/settings'
+__updated__ = '2016-02-14'
+__url_settings__ = 'http://localhost:4344/settings'
+__url_heating__ = 'http://localhost:4344/heating'
 
 # TODO cercare di capire come mai ogni tanto i test falliscono per "OSError: [Errno 98] Address already in use"
 
@@ -43,7 +44,7 @@ class TestSocket(unittest.TestCase):
         wrong.close()
         
         # right url
-        r = requests.get(__url__)
+        r = requests.get(__url_settings__)
         self.assertEqual(r.status_code, 200)
         settings = r.json()
         r.close()
@@ -52,6 +53,24 @@ class TestSocket(unittest.TestCase):
         tt = TimeTable()
         tt.__setstate__(settings)
         self.assertEqual(self.timetable, tt)
+
+
+    def test_get_heating(self):
+        # wrong url
+        wrong = requests.get('http://localhost:4344/wrong')
+        self.assertEqual(wrong.status_code, 404)
+        wrong.close()
+        
+        # right url
+        r = requests.get(__url_heating__)
+        self.assertEqual(r.status_code, 200)
+        heating = r.json()
+        r.close()
+        
+        # check returned heating informations
+        self.assertEqual(heating[socket.req_heating_status], self.timetable.heating.status())
+        self.assertAlmostEqual(heating[socket.req_heating_temperature], self.timetable.thermometer.temperature, delta=0.1)
+        self.assertEqual(heating[socket.req_heating_target_temp], self.timetable.target_temperature())
     
     
     def test_post_wrong_messages(self):
@@ -61,35 +80,35 @@ class TestSocket(unittest.TestCase):
         wrong.close()
         
         # wrong value for status
-        wrong = requests.post(__url__, {socket.req_settings_status: 'invalid'})
+        wrong = requests.post(__url_settings__, {socket.req_settings_status: 'invalid'})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
         # wrong value (greater then max allowed)
-        wrong = requests.post(__url__, {socket.req_settings_differential: 1.1})
+        wrong = requests.post(__url_settings__, {socket.req_settings_differential: 1.1})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
         # wrong JSON data for days
-        wrong = requests.post(__url__, {socket.req_settings_days: '{"monday":["invalid"]}'})
+        wrong = requests.post(__url_settings__, {socket.req_settings_days: '{"monday":["invalid"]}'})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
         # invalid JSON syntax for days
-        wrong = requests.post(__url__, {socket.req_settings_days: '{"monday":["missing quote]}'})
+        wrong = requests.post(__url_settings__, {socket.req_settings_days: '{"monday":["missing quote]}'})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
         # wrong JSON data for settings
         settings = self.timetable.__getstate__()
         settings[config.json_temperatures][config.json_tmax_str] = 'inf'
-        wrong = requests.post(__url__, {socket.req_settings_all: settings})
+        wrong = requests.post(__url_settings__, {socket.req_settings_all: settings})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
         # invalid JSON syntax for settings
         settings = self.timetable.settings
-        wrong = requests.post(__url__, {socket.req_settings_all: settings[0:30]})
+        wrong = requests.post(__url_settings__, {socket.req_settings_all: settings[0:30]})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
@@ -100,13 +119,13 @@ class TestSocket(unittest.TestCase):
     
     def test_post_right_messages(self):
         # single settings
-        p = requests.post(__url__, {socket.req_settings_status: config.json_status_off})
+        p = requests.post(__url_settings__, {socket.req_settings_status: config.json_status_off})
         self.assertEqual(p.status_code, 200)
         self.assertEqual(self.timetable.status, config.json_status_off)
         p.close()
         
         # multiple settings
-        q = requests.post(__url__, {socket.req_settings_status: config.json_status_tmax,
+        q = requests.post(__url_settings__, {socket.req_settings_status: config.json_status_tmax,
                                     socket.req_settings_tmax: 32.3,
                                     socket.req_settings_grace_time: 'inf'})
         
@@ -126,7 +145,7 @@ class TestSocket(unittest.TestCase):
         sunday['06'][2] = 46
         sunday['07'][3] = 47
         
-        r = requests.post(__url__,
+        r = requests.post(__url_settings__,
             {socket.req_settings_days:
                 json.dumps({config.json_get_day_name(5): friday,
                             config.json_get_day_name(7): sunday})})
@@ -149,7 +168,7 @@ class TestSocket(unittest.TestCase):
         
         self.assertNotEqual(self.timetable, tt2)  # different before update
         
-        s = requests.post(__url__, {socket.req_settings_all: tt2.settings})
+        s = requests.post(__url_settings__, {socket.req_settings_all: tt2.settings})
         self.assertEqual(s.status_code, 200)
         s.close()
         
@@ -157,15 +176,15 @@ class TestSocket(unittest.TestCase):
     
     
     def test_unsupported_http_methods(self):
-        pa = requests.patch(__url__, {})
+        pa = requests.patch(__url_settings__, {})
         self.assertEqual(pa.status_code, 501)
         pa.close()
         
-        pu = requests.put(__url__, {})
+        pu = requests.put(__url_settings__, {})
         self.assertEqual(pu.status_code, 501)
         pu.close()
         
-        de = requests.delete(__url__)
+        de = requests.delete(__url_heating__)
         self.assertEqual(de.status_code, 501)
         de.close()
 
