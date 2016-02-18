@@ -2,11 +2,13 @@
 
 import sys
 import json
+import shlex
 import logging
 import subprocess
 from copy import deepcopy
 from datetime import datetime
 #from json.decoder import JSONDecodeError
+from .config import ScriptError
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -15,7 +17,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-02-10'
+__updated__ = '2016-02-19'
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,19 @@ class HeatingError(RuntimeError):
     def __init__(self, error=None, suberror=None):
         super().__init__(error)
         self.suberror = suberror
+
+
+class ScriptHeatingError(HeatingError, ScriptError):
+    """Like HeatingError with the name of the script that produced the error.
+    
+    The script is saved in the attribute ScriptHeatingError.script and must
+    be accessed directly, it is never printed by default.
+    """
+    
+    def __init__(self, error=None, suberror=None, script=None):
+        super().__init__(error)
+        self.suberror = suberror
+        self.script = script
 
 
 class BaseHeating(object):
@@ -160,68 +175,41 @@ class ScriptHeating(BaseHeating):
         
         if isinstance(switchon, list):
             self._switch_on_script = deepcopy(switchon)
-            self._switch_on_shell = False
-            
-            if debug:
-                self._switch_on_script.append('--debug')
-            
         elif isinstance(switchon, str):
-            if debug:
-                self._switch_on_script = '{} --debug'.format(switchon)
-            else:
-                self._switch_on_script = switchon
-            
-            self._switch_on_shell = True
-        
+            self._switch_on_script = shlex.split(switchon, comments=True)
         else:
             raise TypeError('the switchon parameter must be string or list')
         
         if isinstance(switchoff, list):
             self._switch_off_script = deepcopy(switchoff)
-            self._switch_off_shell = False
-            
-            if debug:
-                self._switch_off_script.append('--debug')
-            
         elif isinstance(switchoff, str):
-            if debug:
-                self._switch_off_script = '{} --debug'.format(switchoff)
-            else:
-                self._switch_off_script = switchoff
-            
-            self._switch_off_shell = True
-        
+            self._switch_off_script = shlex.split(switchoff, comments=True)
         else:
             raise TypeError('the switchoff parameter must be string or list')
         
         if isinstance(status, list):
             self._status_script = deepcopy(status)
-            self._status_shell = False
-            
-            if debug:
-                self._status_script.append('--debug')
         elif isinstance(status, str):
-            if debug:
-                self._status_script = '{} --debug'.format(status)
-            else:
-                self._status_script = status
-            
-            self._status_shell = True
-        
+            self._status_script = shlex.split(status, comments=True)
         else:
             raise TypeError('the status parameter must be string or list')
         
+        if debug:
+            self._switch_on_script.append('--debug')
+            self._switch_off_script.append('--debug')
+            self._status_script.append('--debug')
+        
         logger.debug('{} initialized with scripts ON=`{}`, OFF=`{}` and STATUS=`{}`'
                      .format(self.__class__.__name__,
-                             self._switch_on_script,
-                             self._switch_off_script,
-                             self._status_script))
+                             self._switch_on_script[0],
+                             self._switch_off_script[0],
+                             self._status_script[0]))
         
         # initializing current status
         self.status()
     
     def __repr__(self, *args, **kwargs):
-        return "{module}.{cls}('{on}', '{off}', '{status}')".format(
+        return "{module}.{cls}({on}, {off}, {status})".format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     on=self._switch_on_script,
@@ -234,8 +222,7 @@ class ScriptHeating(BaseHeating):
         logger.debug('switching on the heating')
         
         try:
-            subprocess.check_output(self._switch_on_script,
-                                    shell=self._switch_on_shell)
+            subprocess.check_output(self._switch_on_script, shell=False)
         
         except subprocess.CalledProcessError as cpe:
             suberr = 'the switch-on script exited with return code `{}`'.format(cpe.returncode)
@@ -251,7 +238,7 @@ class ScriptHeating(BaseHeating):
                 err = 'switch-on: {}'.format(str(out[ScriptHeating.ERROR]))
                 logger.debug(err)
             
-            raise HeatingError((err or suberr), suberr)
+            raise ScriptHeatingError((err or suberr), suberr, self._switch_on_script[0])
         
         self._is_on = True
         logger.debug('heating switched on')
@@ -262,8 +249,7 @@ class ScriptHeating(BaseHeating):
         logger.debug('switching off the heating')
         
         try:
-            subprocess.check_output(self._switch_off_script,
-                                    shell=self._switch_off_shell)
+            subprocess.check_output(self._switch_off_script, shell=False)
         
         except subprocess.CalledProcessError as cpe:
             suberr = 'the switch-off script exited with return code {}'.format(cpe.returncode)
@@ -279,7 +265,7 @@ class ScriptHeating(BaseHeating):
                 err = 'switch-off: {}'.format(str(out[ScriptHeating.ERROR]))
                 logger.debug(err)
             
-            raise HeatingError((err or suberr), suberr)
+            raise ScriptHeatingError((err or suberr), suberr, self._switch_off_script[0])
         
         self._is_on = False
         self._switch_off_time = datetime.now()
@@ -294,9 +280,8 @@ class ScriptHeating(BaseHeating):
         logger.debug('retriving current status of the heating')
         
         try:
-            out = json.loads(subprocess.check_output(
-                                self._status_script,
-                                shell=self._status_shell).decode('utf-8'))
+            raw = subprocess.check_output(self._status_script, shell=False)
+            out = json.loads(raw.decode('utf-8'))
             
             ststr = out[ScriptHeating.STATUS]
             status = int(ststr)
@@ -315,24 +300,26 @@ class ScriptHeating(BaseHeating):
                 err = 'status: {}'.format(str(out[ScriptHeating.ERROR]))
                 logger.debug(err)
             
-            raise HeatingError((err or suberr), suberr)
+            raise ScriptHeatingError((err or suberr), suberr, self._status_script[0])
         
         except JSONDecodeError as jde:  # error in json.loads()
             logger.debug('the script output is not in JSON format')
-            raise HeatingError('script output is invalid, cannot get current '
-                               'status', str(jde))
+            raise ScriptHeatingError('script output is invalid, cannot get '
+                                     'current status', str(jde),
+                                     self._status_script[0])
         
-        except KeyError as ke:  # error in retriving element from out dict
+        except KeyError as ke:  # error in retriving element from output dict
             logger.debug('the script output lacks the `{}` item'
                          .format(ScriptHeating.STATUS))
             
-            raise HeatingError('the status script has not returned the '
-                               'current heating status', str(ke))
+            raise ScriptHeatingError('the status script has not returned the '
+                                     'current heating status', str(ke),
+                                     self._status_script[0])
             
         except (ValueError, TypeError) as vte:  # error converting to int
             logger.debug('cannot convert status `{}` to integer'.format(ststr))
-            raise HeatingError('the status script returned an invalid status',
-                               str(vte))
+            raise ScriptHeatingError('the status script returned an invalid '
+                                     'status', str(vte), self._status_script[0])
             
         logger.debug('the heating is currently {}'.format((status and 'ON' or 'OFF')))
         logger.debug('last switch off time: {}'.format(self._switch_off_time))

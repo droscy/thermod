@@ -112,6 +112,18 @@ class JsonValueError(ValueError):
         return str(self)
 
 
+class ScriptError(RuntimeError):
+    """Handle error of an external script.
+    
+    Can be used in conjuction with other exception to store also the name
+    of the external script that produced an error.
+    """
+    
+    def __init__(self, error=None, script=None):
+        super().__init__(error)
+        self.script = script
+
+
 def is_valid_temperature(temperature):
     """Return True if the provided temperature is valid.
     
