@@ -2,10 +2,12 @@
 
 import sys
 import json
+import shlex
 import logging
 import subprocess
 from copy import deepcopy
 #from json.decoder import JSONDecodeError
+from .config import ScriptError
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -14,7 +16,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2016-02-10'
+__updated__ = '2016-02-19'
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,19 @@ class ThermometerError(RuntimeError):
     def __init__(self, error=None, suberror=None):
         super().__init__(error)
         self.suberror = suberror
+
+
+class ScriptThermometerError(ThermometerError, ScriptError):
+    """Like ThermometerError with the name of the script that produced the error.
+    
+    The script is saved in the attribute ScriptThermometerError.script and must
+    be accessed directly, it is never printed by default.
+    """
+    
+    def __init__(self, error=None, suberror=None, script=None):
+        super().__init__(error)
+        self.suberror = suberror
+        self.script = script
 
 
 class BaseThermometer(object):
@@ -130,6 +145,8 @@ class ScriptThermometer(BaseThermometer):
           string otherwise.
     """
     
+    # TODO modificare questo come è stato modificato ScriptHeating con lo ScriptError
+    
     JSON_TEMPERATURE = 'temperature'
     JSON_ERROR = 'error'
     
@@ -138,23 +155,17 @@ class ScriptThermometer(BaseThermometer):
         
         if isinstance(script, list):
             self._script = deepcopy(script)
-            self._shell = False
-            
-            if debug:
-                self._script.append('--debug')
-            
         elif isinstance(script, str):
-            if debug:
-                self._script = '{} --debug'.format(script)
-            else:
-                self._script = script
-            
-            self._shell = True
-        
+            self._script = shlex.split(script, comments=True)
         else:
             raise TypeError('the script parameter must be string or list')
         
-        logger.debug('initialized with script: `%s`', self._script)
+        if debug:
+            self._script.append('--debug')
+        
+        logger.debug('%s initialized with script: `%s`',
+                     self.__class__.__name__,
+                     self._script)
     
     @property
     def temperature(self):
@@ -166,9 +177,8 @@ class ScriptThermometer(BaseThermometer):
         logger.debug('retriving current temperature')
         
         try:
-            out = json.loads(subprocess.check_output(
-                                self._script,
-                                shell=self._shell).decode('utf-8'))
+            raw = subprocess.check_output(self._script, shell=False)
+            out = json.loads(raw.decode('utf-8'))
             
             tstr = out[ScriptThermometer.JSON_TEMPERATURE]
             t = float(tstr)
@@ -187,24 +197,27 @@ class ScriptThermometer(BaseThermometer):
                 err = out[ScriptThermometer.JSON_ERROR]
                 logger.debug(err)
             
-            raise ThermometerError((err or suberr), suberr)
+            raise ScriptThermometerError((err or suberr), suberr, self._script[0])
         
         except JSONDecodeError as jde:  # error in json.loads()
             logger.debug('the script output is not in JSON format')
-            raise ThermometerError('script output is invalid, cannot get '
-                                   'current temperature', str(jde))
+            raise ScriptThermometerError('script output is invalid, cannot get '
+                                         'current temperature', str(jde),
+                                         self._script[0])
         
         except KeyError as ke:  # error in retriving element from out dict
             logger.debug('the output of temperature script lacks the `%s` item',
                          ScriptThermometer.JSON_TEMPERATURE)
             
-            raise ThermometerError('the temperature script has not returned '
-                                   'the current temperature', str(ke))
+            raise ScriptThermometerError('the temperature script has not '
+                                         'returned the current temperature',
+                                         str(ke), self._script[0])
             
         except (ValueError, TypeError) as vte:  # error converting to float
             logger.debug('cannot convert temperature `%s` to number', tstr)
-            raise ThermometerError('the temperature script returned an '
-                                   'invalid value', str(vte))
+            raise ScriptThermometerError('the temperature script returned an '
+                                         'invalid value', str(vte),
+                                         self._script[0])
         
         logger.debug('current temperature: %.2f', t)
         return t
