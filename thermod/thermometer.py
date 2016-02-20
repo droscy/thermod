@@ -147,6 +147,7 @@ class ScriptThermometer(BaseThermometer):
     
     # TODO modificare questo come è stato modificato ScriptHeating con lo ScriptError
     
+    DEBUG_OPTION = '--debug'
     JSON_TEMPERATURE = 'temperature'
     JSON_ERROR = 'error'
     
@@ -161,11 +162,19 @@ class ScriptThermometer(BaseThermometer):
             raise TypeError('the script parameter must be string or list')
         
         if debug:
-            self._script.append('--debug')
+            self._script.append(ScriptThermometer.DEBUG_OPTION)
         
         logger.debug('%s initialized with script: `%s`',
                      self.__class__.__name__,
                      self._script)
+    
+    def __repr__(self, *args, **kwargs):
+        return "{module}.{cls}({script}, {debug}, {scale})".format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    script=self._script,
+                    debug=(ScriptThermometer.DEBUG_OPTION in self._script),
+                    scale=self._scale)
     
     @property
     def temperature(self):
