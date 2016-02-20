@@ -18,7 +18,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-02-14'
+__updated__ = '2016-02-20'
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +28,24 @@ class TimeTable(object):
     
     def __init__(self, filepath=None, heating=None, thermometer=None):
         """Init the timetable.
+        
+        The timetable can be initialized empty, if every paramether is `None`,
+        or with full information to control the real heating providing the
+        path to the JSON timetable file.
 
-        If `filepath` is not `None`, it must be a full path to a
-        JSON file that contains all the informations to setup the
-        timetable.
+        @param filepath full path to a JSON file that contains all the
+            informations to setup the timetable
         
-        `heating` must be a subclass of `BaseHeating`, if `None` a
-        `BaseHeating` is used to provide basic functionality.
+        @param heating must be a subclass of thermod.heating.BaseHeating,
+            if `None` a thermod.heating.BaseHeating is used to provide basic
+            functionality
         
-        `thermometer` must be a subclass of `BaseThermometer`, if `None` a
-        `FakeThermometer` is used to provide basic functionality (its
-        `FakeThermometer.temperature` property always returns 20 degress.
+        @param thermometer must be a subclass of
+            thermod.thermometer.BaseThermometer, if `None` a
+            thermod.thermometer.FakeThermometer is used to provide basic
+            functionality (its `temperature` property always returns 20 degrees)
+        
+        @see TimeTable.reload() for possible exception
         """
         
         logger.debug('initializing {}'.format(self.__class__.__name__))
@@ -77,7 +84,7 @@ class TimeTable(object):
         """Used to speedup validation.
         
         Whenever a full validation has already been performed and no
-        change has occurred, the object is still valid, no need to
+        changes have occurred, the object is still valid, no need to
         validate again.
         
         If it isn't `True` it means only that a full validation hasn't
@@ -92,8 +99,9 @@ class TimeTable(object):
         """
         
         self.filepath = filepath
+        """Full path to a JSON timetable configuration file."""
         
-        if self.filepath is not None:
+        if self.filepath:
             self.reload()
     
     
@@ -107,12 +115,13 @@ class TimeTable(object):
     
     
     def __eq__(self, other):
-        """Check if two `TimeTable` objects have the same settings.
+        """Check if two TimeTable objects have the same settings.
         
-        The check is performed only on status, main temperatures, timetable,
-        differential value and grace time because the other attributes
-        (is_valid, filepath, last_update_timestamp, heating, thermometer)
-        are relative to the specific usage of the `TimeTable` object.
+        The check is performed only on `status`, main `temperatures`,
+        `timetable`, `differential` value and `grace time` because the other
+        attributes are relative to the specific usage of the TimeTable object.
+        
+        @param other the other TimeTable to be compared
         """
         
         result = None
@@ -163,12 +172,13 @@ class TimeTable(object):
     def __setstate__(self, state):
         """Set new internal state.
         
-        The `state` is first validated, if it's valid it will be set,
-        otherwise a `jsonschema.ValidationError` exception is raised and the
-        old state remains unchanged.
+        The new `state` is first validated and "deep" copied before saving
+        internally to prevent unwanted update to any external array, if it's
+        valid it will be set, otherwise a `jsonschema.ValidationError` exception
+        is raised and the old state remains unchanged.
         
-        The new state is deep copied before saving internally to prevent
-        unwanted update to any external array.
+        @param state the new state to be set
+        @exception jsonschema.ValidationError if `state` is invalid
         """
         
         logger.debug('setting new internal state')
@@ -258,10 +268,11 @@ class TimeTable(object):
     def settings(self, new_settings):
         """Set new settings from JSON string.
         
-        @param new_settings the new settings JSON-encoded
+        @param new_settings the new settings (JSON-encoded string)
         
-        @see thermod.config.json_schema for JSON schema
-        @see thermod.timetable.__setstate__() for exceptions in storing new settings
+        @see config.json_schema for valid JSON schema
+        @see TimeTable.__setstate__() for possible exceptions
+            raised during storing of new settings
         """
         
         self.__setstate__(json.loads(new_settings))
@@ -270,19 +281,20 @@ class TimeTable(object):
     def reload(self):
         """Reload the timetable from JSON file.
         
-        The JSON file is the same provided in `TimeTable.__init__()`
+        The JSON file is the same provided in TimeTable.__init__()
         method, thus if a different file is needed, set a new
-        `TimeTable.filepath` to the full path before calling this method.
+        TimeTable.filepath to the full path before calling this method.
         
         If the JSON file is invalid (or `self.filepath` is not a string)
         an exception is raised and the internal settings remain unchanged.
-        The exceptions can be:
         
-        - `RuntimeError` if no file provided
-        - `OSError` if the file cannot be found/read or other OS related errors
-        - `ValueError` if the file is not in JSON format or
-          the JSON content has syntax errors
-        - `jsonschema.ValidationError` if the JSON content is not valid
+        @exception RuntimeError if no timetable JSON file is provided
+        @exception FileNotFoundError if the timetable JSON file cannot be found
+        @exception PermissionError if the timetable JSON file cannot be read
+        @exception OSError other filesystem-related errors in reading JSON file
+        @exception ValueError if the timetable file is not in JSON format or
+            the JSON content has syntax errors
+        @exception jsonschema.ValidationError if the JSON content is not valid
         """
         
         logger.debug('(re)loading timetable')
@@ -309,13 +321,12 @@ class TimeTable(object):
     def save(self, filepath=None):
         """Save the current timetable to JSON file.
         
-        Save the current configuration of the timetable to a JSON file
-        pointed by `filepath` (full path to file). If `filepath` is
-        `None`, settings are saved to `self.filepath`.
+        Save the current configuration of the timetable to the file
+        pointed by `filepath` paramether (full path to file). If `filepath` is
+        `None`, settings are saved to the internal TimeTable.filepath.
         
-        Raise the following exceptions on error:
-        - `jsonschema.ValidationError` if the current timetable is not valid
-        - `OSError` if the file cannot be written or other OS related errors
+        @exception jsonschema.ValidationError if the current timetable is not valid
+        @exception OSError if the file cannot be written or other OS related errors
         """
         
         logger.debug('saving timetable to file')
