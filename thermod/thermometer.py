@@ -16,7 +16,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2016-02-19'
+__updated__ = '2016-02-21'
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,10 @@ class BaseThermometer(object):
         
         The subclasses methods must return the current temperature as a
         float number in the scale selected during class instantiation in order
-        to correctly handle conversion methods.
+        to correctly handle conversion methods and must raise a ThermometerError
+        in case of failure.
+        
+        @exception ThermometerError if an error occurred in retriving temperature
         """
         raise NotImplementedError()
     

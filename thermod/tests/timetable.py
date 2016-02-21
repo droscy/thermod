@@ -8,7 +8,6 @@ import locale
 import unittest
 import tempfile
 import threading
-from unittest import TestCase
 from jsonschema import ValidationError
 #from json.decoder import JSONDecodeError
 from datetime import datetime, timedelta
@@ -21,7 +20,7 @@ else:
     JSONDecodeError = ValueError
 
 
-__updated__ = '2016-02-14'
+__updated__ = '2016-02-15'
 
 
 def fill_timetable(timetable):
@@ -62,7 +61,7 @@ def fill_timetable(timetable):
     timetable.status = tconf.json_status_auto
 
 
-class TestTimeTable(TestCase):
+class TestTimeTable(unittest.TestCase):
     """Test cases for `TimeTable` class."""
 
     def setUp(self):

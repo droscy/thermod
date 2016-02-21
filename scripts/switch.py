@@ -21,9 +21,9 @@ from serial import Serial, SerialException
 from thermod import config, ScriptHeating
 
 
-__version__ = '1.0.0~beta5'
+__version__ = '1.0.0~beta6'
 __date__ = '2015-10-02'
-__updated__ = '2016-01-28'
+__updated__ = '2016-02-21'
 
 
 # Control commands
@@ -258,9 +258,9 @@ def main(argv=None):
     
     if args.json:
         logger.debug('printing result as json encoded string')
-        print(json.dumps({ScriptHeating.SUCCESS: not bool(result),
-                          ScriptHeating.STATUS: status,
-                          ScriptHeating.ERROR: error}))
+        print(json.dumps({ScriptHeating.JSON_SUCCESS: not bool(result),
+                          ScriptHeating.JSON_STATUS: status,
+                          ScriptHeating.JSON_ERROR: error}))
     
     logger.debug('exiting with return code = %d', result)
     

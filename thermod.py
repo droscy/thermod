@@ -8,24 +8,29 @@ import signal
 import configparser
 
 from daemon import DaemonContext
-from configparser import ConfigParser
 from logging.handlers import SysLogHandler
+from jsonschema import ValidationError
+
 from thermod import config
 from thermod.thermometer import ScriptThermometer, ThermometerError
 from thermod.heating import ScriptHeating, HeatingError
 from thermod.timetable import TimeTable
 from thermod.socket import ControlThread
-from thermod.config import JsonValueError
+from thermod.config import JsonValueError, ScriptError
 
 # TODO usare /usr/bin/python3 al posto di env in tutti gli script e script generati dai test
 # TODO mettere un SMTPHandler per i log di tipo WARNING e CRITICAL
 # TODO verificare il corretto spelling di thermod o Thermod in tutti i sorgenti
 # TODO documentare return code
-# TODO rivedere i messaggi di log, decidere se usare format oppure %s
 # TODO provare la generazione della documentazione con doxygen
+
+# TODO rivedere i messaggi di log, decidere se usare %-formatting
+# oppure https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles
+# usando StyleAdapter
 
 prog_version = '0.0.0~alpha4'
 script_path = os.path.dirname(os.path.realpath(__file__))
+ret_code = config.RET_CODE_OK
 
 # parsing input arguments
 parser = argparse.ArgumentParser(description='thermod daemon')
@@ -43,7 +48,7 @@ if args.debug:
     logger.setLevel(logging.DEBUG)
 
 if args.log:
-    # TODO cosa succede se non riesce a scrivere nel log?
+    # TODO cosa succede se non riesce a scrivere nel log? Solleva PermissionError
     logfile = logging.FileHandler(args.log, mode='w')  # TODO forse mode='a'
     logfile.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
                                            datefmt=config.logger_fmt_datetime,
@@ -67,53 +72,57 @@ else:
 
 # reading configuration files
 try:
-    cfg = ConfigParser()
+    cfg = configparser.ConfigParser()
     cfg.read_string('[global] enabled = 0')  # basic settings to immediatly shutdown if config file is missing
     logger.debug('searching main configuration in files {}'.format(config.main_config_files))
-    # TODO mettere un errore se i file mancano
+    
     _cfg_files_found = cfg.read(config.main_config_files) # TODO in caso di più file quale ha precedenza?
-    logger.debug('configuration files found: {}'.format(_cfg_files_found))
+    
+    if _cfg_files_found:
+        logger.debug('configuration files found: {}'.format(_cfg_files_found))
+    else:
+        ret_code = config.RET_CODE_CFG_FILE_MISSING
+        logger.critical('no configuration files found in %s', config.main_config_files)
 
 except configparser.MissingSectionHeaderError as mshe:
-    ret_code = 10
+    ret_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
     logger.critical('invalid syntax in configuration file `%s`, '
                     'missing sections', mshe.source)
 
 except configparser.ParsingError as pe:
-    ret_code = 11
+    ret_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
     (_lineno, _line) = pe.errors[0]
     logger.critical('invalid syntax in configuration file `%s` at line %d: %s',
                     pe.source, _lineno, _line)
 
 except configparser.DuplicateSectionError as dse:
-    ret_code = 12
+    ret_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('duplicate section `%s` in configuration file `%s`',
                     dse.section, dse.source)
 
 except configparser.DuplicateOptionError as doe:
-    ret_code = 13
+    ret_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('duplicate option `%s` in section `%s` of configuration '
                     'file `%s`', doe.option, doe.section, doe.source)
 
 except configparser.Error as cpe:
-    ret_code = 14
-    logger.critical('unknown error in configuration file: `%s`', cpe)
+    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
+    logger.critical('parsing error in configuration file: `%s`', cpe)
 
 except Exception as e:
-    ret_code = 15
+    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file: `%s`', e)
 
 except:
-    ret_code = 15
+    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file, no more details')
 
 else:
-    ret_code = 0
+    ret_code = config.RET_CODE_OK
+    logger.debug('main configuration files read')
 
 finally:
-    if ret_code == 0:
-        logger.debug('main configuration files read')
-    else:
+    if ret_code != config.RET_CODE_OK:
         logger.info('closing daemon with return code {}'.format(ret_code))
         exit(ret_code)
 
@@ -136,92 +145,120 @@ try:
     
     host = cfg.get('socket', 'host')  # TODO decidere come gestire l'ascolto su tutte le interfacce
     port = cfg.getint('socket', 'port')
-    
+        
     if (port < 0) or (port > 65535):
-        raise ValueError('socket port is outside range 0-65535')
+        # checking port here because the ControlThread is created after starting
+        # the daemon and the resulting log file can be messy
+        raise OverflowError('socket port is outside range 0-65535')
 
 except configparser.NoSectionError as nse:
-    ret_code = 16
+    ret_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('incomplete configuration file, missing `%s` section',
                     nse.section)
 
 except configparser.NoOptionError as noe:
-    ret_code = 17
+    ret_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('incomplete configuration file, missing option `%s` '
                     'in section `%s`', noe.option, noe.section)
 
 except configparser.Error as cpe:
-    ret_code = 18
+    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file: `%s`', cpe)
 
 except ValueError as ve:
-    ret_code = 19
-    logger.critical('invalid configuration file: {}'.format(ve))
+    # raised by getboolean() and getint() methods
+    ret_code = config.RET_CODE_CFG_FILE_INVALID
+    logger.critical('invalid configuration: `{}`'.format(ve))
+
+except OverflowError as oe:
+    ret_code = config.RET_CODE_CFG_FILE_INVALID
+    logger.critical('invalid configuration: `{}`'.format(oe))
 
 except Exception as e:
-    ret_code = 20
+    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file: `{}`'.format(e))
 
 except:
-    ret_code = 20
+    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file, no more details')
 
 else:
-    ret_code = 0
+    ret_code = config.RET_CODE_OK
+    logger.debug('main settings read')
 
 finally:
-    if ret_code == 0:
-        logger.debug('main settings read')
-    else:
+    if ret_code != config.RET_CODE_OK:
         logger.info('closing daemon with return code {}'.format(ret_code))
         exit(ret_code)
 
 # if the daemon is disabled in configuration file we exit immediatly
 if not enabled:
     logger.info('daemon disabled in configuration file, exiting...')
-    exit(0)
+    exit(config.RET_CODE_DAEMON_DISABLED)
 
-# re-setting debug level read from configuration file
+# setting again the debug level if requested in configuration file
 if debug:
     logger.setLevel(logging.DEBUG)
 
 # initializing base objects
 try:
-    logger.debug('creating base classes')
+    logger.debug('creating base objects')
+    
     heating = ScriptHeating(scripts['on'], scripts['off'], scripts['status'], debug)
     thermometer = ScriptThermometer(scripts['thermo'], debug)
     timetable = TimeTable(tt_file, heating, thermometer)
 
 except FileNotFoundError as fnfe:
-    ret_code = 20
+    ret_code = config.RET_CODE_TT_NOT_FOUND
     logger.critical('cannot find timetable file `%s`', tt_file)
 
+except PermissionError as pe:
+    ret_code = config.RET_CODE_TT_READ_ERR
+    logger.critical('cannot read timetable file `%s`', tt_file)
+
+except OSError as oe:
+    ret_code = config.RET_CODE_TT_OTHER_ERR
+    logger.critical('error accessing timetable file `%s`', tt_file)
+    logger.critical(str(oe))
+
+except ValueError as ve:
+    ret_code = config.RET_CODE_TT_INVALID_SYNTAX
+    logger.critical('timetable file is not in JSON format or has syntax errors')
+    logger.critical(str(ve))
+
+except ValidationError as jve:
+    ret_code = config.RET_CODE_TT_INVALID_CONTENT
+    logger.critical('timetable file is invalid: %s', jve)
+
 except Exception as e:
-    ret_code = 21
-    logger.critical('unknown error during daemon initialization: %s', e)
+    ret_code = config.RET_CODE_INIT_ERR
+    logger.critical('error during daemon initialization: %s', e)
 
 except:
-    ret_code = 21
+    ret_code = config.RET_CODE_INIT_ERR
     logger.critical('unknown error during daemon initialization, no more details')
 
 else:
-    ret_code = 0
+    ret_code = config.RET_CODE_OK
+    logger.debug('base objects created')
     
 finally:
-    if ret_code != 0:
+    if ret_code != config.RET_CODE_OK:
         logger.info('closing daemon with return code {}'.format(ret_code))
         exit(ret_code)
 
-def shutdown(signum=None, frame=None):
-    global enabled
+def shutdown(signum=None, frame=None, exitcode=config.RET_CODE_OK):
+    global enabled, ret_code
     logger.info('shutdown requested')
     with timetable.lock:
         enabled = False
         timetable.lock.notify()
+    ret_code = exitcode  # setting the global return code
 
 def reload_timetable(signum=None, frame=None):
     logger.info('timetable reload requested')
     with timetable.lock:
+        # TODO mettere tutte le eccezioni del caso
         timetable.reload()
         timetable.lock.notify()
 
@@ -229,65 +266,129 @@ def thermostat_cycle():
     # TODO scrivere documentazione
     logger.info('daemon started')
     
-    # starting control socket
-    socket = ControlThread(timetable, host, port)
-    socket.start()
+    try:
+        # starting control socket
+        socket = ControlThread(timetable, host, port)
+        socket.start()
     
-    logger.info('the heating is currently %s', (heating.is_on() and 'ON' or 'OFF'))
+    except OSError as oe:
+        # TODO OSError: [Errno 98] Address already in use
+        pass
     
-    while enabled:
+    except Exception as e:
+        # TODO
+        pass
+    
+    else:
+        logger.info('the heating is currently %s', (heating.is_on() and 'ON' or 'OFF'))
+        
+        while enabled:
+            try:
+                with timetable.lock:
+                    try:
+                        # TODO sarebbe comodo mostrare nel log anche la temperatura
+                        # corrente e quella target ogni volta che cambia lo stato
+                        # del riscaldamento
+                        if timetable.should_the_heating_be_on():
+                            if not heating.is_on():
+                                heating.switch_on()
+                                logger.info('heating switched ON')
+                            else:
+                                logger.debug('heating already ON')
+                        else:
+                            if heating.is_on():
+                                heating.switch_off()
+                                logger.info('heating switched OFF')
+                            else:
+                                logger.debug('heating already OFF')
+                    
+                    except ValidationError as ve:
+                        # The internal settings must be valid otherwise an error
+                        # should have been already catched in other section of
+                        # the daemon, even if new settings are setted from
+                        # socket connection. So we print a critical error and
+                        # we close the daemon.
+                        logger.critical(ve)
+                        shutdown(exitcode=config.RET_CODE_RUN_INVALID_STATE)
+                    
+                    except JsonValueError as jve:
+                        # A strange value has been set somewhere and the daemon
+                        # didn't catch the appropriate exception. We print a
+                        # critical message and we close the daemon.
+                        logger.critical(jve)
+                        shutdown(exitcode=config.RET_CODE_RUN_INVALID_VALUE)
+                    
+                    except ScriptError as se:
+                        # One of the external script reported an error, we
+                        # print as a severe error but we leave the daemon
+                        # running even if probably it is not fully functional.
+                        logger.error('the script `%s` reported the following '
+                                     'error: %s', se.script, se)
+                    
+                    except ThermometerError as te:
+                        logger.error('error from thermometer: %s', te)
+                        logger.debug(te.suberror)
+                    
+                    except HeatingError as he:
+                        logger.error('error from heating: %s', he)
+                        logger.debug(he.suberror)
+                    
+                    except Exception as e:
+                        # An unknown error occurred somewhere
+                        logger.exception('unknown error occurred: %s', e)
+                        shutdown(exitcode=config.RET_CODE_RUN_OTHER_ERR)
+                    
+                    # A shutdown may have been requested before reaching
+                    # this point and in such situation we don't have to
+                    # wait for a notify, simply go on and exit the cycle.
+                    if enabled:
+                        timetable.lock.wait(interval)
+            
+            except KeyboardInterrupt:
+                shutdown(exitcode=config.RET_CODE_KEYB_INTERRUPT)
+    
+    finally:    
+        logger.debug('stopping daemon')
+        
         try:
             with timetable.lock:
-                if timetable.should_the_heating_be_on():
-                    if not heating.is_on():
-                        heating.switch_on()
-                        logger.info('heating switched ON')
-                    else:
-                        logger.debug('heating already ON')
-                else:
-                    if heating.is_on():
-                        heating.switch_off()
-                        logger.info('heating switched OFF')
-                    else:
-                        logger.debug('heating already OFF')
+                socket.stop()
+                socket.join(10)
         
-        except ThermometerError as te:
-            # TODO
-            logger.critical(str(te))
-            logger.debug(te.suberror)
+        except NameError:
+            # The socket doesn't exist because and error has occurred during
+            # its creation, the error has already been logged so we simply
+            # ignore this exception. Or, maybe, a KeyboardInterrupt has been
+            # raised just before the creation of the socket and the socket
+            # still doesn't exist.
+            pass
         
-        except JsonValueError as jve:
-            # TODO
-            logger.critical(str(jve))
-        
-        except HeatingError as he:
-            # TODO
-            logger.critical(str(he))
-            logger.debug(he.suberror)
+        except RuntimeError:
+            # Probably this exception is raised by the join() method because
+            # an error has occurred during socket starting. the error has
+            # already been logged and we simply ignore this exception.
+            pass
         
         except Exception as e:
-            # TODO
-            logger.critical(str(e))
-            # TODO qui ci deve essere uno shutdown()
-        
-        # TODO forse in foreground serve intercettare KeyboardInterrupt
+            logger.exception('unexpected error stopping control socket: %s', e)
+            shutdown(exitcode=config.RET_CODE_RUN_OTHER_ERR)
         
         try:
-            with timetable.lock:
-                # TODO se c'è stato uno shutdown prima di arrivare qui, si deve
-                # uscire senza andare in wait, trovare come fare
-                timetable.lock.wait(interval)
+            if heating.is_on():
+                heating.switch_off()
+                logger.info('heating switched OFF')
         
-        except KeyboardInterrupt:
-            shutdown()
-    
-    logger.debug('stopping daemon')
-    with timetable.lock:
-        socket.stop()
-        socket.join(10)
+        # No call to shutdown() int he following exceptions because the exit
+        # code must be the same set somewhere else, here we simply report the
+        # error during shutdown.
+        except Exception as e:
+            logger.warning('cannot switch off the heating')
+            logger.error(e)
         
-        heating.switch_off()
-        logger.info('heating switched OFF')
+        except:
+            logger.error('unknown error in switching off the heating during '
+                         'daemon shutdown')
+        
         # TODO gestire eccezioni
 
     logger.info('daemon stopped')
@@ -297,7 +398,7 @@ def thermostat_cycle():
 if args.foreground:
     logger.debug('starting daemon in foreground')
     
-    # TODO aggiungere gli altri segnali
+    # TODO aggiungere gli altri segnali e usare SIGHUP
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGUSR1, reload_timetable)
     
@@ -308,7 +409,7 @@ else:
     
     daemon = DaemonContext()
     daemon.signal_map={signal.SIGTERM: shutdown,
-                       signal.SIGUSR1: reload_timetable}  # TODO aggiungere gli altri segnali
+                       signal.SIGUSR1: reload_timetable}  # TODO aggiungere gli altri segnali e usare SIGHUP
 
     if args.log:
         daemon.files_preserve = [logfile.stream]

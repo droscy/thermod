@@ -18,7 +18,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-02-20'
+__updated__ = '2016-02-21'
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +149,8 @@ class TimeTable(object):
         The returned dictonary is a deep copy of the internal state.
         The validation is performed even if `TimeTable._has_been_validated`
         is True.
+        
+        @exception jsonschema.ValidationError if the internal state is invalid
         """
         
         logger.debug('validating timetable and returning internal state')
@@ -710,8 +712,8 @@ class TimeTable(object):
         
         If temperature is already a number, the number itself is returned.
         
-        @raise RuntimeError: if the main temperatures aren't yet set
-        @raise JsonValueError: if the provided temperature is invalid
+        @exception RuntimeError if the main temperatures aren't set yet
+        @exception thermod.config.JsonValueError if the provided temperature is invalid
         """
         
         logger.debug('converting temperature name to degrees')
@@ -786,7 +788,11 @@ class TimeTable(object):
         
         This method doesn't update any of the internal variables.
         
-        @raise JsonValueError: if the provided temperature is invalid
+        @exception jsonschema.ValidationError if internal settings are invalid
+        @exception thermod.thermometer.ThermometerError if an error happens
+            while querying the therometer
+        @exception thermod.config.JsonValueError if the provided room
+            temperature is not a valid temperature
         """
         
         logger.debug('checking should-be status of the heating')
@@ -797,7 +803,7 @@ class TimeTable(object):
         with self._lock:
             logger.debug('lock acquired to check the should-be status')
             
-            if room_temperature is None:
+            if room_temperature is None:  # zero degrees are, of course, valid
                 room_temperature = self._thermometer.temperature
             
             current = self.degrees(room_temperature)

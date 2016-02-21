@@ -30,7 +30,7 @@ from .timetable import TimeTable
 
 # TODO migliorare i log del socket
 
-__updated__ = '2016-02-14'
+__updated__ = '2016-02-20'
 __version__ = '0.4'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -61,8 +61,8 @@ class ControlThread(Thread):
     """Start a HTTP server ready to receive commands."""
     
     def __init__(self, timetable, host='localhost', port=4344):
-        logger.debug('initializing {}'.format(self.__class__.__name__))
-        super().__init__()
+        logger.debug('initializing ControlThread')
+        super().__init__(name='ThermodControlThread')
         self.server = ControlServer(timetable, (host, port), ControlRequestHandler)
     
     def __repr__(self):
@@ -88,7 +88,7 @@ class ControlServer(HTTPServer):
     """Receive HTTP connections and dispatch a reequest handler."""
     
     def __init__(self, timetable, server_address, RequestHandlerClass):
-        logger.debug('initializing {}'.format(self.__class__.__name__))
+        logger.debug('initializing ControlServer')
         super().__init__(server_address, RequestHandlerClass)
         
         if not isinstance(timetable, TimeTable):

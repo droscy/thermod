@@ -4,15 +4,31 @@ import os
 import math
 import calendar
 
-__updated__ = '2016-02-14'
-
-# TODO inserire logger
-# TODO togliere da json_schema riferimenti ad altre variabili (oppure usare solo le variabili)
+__updated__ = '2016-02-21'
 
 # paths to main config files
 main_config_files = ('thermod.conf',
                      os.path.expanduser('~/.thermod.conf'),
                     '/etc/thermod/thermod.conf')
+
+# return codes
+RET_CODE_OK = 0
+RET_CODE_DAEMON_DISABLED = 3
+RET_CODE_CFG_FILE_MISSING = 10
+RET_CODE_CFG_FILE_SYNTAX_ERR = 11
+RET_CODE_CFG_FILE_INVALID = 12
+RET_CODE_CFG_FILE_UNKNOWN_ERR = 13
+RET_CODE_TT_NOT_FOUND = 20
+RET_CODE_TT_READ_ERR = 21
+RET_CODE_TT_INVALID_SYNTAX = 22
+RET_CODE_TT_INVALID_CONTENT = 23
+RET_CODE_TT_OTHER_ERR = 24
+RET_CODE_INIT_ERR = 29
+
+RET_CODE_KEYB_INTERRUPT = 130
+RET_CODE_RUN_INVALID_STATE = 50
+RET_CODE_RUN_INVALID_VALUE = 51
+RET_CODE_RUN_OTHER_ERR = 52
 
 # logger common settings
 logger_base_name = 'thermod'
@@ -45,8 +61,8 @@ json_status_tmax = json_tmax_str
 json_all_statuses = (json_status_on, json_status_off, json_status_auto,
                      json_status_t0, json_status_tmin, json_status_tmax)
 
-# the key of the following dict is th same number of %w of strftime()
-# the name is used to avoid errors with different locales
+# the keys of the following dict are the same number returned by %w of
+# strftime(), while the names are used to avoid errors with different locales
 json_days_name_map = {1: 'monday',    '1': 'monday',
                       2: 'tuesday',   '2': 'tuesday',
                       3: 'wednesday', '3': 'wednesday',
@@ -55,24 +71,24 @@ json_days_name_map = {1: 'monday',    '1': 'monday',
                       6: 'saturday',  '6': 'saturday',
                       0: 'sunday',    '0': 'sunday'}
 
-
+# full schema of JSON config file
 json_schema = {
     '$schema': 'http://json-schema.org/draft-04/schema#',
     'title': 'Timetable',
     'description': 'Timetable file for thermod daemon',
     'type': 'object',
     'properties': {
-        'status': {'enum': list(json_all_statuses)},
+        'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
         'grace_time': {'anyOf': [{'type': 'number', 'minimum': 0},
                                  {'type': 'string', 'pattern': '[+]?[Ii][Nn][Ff]'}]},
         'temperatures': {
             'type': 'object',
             'properties': {
-                json_t0_str: {'type': 'number'},
-                json_tmin_str: {'type': 'number'},
-                json_tmax_str: {'type': 'number'}},
-            'required': list(json_all_temperatures),
+                't0': {'type': 'number'},
+                'tmin': {'type': 'number'},
+                'tmax': {'type': 'number'}},
+            'required': ['t0', 'tmin', 'tmax'],
             'additionalProperties': False},
         'timetable': {
             'type': 'object',
@@ -96,7 +112,7 @@ json_schema = {
                     'type': 'array',
                     'items': {'anyOf': [{'type': 'number'},
                                         {'type': 'string', 'pattern': '[-+]?[0-9]*\.?[0-9]+'},
-                                        {'enum': list(json_all_temperatures)}]}}},
+                                        {'enum': ['t0', 'tmin', 'tmax']}]}}},
             'required': ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09',
                          '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
                          '20', '21', '22', '23'],
@@ -115,8 +131,9 @@ class JsonValueError(ValueError):
 class ScriptError(RuntimeError):
     """Handle error of an external script.
     
-    Can be used in conjuction with other exception to store also the name
-    of the external script that produced an error.
+    Can be used in conjuction with other exceptions to store also the name
+    of the external script that produced an error. This script name is never
+    returned by default method, it must be requested manually.
     """
     
     def __init__(self, error=None, script=None):
@@ -242,13 +259,3 @@ def json_get_day_name(day):
         raise JsonValueError('the provided day name or number `{}` is not valid'.format(day))
     
     return result
-
-
-# TODO questa funzione non si usa più, se non serve toglierla
-def elstr(msg, maxlen=75):
-    """Return message `msg` truncated at `maxlen` adding ellipsis '...'."""
-    
-    if not isinstance(msg, str):
-        msg = str(msg)
-    
-    return (msg[:(maxlen-3)] + '...') if len(msg) > maxlen else msg
