@@ -12,7 +12,7 @@ import thermod.socket as socket
 from thermod import TimeTable, ControlThread, config
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2016-02-14'
+__updated__ = '2016-02-25'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/heating'
 
@@ -107,7 +107,7 @@ class TestSocket(unittest.TestCase):
         wrong.close()
         
         # invalid JSON syntax for settings
-        settings = self.timetable.settings
+        settings = self.timetable.settings()
         wrong = requests.post(__url_settings__, {socket.req_settings_all: settings[0:30]})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
@@ -168,7 +168,7 @@ class TestSocket(unittest.TestCase):
         
         self.assertNotEqual(self.timetable, tt2)  # different before update
         
-        s = requests.post(__url_settings__, {socket.req_settings_all: tt2.settings})
+        s = requests.post(__url_settings__, {socket.req_settings_all: tt2.settings()})
         self.assertEqual(s.status_code, 200)
         s.close()
         

@@ -18,7 +18,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-02-21'
+__updated__ = '2016-02-25'
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +164,10 @@ class TimeTable(object):
                         config.json_temperatures: self._temperatures,
                         config.json_timetable: self._timetable}
             
+            # TODO il validate qui impedisce di poter copiare un TimeTable
+            # non valido! Alla fine serve che sia valido solo per l'esecuzione
+            # di should_the_heating_be_on(). Verificare però cosa succede
+            # quando viene chiamato il __setstate__() su dati non validi.
             jsonschema.validate(settings, config.json_schema)
             logger.debug('the timetable is valid')
         
@@ -260,24 +264,24 @@ class TimeTable(object):
                 self._has_been_validated = True
     
     
-    @property
-    def settings(self):
+    def settings(self, indent=0, sort_keys=True):
         """Get internal settings as JSON string."""
-        return json.dumps(self.__getstate__(), indent=0, sort_keys=True)
+        return json.dumps(self.__getstate__(),
+                          indent=indent,
+                          sort_keys=sort_keys)
     
     
-    @settings.setter
-    def settings(self, new_settings):
-        """Set new settings from JSON string.
+    def load(self, settings):
+        """Update settings loading from JSON string.
         
-        @param new_settings the new settings (JSON-encoded string)
+        @param settings the new settings (JSON-encoded string)
         
-        @see config.json_schema for valid JSON schema
+        @see thermod.config.json_schema for valid JSON schema
         @see TimeTable.__setstate__() for possible exceptions
             raised during storing of new settings
         """
         
-        self.__setstate__(json.loads(new_settings))
+        self.__setstate__(json.loads(settings))
     
     
     def reload(self):

@@ -30,7 +30,7 @@ from .timetable import TimeTable
 
 # TODO migliorare i log del socket
 
-__updated__ = '2016-02-20'
+__updated__ = '2016-02-25'
 __version__ = '0.4'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -191,7 +191,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             logger.debug('{} sending back Thermod settings'.format(self.client_address))
             
             with timetable.lock:
-                settings = timetable.settings
+                settings = timetable.settings()
                 last_updt = timetable.last_update_timestamp()
             
             data = self._send_header(200, data=settings, last_modified=last_updt)
@@ -284,7 +284,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     logger.debug('{} updating Thermod settings'.format(self.client_address))
                     
                     try:
-                        self.server.timetable.settings = postvars[req_settings_all]
+                        self.server.timetable.load(postvars[req_settings_all])
                         self.server.timetable.save()  # saving changes to filesystem
                     
                     except JSONDecodeError as jde:
