@@ -5,7 +5,7 @@ import logging
 import jsonschema
 import os.path
 import time
-from copy import deepcopy
+from copy import copy, deepcopy
 from threading import Condition
 from datetime import datetime
 
@@ -18,7 +18,9 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-02-25'
+# TODO aggiungere memento e transactional
+
+__updated__ = '2016-02-28'
 
 logger = logging.getLogger(__name__)
 
@@ -106,10 +108,10 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return "{module}.{cls}('{filepath}', {heating!r}, {thermo!r})".format(
+        return "{module}.{cls}({filepath}, {heating!r}, {thermo!r})".format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
-                    filepath=self.filepath,
+                    filepath=("'{}'".format(self.filepath) if self.filepath else None),
                     heating=self._heating,
                     thermo=self._thermometer)
     
@@ -124,23 +126,66 @@ class TimeTable(object):
         @param other the other TimeTable to be compared
         """
         
-        result = None
-        
         try:
-            if (isinstance(other, self.__class__)
-                    and (self._status == other._status)
-                    and (self._temperatures == other._temperatures)
-                    and (self._timetable == other._timetable)
-                    and (self._differential == other._differential)
-                    and (self._grace_time == other._grace_time)):
-                result = True
-            else:
-                result = False
+            result = (isinstance(other, self.__class__)
+                        and (self._status == other._status)
+                        and (self._temperatures == other._temperatures)
+                        and (self._timetable == other._timetable)
+                        and (self._differential == other._differential)
+                        and (self._grace_time == other._grace_time))
         
         except AttributeError:
             result = False
         
         return result
+    
+    
+    def __copy__(self):
+        """Return a <em>shallow copy</em> of this TimeTable."""
+        
+        new = self.__class__()
+        
+        new._status = self._status
+        new._temperatures = self._temperatures
+        new._timetable = self._timetable
+        new._differential = self._differential
+        new._grace_time = self._grace_time
+    
+        new._lock = copy(self._lock)
+        
+        new._heating = copy(self._heating)
+        new._thermometer = copy(self._thermometer)
+        
+        new._has_been_validated = self._has_been_validated
+        new._last_update_timestamp = self._last_update_timestamp
+        
+        new.filepath = self.filepath
+        
+        return new
+    
+    
+    def __deepcopy__(self, memodict={}):
+        """Return a deep copy of this TimeTable."""
+        
+        new = self.__class__()
+        
+        new._status = self._status
+        new._temperatures = deepcopy(self._temperatures)
+        new._timetable = deepcopy(self._timetable)
+        new._differential = self._differential
+        new._grace_time = self._grace_time
+    
+        new._lock = deepcopy(self._lock)
+        
+        new._heating = deepcopy(self._heating)
+        new._thermometer = deepcopy(self._thermometer)
+        
+        new._has_been_validated = self._has_been_validated
+        new._last_update_timestamp = self._last_update_timestamp
+        
+        new.filepath = self.filepath
+        
+        return new
     
     
     def __getstate__(self):
@@ -164,10 +209,6 @@ class TimeTable(object):
                         config.json_temperatures: self._temperatures,
                         config.json_timetable: self._timetable}
             
-            # TODO il validate qui impedisce di poter copiare un TimeTable
-            # non valido! Alla fine serve che sia valido solo per l'esecuzione
-            # di should_the_heating_be_on(). Verificare però cosa succede
-            # quando viene chiamato il __setstate__() su dati non validi.
             jsonschema.validate(settings, config.json_schema)
             logger.debug('the timetable is valid')
         
@@ -221,6 +262,7 @@ class TimeTable(object):
             
             # validating again to get abnormal behaviours
             try:
+                self._has_been_validated = False
                 self._validate()
             
             except:
@@ -252,12 +294,14 @@ class TimeTable(object):
     def _validate(self):
         """Validate the internal settings.
         
-        A full validation is performed only if `TimeTable._has_been_validated`
+        A full validation is performed only if TimeTable._has_been_validated
         is not `True`, otherwise silently exits without errors.
         """
         
         with self._lock:
             if not self._has_been_validated:
+                
+                # perform validation
                 self.__getstate__()
                 
                 # if no exception is raised
@@ -266,6 +310,7 @@ class TimeTable(object):
     
     def settings(self, indent=0, sort_keys=True):
         """Get internal settings as JSON string."""
+        
         return json.dumps(self.__getstate__(),
                           indent=indent,
                           sort_keys=sort_keys)
