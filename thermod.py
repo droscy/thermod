@@ -30,7 +30,7 @@ from thermod.config import JsonValueError, ScriptError
 
 prog_version = '0.0.0~alpha4'
 script_path = os.path.dirname(os.path.realpath(__file__))
-ret_code = config.RET_CODE_OK
+main_return_code = config.RET_CODE_OK
 
 # parsing input arguments
 parser = argparse.ArgumentParser(description='thermod daemon')
@@ -81,50 +81,51 @@ try:
     if _cfg_files_found:
         logger.debug('configuration files found: {}'.format(_cfg_files_found))
     else:
-        ret_code = config.RET_CODE_CFG_FILE_MISSING
+        main_return_code = config.RET_CODE_CFG_FILE_MISSING
         logger.critical('no configuration files found in %s', config.main_config_files)
 
 except configparser.MissingSectionHeaderError as mshe:
-    ret_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
+    main_return_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
     logger.critical('invalid syntax in configuration file `%s`, '
                     'missing sections', mshe.source)
 
 except configparser.ParsingError as pe:
-    ret_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
+    main_return_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
     (_lineno, _line) = pe.errors[0]
     logger.critical('invalid syntax in configuration file `%s` at line %d: %s',
                     pe.source, _lineno, _line)
 
 except configparser.DuplicateSectionError as dse:
-    ret_code = config.RET_CODE_CFG_FILE_INVALID
+    main_return_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('duplicate section `%s` in configuration file `%s`',
                     dse.section, dse.source)
 
 except configparser.DuplicateOptionError as doe:
-    ret_code = config.RET_CODE_CFG_FILE_INVALID
+    main_return_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('duplicate option `%s` in section `%s` of configuration '
                     'file `%s`', doe.option, doe.section, doe.source)
 
 except configparser.Error as cpe:
-    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
+    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('parsing error in configuration file: `%s`', cpe)
 
 except Exception as e:
-    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
+    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file: `%s`', e)
 
 except:
-    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
+    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file, no more details')
 
 else:
-    ret_code = config.RET_CODE_OK
+    main_return_code = config.RET_CODE_OK
     logger.debug('main configuration files read')
 
 finally:
-    if ret_code != config.RET_CODE_OK:
-        logger.info('closing daemon with return code {}'.format(ret_code))
-        exit(ret_code)
+    if main_return_code != config.RET_CODE_OK:
+        logger.info('closing daemon with return code {}'.format(main_return_code))
+        exit(main_return_code)
+
 
 # parsing main settings
 try:
@@ -152,53 +153,56 @@ try:
         raise OverflowError('socket port is outside range 0-65535')
 
 except configparser.NoSectionError as nse:
-    ret_code = config.RET_CODE_CFG_FILE_INVALID
+    main_return_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('incomplete configuration file, missing `%s` section',
                     nse.section)
 
 except configparser.NoOptionError as noe:
-    ret_code = config.RET_CODE_CFG_FILE_INVALID
+    main_return_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('incomplete configuration file, missing option `%s` '
                     'in section `%s`', noe.option, noe.section)
 
 except configparser.Error as cpe:
-    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
+    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file: `%s`', cpe)
 
 except ValueError as ve:
     # raised by getboolean() and getint() methods
-    ret_code = config.RET_CODE_CFG_FILE_INVALID
+    main_return_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('invalid configuration: `{}`'.format(ve))
 
 except OverflowError as oe:
-    ret_code = config.RET_CODE_CFG_FILE_INVALID
+    main_return_code = config.RET_CODE_CFG_FILE_INVALID
     logger.critical('invalid configuration: `{}`'.format(oe))
 
 except Exception as e:
-    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
+    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file: `{}`'.format(e))
 
 except:
-    ret_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
+    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('unknown error in configuration file, no more details')
 
 else:
-    ret_code = config.RET_CODE_OK
+    main_return_code = config.RET_CODE_OK
     logger.debug('main settings read')
 
 finally:
-    if ret_code != config.RET_CODE_OK:
-        logger.info('closing daemon with return code {}'.format(ret_code))
-        exit(ret_code)
+    if main_return_code != config.RET_CODE_OK:
+        logger.info('closing daemon with return code {}'.format(main_return_code))
+        exit(main_return_code)
+
 
 # if the daemon is disabled in configuration file we exit immediatly
 if not enabled:
     logger.info('daemon disabled in configuration file, exiting...')
     exit(config.RET_CODE_DAEMON_DISABLED)
 
+
 # setting again the debug level if requested in configuration file
 if debug:
     logger.setLevel(logging.DEBUG)
+
 
 # initializing base objects
 try:
@@ -209,51 +213,53 @@ try:
     timetable = TimeTable(tt_file, heating, thermometer)
 
 except FileNotFoundError as fnfe:
-    ret_code = config.RET_CODE_TT_NOT_FOUND
+    main_return_code = config.RET_CODE_TT_NOT_FOUND
     logger.critical('cannot find timetable file `%s`', tt_file)
 
 except PermissionError as pe:
-    ret_code = config.RET_CODE_TT_READ_ERR
+    main_return_code = config.RET_CODE_TT_READ_ERR
     logger.critical('cannot read timetable file `%s`', tt_file)
 
 except OSError as oe:
-    ret_code = config.RET_CODE_TT_OTHER_ERR
+    main_return_code = config.RET_CODE_TT_OTHER_ERR
     logger.critical('error accessing timetable file `%s`', tt_file)
     logger.critical(str(oe))
 
 except ValueError as ve:
-    ret_code = config.RET_CODE_TT_INVALID_SYNTAX
+    main_return_code = config.RET_CODE_TT_INVALID_SYNTAX
     logger.critical('timetable file is not in JSON format or has syntax errors')
     logger.critical(str(ve))
 
 except ValidationError as jve:
-    ret_code = config.RET_CODE_TT_INVALID_CONTENT
+    main_return_code = config.RET_CODE_TT_INVALID_CONTENT
     logger.critical('timetable file is invalid: %s', jve)
 
 except Exception as e:
-    ret_code = config.RET_CODE_INIT_ERR
+    main_return_code = config.RET_CODE_INIT_ERR
     logger.critical('error during daemon initialization: %s', e)
 
 except:
-    ret_code = config.RET_CODE_INIT_ERR
+    main_return_code = config.RET_CODE_INIT_ERR
     logger.critical('unknown error during daemon initialization, no more details')
 
 else:
-    ret_code = config.RET_CODE_OK
+    main_return_code = config.RET_CODE_OK
     logger.debug('base objects created')
     
 finally:
-    if ret_code != config.RET_CODE_OK:
-        logger.info('closing daemon with return code {}'.format(ret_code))
-        exit(ret_code)
+    if main_return_code != config.RET_CODE_OK:
+        logger.info('closing daemon with return code {}'.format(main_return_code))
+        exit(main_return_code)
+
 
 def shutdown(signum=None, frame=None, exitcode=config.RET_CODE_OK):
-    global enabled, ret_code
+    global enabled, main_return_code
     logger.info('shutdown requested')
     with timetable.lock:
         enabled = False
         timetable.lock.notify()
-    ret_code = exitcode  # setting the global return code
+    main_return_code = exitcode  # setting the global return code
+
 
 def reload_timetable(signum=None, frame=None):
     logger.info('timetable reload requested')
@@ -261,6 +267,7 @@ def reload_timetable(signum=None, frame=None):
         # TODO mettere tutte le eccezioni del caso
         timetable.reload()
         timetable.lock.notify()
+
 
 def thermostat_cycle():
     # TODO scrivere documentazione
@@ -304,8 +311,8 @@ def thermostat_cycle():
                     
                     except ValidationError as ve:
                         # The internal settings must be valid otherwise an error
-                        # should have been already catched in other section of
-                        # the daemon, even if new settings are setted from
+                        # should have been already catched in other sections of
+                        # the daemon, even if new settings are set from
                         # socket connection. So we print a critical error and
                         # we close the daemon.
                         logger.critical(ve)
@@ -319,8 +326,8 @@ def thermostat_cycle():
                         shutdown(exitcode=config.RET_CODE_RUN_INVALID_VALUE)
                     
                     except ScriptError as se:
-                        # One of the external script reported an error, we
-                        # print as a severe error but we leave the daemon
+                        # One of the external scripts reported an error, we
+                        # print it as a severe error but we leave the daemon
                         # running even if probably it is not fully functional.
                         logger.error('the script `%s` reported the following '
                                      'error: %s', se.script, se)
@@ -365,7 +372,7 @@ def thermostat_cycle():
         
         except RuntimeError:
             # Probably this exception is raised by the join() method because
-            # an error has occurred during socket starting. the error has
+            # an error has occurred during socket starting. The error has
             # already been logged and we simply ignore this exception.
             pass
         
@@ -378,7 +385,7 @@ def thermostat_cycle():
                 heating.switch_off()
                 logger.info('heating switched OFF')
         
-        # No call to shutdown() int he following exceptions because the exit
+        # No call to shutdown() in the following exceptions because the exit
         # code must be the same set somewhere else, here we simply report the
         # error during shutdown.
         except Exception as e:
@@ -416,3 +423,5 @@ else:
 
     with daemon:
         thermostat_cycle()
+
+exit(main_return_code)

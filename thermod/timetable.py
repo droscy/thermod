@@ -12,15 +12,14 @@ from datetime import datetime
 from . import config
 from .config import JsonValueError
 from .heating import BaseHeating
+from .memento import transactional
 from .thermometer import BaseThermometer, FakeThermometer
 
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-# TODO aggiungere memento e transactional
-
-__updated__ = '2016-02-28'
+__updated__ = '2016-03-01'
 
 logger = logging.getLogger(__name__)
 
@@ -216,10 +215,11 @@ class TimeTable(object):
         return deepcopy(settings)
     
     
+    @transactional
     def __setstate__(self, state):
         """Set new internal state.
         
-        The new `state` is first validated and "deep" copied before saving
+        The new `state` is "deep" copied before saving
         internally to prevent unwanted update to any external array, if it's
         valid it will be set, otherwise a `jsonschema.ValidationError` exception
         is raised and the old state remains unchanged.
@@ -238,18 +238,8 @@ class TimeTable(object):
             self.__init__()
         
         with self._lock:
-            logger.debug('lock acquired, validating the provided state')
-            jsonschema.validate(state, config.json_schema)
+            logger.debug('lock acquired to set new state')
             
-            # saving old values
-            old_status = self._status
-            old_temperatures = self._temperatures
-            old_timetable = self._timetable
-            old_differential = self._differential
-            old_grace_time = self._grace_time
-            
-            # storing new values
-            logger.debug('data validated, setting new values')
             self._status = state[config.json_status]
             self._temperatures = deepcopy(state[config.json_temperatures])
             self._timetable = deepcopy(state[config.json_timetable])
@@ -260,25 +250,13 @@ class TimeTable(object):
             if config.json_grace_time in state:
                 self._grace_time = float(state[config.json_grace_time])
             
-            # validating again to get abnormal behaviours
+            # validating new state
             try:
                 self._has_been_validated = False
                 self._validate()
             
             except:
-                logger.critical('something strange happened because the new '
-                                'state was VALID before storing into '
-                                'timetable and INVALID after that, resetting '
-                                'to old state')
-                
-                # in case of exception resetting the old values
-                self._status = old_status
-                self._temperatures= old_temperatures
-                self._timetable = old_timetable
-                self._differential = old_differential
-                self._grace_time = old_grace_time
-                
-                # then re-rise the exception
+                logger.debug('the new state is invalid, reverting to old state')
                 raise
             
             finally:
@@ -316,8 +294,11 @@ class TimeTable(object):
                           sort_keys=sort_keys)
     
     
+    # no need for @transactional because __setstate__ is @transactionl
     def load(self, settings):
-        """Update settings loading from JSON string.
+        """Update internal state loading settings from JSON string.
+        
+        If the provided settings are invalid, the old state remains unchanged.
         
         @param settings the new settings (JSON-encoded string)
         
@@ -329,6 +310,7 @@ class TimeTable(object):
         self.__setstate__(json.loads(settings))
     
     
+    # no need for @transactional because __setstate__ is @transactionl
     def reload(self):
         """Reload the timetable from JSON file.
         
@@ -662,6 +644,7 @@ class TimeTable(object):
             logger.debug('new thermometer set')
     
     
+    @transactional
     def update(self, day, hour, quarter, temperature):
         """Update the target temperature in internal timetable."""
         # TODO scrivere documentazione
@@ -711,6 +694,7 @@ class TimeTable(object):
                      'temperature "{}"'.format(_day, _hour, _quarter, _temp))
     
     
+    @transactional
     def update_days(self, json_data):
         """Update timetable for one or more days.
         

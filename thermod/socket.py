@@ -19,19 +19,14 @@ else:
 
 from . import config
 from .config import JsonValueError
+from .memento import memento
 from .timetable import TimeTable
 
-# FIXME si può verificare un problema se viene modificato il timetable sul
-# filesystem senza eseguire un reload, poi qualcuno via socket tenta di aggiornare
-# le impostazioni e questo aggiornamento va male, vengono ricaricate le
-# impostazioni del file che però nel frattempo era stato aggiornato.
-# Per evitare questo problema è necessario salvarsi le impostazioni prima
-# di aggiornare e in caso di errore risettare le impostazioni salvate.
-
 # TODO migliorare i log del socket
+# TODO decidere se dopo eccezioni non gestite si deve eseguire lo shutdown del demone
 
-__updated__ = '2016-02-25'
-__version__ = '0.4'
+__updated__ = '2016-03-02'
+__version__ = '0.5'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -171,6 +166,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         self.send_header('Server', self.version_string())
         self.send_header('Date', self.date_time_string())
         
+        if code == 503:
+            # code 503 of HTTP is used internally to indicate an error saving
+            # new settings to filesystem
+            self.send_header('Retry-After', 120)
+        
         return json_data
     
     def do_HEAD(self):
@@ -279,6 +279,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             logger.debug('{} POST variables: {}'.format(self.client_address, postvars))
             
             with self.server.timetable.lock:
+                # Saving timetable state for a manual restore in case of
+                # errors during saving to filesystem or in case of errors
+                # updating more than one single setting.
+                restore_old_settings = memento(self.server.timetable)
+                
                 # updating all settings
                 if req_settings_all in postvars:
                     logger.debug('{} updating Thermod settings'.format(self.client_address))
@@ -298,7 +303,6 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     except (ValidationError, JsonValueError) as ve:
                         code = 400
-                        
                         logger.warning('{} cannot update settings, the POST '
                                        'request contains incomplete or invalid '
                                        'data: {}'.format(self.client_address,
@@ -308,41 +312,41 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         response = {rsp_error: message, rsp_fullmsg: ve.message}
                     
                     except IOError as ioe:
-                        # can be raised only by timetable.save() method, so the
-                        # internal settings have already been updated and a
-                        # reload of the old settings is required
-                        code = 500
+                        # Can be raised only by timetable.save() method, so the
+                        # internal settings have already been updated but cannot
+                        # be saved to filesystem, so in case of daemon restart
+                        # they will be lost.
+                        
+                        code = 503
                         logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
-                        message = 'cannot save new settings to filesystem'
-                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
+                        message = ('new settings accepted and applied on '
+                                   'running Thermod but they cannot be '
+                                   'saved to filesystem so, on daemon restart, '
+                                   'they will be lost, try again in a couple '
+                                   'of minutes')
                         
-                        # reloading old settings still present on filesystem
-                        self.server.timetable.reload()
-                        # TODO ci può essere un IOError anche qui e in tutti i
-                        # punti in cui si esegue reload(), questa cosa deve
-                        # essere gestita come errore critico che porta allo
-                        # shutdown del demone
+                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
                     
                     except Exception as e:
+                        # This is an unhandled exception, so we execute a
+                        # manual restore of the old settings to be sure to
+                        # leave the timetable in a valid state.
+                        
                         code = 500
-                        
                         logger.critical('{} Cannot update settings, the POST '
-                                        'request produced an unhandled '
-                                        'exception; in order to diagnose what '
-                                        'happened execute Thermod in debug '
-                                        'mode and resubmit the last request.'
-                                        .format(self.client_address))
+                                        'request produced an unhandled {} '
+                                        'exception.'.format(self.client_address,
+                                                            type(e).__name__))
                         
-                        logger.debug('{} {}: {}'.format(self.client_address,
-                                                        type(e).__name__, e))
+                        logger.exception('{} {}'.format(self.client_address, e))
                         
                         message = 'cannot process the request'
                         response = {rsp_error: message, rsp_fullmsg: str(e)}
                         
-                        # reloading old settings still present on filesystem
-                        self.server.timetable.reload()
+                        # restoring old settings from memento
+                        restore_old_settings()
                     
                     else:
                         code = 200
@@ -372,7 +376,6 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     except (ValidationError, JsonValueError) as ve:
                         code = 400
-                        
                         logger.warning('{} cannot update any days, the POST '
                                        'request contains incomplete or invalid '
                                        'data: {}'.format(self.client_address,
@@ -382,22 +385,29 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         response = {rsp_error: message, rsp_fullmsg: ve.message}
                     
                     except IOError as ioe:
-                        # can be raised only by timetable.save() method, so the
-                        # internal settings have already been updated and a
-                        # reload of the old settings is required
+                        # Can be raised only by timetable.save() method, so the
+                        # internal settings have already been updated but cannot
+                        # be saved to filesystem, so in case of daemon restart
+                        # they will be lost.
+                        
                         code = 500
                         logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
-                        message = 'cannot save new settings to filesystem'
-                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
+                        message = ('new settings accepted and applied on '
+                                   'running Thermod but they cannot be '
+                                   'saved to filesystem so, on daemon restart, '
+                                   'they will be lost, try again in a couple '
+                                   'of minutes')
                         
-                        # reloading old settings still present on filesystem
-                        self.server.timetable.reload()
+                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
                     
                     except Exception as e:
-                        code = 500
+                        # This is an unhandled exception, so we execute a
+                        # manual restore of the old settings to be sure to
+                        # leave the timetable in a valid state.
                         
+                        code = 500
                         logger.critical('{} Cannot update any days, the POST '
                                         'request produced an unhandled '
                                         'exception; in order to diagnose what '
@@ -411,12 +421,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         message = 'cannot process the request'
                         response = {rsp_error: message, rsp_fullmsg: str(e)}
                         
-                        # reloading old settings still present on filesystem
-                        self.server.timetable.reload()
+                        # restoring old settings from memento
+                        restore_old_settings()
                     
                     else:
                         code = 200
-                        
                         logger.info('{} updated the following days: {}'
                                     .format(self.client_address, days))
                         
@@ -460,6 +469,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         self.server.timetable.save()
                     
                     except ValidationError as ve:
+                        # This exception can be raised after having successfully
+                        # updated ad least one settings, so any setting must
+                        # be manually restored to the old state.
+                        
                         code = 400
                         logger.warning('{} cannot update settings: {}'
                                        .format(self.client_address, ve.message))
@@ -467,10 +480,14 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         message = 'cannot update settings'
                         response = {rsp_error: message, rsp_fullmsg: ve.message}
                         
-                        # reloading old settings still present on filesystem
-                        self.server.timetable.reload()
+                        # restoring old settings from memento
+                        restore_old_settings()
                     
                     except JsonValueError as jve:
+                        # This exception can be raised after having successfully
+                        # updated ad least one settings, so any setting must
+                        # be manually restored to the old state.
+                        
                         code = 400
                         logger.warning('{} cannot update {}: {}'
                                        .format(self.client_address, var, jve))
@@ -478,26 +495,33 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         message = 'cannot update settings'
                         response = {rsp_error: message, rsp_fullmsg: str(jve)}
                         
-                        # reloading old settings still present on filesystem
-                        self.server.timetable.reload()
+                        # restoring old settings from memento
+                        restore_old_settings()
                     
                     except IOError as ioe:
-                        # can be raised only by timetable.save() method, so the
-                        # internal settings have already been updated and a
-                        # reload of the old settings is required
+                        # Can be raised only by timetable.save() method, so the
+                        # internal settings have already been updated but cannot
+                        # be saved to filesystem, so in case of daemon restart
+                        # they will be lost.
+                        
                         code = 500
                         logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
-                        message = 'cannot save new settings to filesystem'
-                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
+                        message = ('new settings accepted and applied on '
+                                   'running Thermod but they cannot be '
+                                   'saved to filesystem so, on daemon restart, '
+                                   'they will be lost, try again in a couple '
+                                   'of minutes')
                         
-                        # reloading old settings still present on filesystem
-                        self.server.timetable.reload()
+                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
                     
                     except Exception as e:
-                        code = 500
+                        # This is an unhandled exception, so we execute a
+                        # manual restore of the old settings to be sure to
+                        # leave the timetable in a valid state.
                         
+                        code = 500
                         logger.critical('{} Cannot update settings, the POST '
                                         'request produced an unhandled '
                                         'exception; in order to diagnose what '
@@ -511,8 +535,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         message = 'cannot process the request'
                         response = {rsp_error: message, rsp_fullmsg: str(e)}
                         
-                        # reloading old settings still present on filesystem
-                        self.server.timetable.reload()
+                        # restoring old settings from memento
+                        restore_old_settings()
                     
                     else:
                         code = 200
@@ -523,7 +547,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     finally:
                         data = self._send_header(code, message, response)
             
-                else:
+                else:  # No restore required here because no settings updated
                     code = 400
                     logger.warning('{} cannot update settings, the POST request '
                                    'contains no data'.format(self.client_address))
@@ -533,7 +557,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 
                 # if some settings of timetable have been updated, we'll notify
                 # this changes in order to recheck current temperature
-                if code==200:
+                if code in (200, 503):
                     self.server.timetable.lock.notify()
         
         else:

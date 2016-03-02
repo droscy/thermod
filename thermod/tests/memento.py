@@ -4,13 +4,14 @@ import copy
 import json
 import time
 import unittest
+import threading
 import jsonschema
 
 from thermod import TimeTable, config
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2016-02-28'
+__updated__ = '2016-03-02'
 
 
 class MementoTable(TimeTable):
@@ -53,11 +54,15 @@ class TestMemento(unittest.TestCase):
     def setUp(self):
         self.timetable = TimeTable()
         fill_timetable(self.timetable)
+        
+        self.mttable = MementoTable()
+        fill_timetable(self.mttable)
 
     def tearDown(self):
         pass
-
-    def testMemento01(self):
+    
+    
+    def test01_memento_status(self):
         tt1 = self.timetable
         tt2 = copy.deepcopy(self.timetable)
         self.assertEqual(tt1, tt2)
@@ -70,7 +75,8 @@ class TestMemento(unittest.TestCase):
         restore()
         self.assertEqual(tt1, tt2)  # they are equal again
     
-    def testMemento02(self):
+    
+    def test02_memento_many_days(self):
         tt1 = self.timetable
         tt2 = copy.deepcopy(self.timetable)
         self.assertEqual(tt1, tt2)
@@ -110,9 +116,9 @@ class TestMemento(unittest.TestCase):
         restore()
         self.assertEqual(tt1, tt2)  # they are equal again
     
-    def testTransactional01(self):
-        mt1 = MementoTable()
-        mt1.__setstate__(self.timetable.__getstate__())
+    
+    def test03_transactional_status(self):
+        mt1 = self.mttable
         mt2 = copy.deepcopy(mt1)
         self.assertEqual(mt1, mt2)
         
@@ -126,9 +132,9 @@ class TestMemento(unittest.TestCase):
         # the __setstate__ failed, so the previous state is restored
         self.assertEqual(mt1, mt2)
     
-    def testTransactional02(self):
-        mt1 = MementoTable()
-        mt1.__setstate__(self.timetable.__getstate__())
+    
+    def test04_transactional_temperature(self):
+        mt1 = self.mttable
         mt2 = copy.deepcopy(mt1)
         self.assertEqual(mt1, mt2)
         
@@ -142,21 +148,67 @@ class TestMemento(unittest.TestCase):
         # the __setstate__ failed, so the previous state is restored
         self.assertEqual(mt1, mt2)
     
-    def testTransactional03(self):
-        mt1 = MementoTable()
-        mt1.__setstate__(self.timetable.__getstate__())
+    
+    def test05_transactional_all_timetable(self):
+        mt1 = self.mttable
         mt2 = copy.deepcopy(mt1)
         self.assertEqual(mt1, mt2)
         
-        sett = mt1.__getstate__()
-        sett[config.json_timetable] = None  # clearing timetable
+        with mt1.lock:
+            sett = mt1.__getstate__()
+            sett[config.json_timetable] = None  # clearing timetable
+            
+            with self.assertRaises(jsonschema.ValidationError):
+                # set an invalid state, exception raised
+                mt2.__setstate__(sett)
+                
+            # the __setstate__ failed, so the previous state is restored
+            self.assertEqual(mt1, mt2)
+    
+    
+    def test06_threading(self):
+        self.mttable.tmax = 30
+        self.mttable.status = config.json_status_tmax
         
-        with self.assertRaises(jsonschema.ValidationError):
-            # set an invalid state, exception raised
-            mt2.__setstate__(sett)
+        # initial status, the heating should be on
+        self.assertTrue(self.mttable.should_the_heating_be_on(20))
         
-        # the __setstate__ failed, so the previous state is restored
-        self.assertEqual(mt1, mt2)
+        # creating updating thread
+        thread = threading.Thread(target=self.thread_change_status)
+        
+        # The lock is acquired, then the thread that changes a parameter is
+        # executed. It should wait. An invalid paramether is then stored,
+        # the transactional should restore the old values with lock
+        # still acquired.
+        with self.mttable.lock:
+            thread.start()
+            self.assertTrue(self.mttable.should_the_heating_be_on(20))
+            
+            sett = self.mttable.__getstate__()
+            sett[config.json_differential] = 'INVALID'
+            
+            with self.assertRaises(jsonschema.ValidationError):
+                # set an invalid state, exception raised
+                self.mttable.__setstate__(sett)
+            
+            self.assertTrue(self.mttable.lock._is_owned())  # still owned
+            self.assertTrue(self.mttable.should_the_heating_be_on(20))  # old settings still valid
+            
+            thread.join(3)  # deadlock, so should exit for timeout
+            self.assertTrue(thread.is_alive())  # exit join() for timeout
+            self.assertTrue(self.mttable.should_the_heating_be_on(20))  # old settings still valid
+        
+        # the assert becomes False after the execution of the thread
+        thread.join(30)  # no deadlock, timeout only to be sure
+        self.assertFalse(thread.is_alive())  # exit join() for lock releasing
+        self.assertFalse(self.timetable.should_the_heating_be_on(20))  # new settings of thread
+    
+    def thread_change_status(self):
+        self.assertTrue(self.mttable.should_the_heating_be_on(20))
+        
+        with self.mttable.lock:
+            self.mttable.status = config.json_status_off
+            self.assertFalse(self.mttable.should_the_heating_be_on(20))
 
       
 if __name__ == "__main__":

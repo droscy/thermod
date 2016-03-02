@@ -681,7 +681,7 @@ class TestTimeTable(unittest.TestCase):
         self.assertTrue(self.timetable.should_the_heating_be_on(20))
         
         # creating updating thread
-        thread = threading.Thread(target=self.thread_01)
+        thread = threading.Thread(target=self.thread_change_status)
         
         # the lock is acquired, then the thread that changes a parameter is
         # executed and the assert is checked again, if the lock works the
@@ -694,7 +694,7 @@ class TestTimeTable(unittest.TestCase):
         thread.join()
         self.assertFalse(self.timetable.should_the_heating_be_on(20))
     
-    def thread_01(self):
+    def thread_change_status(self):
         self.assertTrue(self.timetable.should_the_heating_be_on(20))
         
         with self.timetable.lock:
