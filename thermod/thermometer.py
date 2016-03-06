@@ -16,7 +16,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2016-02-21'
+__updated__ = '2016-03-06'
 
 logger = logging.getLogger(__name__)
 
@@ -147,8 +147,6 @@ class ScriptThermometer(BaseThermometer):
         - `error`: the error message in case of failure, `null` or empty
           string otherwise.
     """
-    
-    # TODO modificare questo come è stato modificato ScriptHeating con lo ScriptError
     
     DEBUG_OPTION = '--debug'
     JSON_TEMPERATURE = 'temperature'

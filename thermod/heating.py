@@ -17,11 +17,9 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-02-19'
+__updated__ = '2016-03-06'
 
 logger = logging.getLogger(__name__)
-
-# TODO introdurre un FakeHeating anche qui, lasciando NotImplementedError in BaseHeating
 
 
 class HeatingError(RuntimeError):

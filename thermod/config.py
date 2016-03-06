@@ -4,7 +4,7 @@ import os
 import math
 import calendar
 
-__updated__ = '2016-02-21'
+__updated__ = '2016-03-02'
 
 # paths to main config files
 main_config_files = ('thermod.conf',
@@ -24,11 +24,15 @@ RET_CODE_TT_INVALID_SYNTAX = 22
 RET_CODE_TT_INVALID_CONTENT = 23
 RET_CODE_TT_OTHER_ERR = 24
 RET_CODE_INIT_ERR = 29
-
-RET_CODE_KEYB_INTERRUPT = 130
+RET_CODE_SOCKET_PORT_ERR = 30
+RET_CODE_SOCKET_START_ERR = 31
+RET_CODE_SOCKET_STOP_ERR = 32
 RET_CODE_RUN_INVALID_STATE = 50
 RET_CODE_RUN_INVALID_VALUE = 51
-RET_CODE_RUN_OTHER_ERR = 52
+RET_CODE_RUN_OTHER_ERR = 59
+RET_CODE_SHUTDOWN_SWITCHOFF_ERR = 60
+RET_CODE_SHUTDOWN_OTHER_ERR = 69
+RET_CODE_KEYB_INTERRUPT = 130
 
 # logger common settings
 logger_base_name = 'thermod'

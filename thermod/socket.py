@@ -25,7 +25,7 @@ from .timetable import TimeTable
 # TODO migliorare i log del socket
 # TODO decidere se dopo eccezioni non gestite si deve eseguire lo shutdown del demone
 
-__updated__ = '2016-03-02'
+__updated__ = '2016-03-06'
 __version__ = '0.5'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -74,7 +74,7 @@ class ControlThread(Thread):
         self.server.serve_forever()
     
     def stop(self):
-        # TODO scrivere documentazione
+        """Stop this control thread shutting down the internal HTTP server."""
         self.server.shutdown()
         logger.info('control socket halted')
 
@@ -247,10 +247,35 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         be present in the body of the request.
         
         Accepted settings in the body:
-            * `settings` to update the whole state (JSON encoded settings)
-            * TODO the other values
+            * `settings` to update the whole state: JSON encoded settings as
+              as found in timetable JSON file 
+            
+            * `days` to update one or more days: must be an array of day and
+              each day must me the full part of JSON settings as described in
+              thermod.config.json_schema (see thermod.timetable.TimeTable.update_days()
+              for attitional informations)
+            
+            * `status` to update the internal status: accepted values
+              in thermod.config.json_all_statuses
+            
+            * `t0` to update the t0 temperature
+            
+            * `tmin` to update the min temperature
+            
+            * `tmax` to update the max temperature
+            
+            * `differential` to update the differential value
+            
+            * `grace_time` to update the grace time
+        
+        Any request that produces an error in updating internal settings,
+        restores the old state except when the settings were correcly updated
+        but they couldn't be saved to filesystem. In that situation a 503
+        status code is sent to the client, the internal settings are update
+        but not saved.
+        
+        @see thermod.timetable.TimeTable and its method
         """
-        # TODO completare la documentazione con la descrizione dei campi accettati
         
         logger.debug('{} received "{} {}" request'
                      .format(self.client_address, self.command, self.path))
@@ -272,7 +297,6 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             else:
                 postvars = {}
             
-            # TODO capire se questo aggiustamento serve sempre
             postvars = {k.decode('utf-8'): v[0].decode('utf-8') for k,v in postvars.items()}
             
             logger.debug('{} POST content-type: {}'.format(self.client_address, ctype))
