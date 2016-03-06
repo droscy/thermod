@@ -414,7 +414,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         # be saved to filesystem, so in case of daemon restart
                         # they will be lost.
                         
-                        code = 500
+                        code = 503
                         logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
@@ -528,7 +528,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         # be saved to filesystem, so in case of daemon restart
                         # they will be lost.
                         
-                        code = 500
+                        code = 503
                         logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
