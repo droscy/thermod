@@ -346,17 +346,24 @@ def thermostat_cycle():
             try:
                 with timetable.lock:
                     try:
-                        # TODO sarebbe comodo mostrare nel log anche la temperatura
-                        # corrente e quella target ogni volta che cambia lo stato
-                        # del riscaldamento
-                        if timetable.should_the_heating_be_on():
+                        should_be_on = timetable.should_the_heating_be_on()
+                        _msg = ('current status is `{}`, '
+                                'current temperature is `{:.1f}`, '
+                                'target temperature is `{:.1f}`').format(
+                                            should_be_on.status,
+                                            should_be_on.current_temperature,
+                                            should_be_on.target_temperature)
+                        
+                        if should_be_on:
                             if not heating.is_on():
+                                logger.info(_msg)
                                 heating.switch_on()
                                 logger.info('heating switched ON')
                             else:
                                 logger.debug('heating already ON')
                         else:
                             if heating.is_on():
+                                logger.info(_msg)
                                 heating.switch_off()
                                 logger.info('heating switched OFF')
                             else:

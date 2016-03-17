@@ -19,9 +19,37 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-03-01'
+__updated__ = '2016-03-17'
 
 logger = logging.getLogger(__name__)
+
+
+class ShouldBeOn(int):
+    # TODO testare e documentare
+    
+    def __new__(cls, should_be_on, *args, **kwargs):
+        return int.__new__(cls, bool(should_be_on))
+    
+    def __init__(self, should_be_on, status=None, curr_temp=None, target_temp=None):
+        self.status = status
+        self.current_temperature = (curr_temp or float('NaN'))
+        self.target_temperature = (target_temp or float('NaN'))
+    
+    def __repr__(self, *args, **kwargs):
+        return '{module}.{cls}({should!r}, {status!r}, {curr!r}, {target!r})'.format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    should=bool(self),
+                    status=self.status,
+                    curr=self.current_temperature,
+                    target=self.target_temperature)
+    
+    def __str__(self, *args, **kwargs):
+        return str(bool(self))
+    
+    @property
+    def should_be_on(self):
+        return bool(self)
 
 
 class TimeTable(object):
@@ -107,10 +135,10 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return "{module}.{cls}({filepath}, {heating!r}, {thermo!r})".format(
+        return '{module}.{cls}({filepath!r}, {heating!r}, {thermo!r})'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
-                    filepath=("'{}'".format(self.filepath) if self.filepath else None),
+                    filepath=self.filepath,
                     heating=self._heating,
                     thermo=self._thermometer)
     
@@ -773,7 +801,7 @@ class TimeTable(object):
         return float(value)
     
     
-    def target_temperature(self, target_time=datetime.now()):
+    def target_temperature(self, target_time=None):
         """Return the target temperature at specific `target_time`.
         
         The specific `target_time` must be a 'datetime` object.
@@ -782,7 +810,9 @@ class TimeTable(object):
         the current status is OFF the returned value is float `-Inf`.
         """
         
-        if not isinstance(target_time, datetime):
+        if target_time is None:
+            target_time = datetime.now()
+        elif not isinstance(target_time, datetime):
             raise TypeError('target_temperature() requires a datetime object')
         
         target = None
@@ -813,11 +843,12 @@ class TimeTable(object):
         return target
     
     
-    def should_the_heating_be_on(self, room_temperature=None, target_time=datetime.now()):
+    def should_the_heating_be_on(self, room_temperature=None, target_time=None):
         """Return `True` if now the heating *should be* ON, `False` otherwise.
         
         If the provided temperature is `None` the thermometer interface is
-        queried to retrive the current temperature.
+        queried to retrive the current temperature. If the provided time is
+        `None` the current time is used.
         
         This method doesn't update any of the internal variables.
         
@@ -830,25 +861,31 @@ class TimeTable(object):
         
         logger.debug('checking should-be status of the heating')
         
-        shoud_be_on = None
+        should_be_on = None
         self._validate()
         
         with self._lock:
             logger.debug('lock acquired to check the should-be status')
             
-            if room_temperature is None:  # zero degrees are, of course, valid
+            if room_temperature is None:
                 room_temperature = self._thermometer.temperature
+        
+            if target_time is None:
+                target_time = datetime.now()
+            elif not isinstance(target_time, datetime):
+                raise TypeError('target_time requires a datetime object')
             
+            target = None
             current = self.degrees(room_temperature)
             diff = self.degrees(self._differential)
             logger.debug('status: {}, room_temperature: {}, differential: {}'
                          .format(self._status, current, diff))
             
             if self._status == config.json_status_on:  # always on
-                shoud_be_on = True
+                should_be_on = True
             
             elif self._status == config.json_status_off:  # always off
-                shoud_be_on = False
+                should_be_on = False
             
             else:  # checking against current temperature and timetable
                 target = self.target_temperature(target_time)
@@ -860,12 +897,13 @@ class TimeTable(object):
                 logger.debug('is_on: {}, switch_off_time: {}, grace_time: {}'
                              .format(ison, datetime.fromtimestamp(offts), grace))
                 
-                shoud_be_on = (
+                should_be_on = (
                     (current <= (target - diff))
                     or ((current < target) and ((nowts - offts) > grace))
                     or ((current < (target + diff)) and ison))
         
         logger.debug('the heating should be {}'
-                     .format(shoud_be_on and 'ON' or 'OFF'))
+                     .format(should_be_on and 'ON' or 'OFF'))
         
-        return shoud_be_on
+        # TODO aggiornare la documentazione di questo metodo con il nuovo valore di ritorno
+        return ShouldBeOn(should_be_on, self._status, current, target)

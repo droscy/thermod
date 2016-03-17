@@ -11,7 +11,7 @@ import threading
 from jsonschema import ValidationError
 #from json.decoder import JSONDecodeError
 from datetime import datetime, timedelta
-from thermod import TimeTable, JsonValueError, config as tconf
+from thermod import TimeTable, ShouldBeOn, JsonValueError, config as tconf
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -20,7 +20,7 @@ else:
     JSONDecodeError = ValueError
 
 
-__updated__ = '2016-02-15'
+__updated__ = '2016-03-17'
 
 
 def fill_timetable(timetable):
@@ -700,6 +700,19 @@ class TestTimeTable(unittest.TestCase):
         with self.timetable.lock:
             self.timetable.status = tconf.json_status_off
             self.assertFalse(self.timetable.should_the_heating_be_on(20))
+    
+    
+    def test_should_be_on(self):
+        s1 = ShouldBeOn(True)
+        self.assertTrue(s1)
+        
+        s2 = ShouldBeOn(False,tconf.json_status_auto,5,10)
+        self.assertFalse(s2)
+        
+        s3 = ShouldBeOn(True,tconf.json_status_on,17,21)
+        self.assertEqual(s1, s3)
+        
+        self.assertFalse(s1 and s2)
 
 
 
