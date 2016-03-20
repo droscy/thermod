@@ -1,10 +1,10 @@
-"""Utilities, functions and constants for thermod daemon."""
+"""Utilities, functions and constants for Thermod daemon."""
 
 import os
 import math
 import calendar
 
-__updated__ = '2016-03-02'
+__updated__ = '2016-03-20'
 
 # paths to main config files
 main_config_files = ('thermod.conf',
@@ -79,7 +79,7 @@ json_days_name_map = {1: 'monday',    '1': 'monday',
 json_schema = {
     '$schema': 'http://json-schema.org/draft-04/schema#',
     'title': 'Timetable',
-    'description': 'Timetable file for thermod daemon',
+    'description': 'Timetable file for Thermod daemon',
     'type': 'object',
     'properties': {
         'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
@@ -205,7 +205,7 @@ def json_format_temperature(temperature):
             # between on and off
             result = format(round(float(temperature), 1), '.1f')
     else:
-        raise JsonValueError('the provided temperature is not valid ({}), '
+        raise JsonValueError('the provided temperature is not valid `{}`, '
                              'it must be a number or one of the following '
                              'values: {}'.format(
                                     temperature,
@@ -259,7 +259,6 @@ def json_get_day_name(day):
                 raise Exception
     
     except:
-        #logger.debug('invalid day name or number: {}'.format(day))
         raise JsonValueError('the provided day name or number `{}` is not valid'.format(day))
     
     return result

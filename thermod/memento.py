@@ -13,7 +13,7 @@ import copy
 import logging
 
 __date__ = '2016-02-25'
-__updated__ = '2016-03-06'
+__updated__ = '2016-03-19'
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def transactional(method):
     
     # TODO forse meglio chiamare obj invece di self, così non ci si confonde
     def wrapper(self, *args, **kwargs):
-        logger.debug('executing transactional method `%s`', method)
+        logger.debug('executing transactional method %r', method)
         restore = memento(self)
         
         try:

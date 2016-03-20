@@ -1,4 +1,4 @@
-"""Manage the timetable of thermod."""
+"""Manage the timetable of Thermod."""
 
 import json
 import logging
@@ -19,7 +19,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-03-17'
+__updated__ = '2016-03-20'
 
 logger = logging.getLogger(__name__)
 
@@ -479,7 +479,7 @@ class TimeTable(object):
             except:
                 logger.debug('invalid new differential value: {}'.format(value))
                 raise JsonValueError(
-                    'the new differential value ({}) is invalid, '
+                    'the new differential value `{}` is invalid, '
                     'it must be a number in range [0;1]'.format(value))
             
             self._differential = nvalue
@@ -699,7 +699,7 @@ class TimeTable(object):
                     raise Exception()
             except:
                 logger.debug('invalid quarter: {}'.format(quarter))
-                raise JsonValueError('the provided quarter is not valid ({}), '
+                raise JsonValueError('the provided quarter is not valid `{}`, '
                                      'it must be in range 0-3'.format(quarter))
             
             # format temperature and check validity
@@ -796,7 +796,7 @@ class TimeTable(object):
             else:
                 value = temp
         
-        logger.debug('temperature "{}" converted to {}'.format(temperature, value))
+        logger.debug('temperature {!r} converted to {}'.format(temperature, value))
         
         return float(value)
     
@@ -844,13 +844,18 @@ class TimeTable(object):
     
     
     def should_the_heating_be_on(self, room_temperature=None, target_time=None):
-        """Return `True` if now the heating *should be* ON, `False` otherwise.
+        """Check if the heating, now, should be on.
         
         If the provided temperature is `None` the thermometer interface is
         queried to retrive the current temperature. If the provided time is
         `None` the current time is used.
         
         This method doesn't update any of the internal variables.
+        
+        @return an instance of thermod.timetable.ShouldBeOn with a boolean value
+            of `True` if the heating should be on, `False` otherwise
+        
+        @see thermod.timetable.ShouldBeOn for additional returned values
         
         @exception jsonschema.ValidationError if internal settings are invalid
         @exception thermod.thermometer.ThermometerError if an error happens
@@ -905,5 +910,4 @@ class TimeTable(object):
         logger.debug('the heating should be {}'
                      .format(should_be_on and 'ON' or 'OFF'))
         
-        # TODO aggiornare la documentazione di questo metodo con il nuovo valore di ritorno
         return ShouldBeOn(should_be_on, self._status, current, target)

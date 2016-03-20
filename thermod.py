@@ -21,7 +21,6 @@ from thermod.config import JsonValueError, ScriptError
 
 # TODO usare /usr/bin/python3 al posto di env in tutti gli script e script generati dai test
 # TODO mettere un SMTPHandler per i log di tipo WARNING e CRITICAL
-# TODO verificare il corretto spelling di thermod o Thermod in tutti i sorgenti
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
 
@@ -66,7 +65,7 @@ if args.log:
     logfile = None
     
     try:
-        logfile = logging.FileHandler(args.log, mode='w')  # TODO forse mode='a'
+        logfile = logging.FileHandler(args.log, mode='a')
     
     except PermissionError as pe:
         logger.warning('cannot write log to `%s`: %s', args.log, pe)
@@ -313,7 +312,11 @@ def reload_timetable(signum=None, frame=None):
 
 
 def thermostat_cycle():
-    # TODO scrivere documentazione
+    """The main cycle of temperature checking.
+    
+    Periodically checks the temperature and switch on/off the heating
+    accordingly.
+    """
     
     global main_return_code
     logger.info('daemon started')
@@ -347,9 +350,9 @@ def thermostat_cycle():
                 with timetable.lock:
                     try:
                         should_be_on = timetable.should_the_heating_be_on()
-                        _msg = ('current status is `{}`, '
-                                'current temperature is `{:.1f}`, '
-                                'target temperature is `{:.1f}`').format(
+                        _msg = ('current status is {!r}, '
+                                'current temperature is {:.1f}, '
+                                'target temperature is {:.1f}').format(
                                             should_be_on.status,
                                             should_be_on.current_temperature,
                                             should_be_on.target_temperature)
@@ -512,9 +515,8 @@ def thermostat_cycle():
 if args.foreground:
     logger.debug('starting daemon in foreground')
     
-    # TODO aggiungere gli altri segnali e usare SIGHUP
     signal.signal(signal.SIGTERM, shutdown)
-    signal.signal(signal.SIGUSR1, reload_timetable)
+    signal.signal(signal.SIGHUP, reload_timetable)
     
     thermostat_cycle()
 
@@ -523,7 +525,7 @@ else:
     
     daemon = DaemonContext()
     daemon.signal_map={signal.SIGTERM: shutdown,
-                       signal.SIGUSR1: reload_timetable}  # TODO aggiungere gli altri segnali e usare SIGHUP
+                       signal.SIGHUP: reload_timetable}
 
     if args.log:
         daemon.files_preserve = [logfile.stream]

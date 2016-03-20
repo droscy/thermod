@@ -1,4 +1,4 @@
-"""Control socket to manage thermod from external applications."""
+"""Control socket to manage Thermod from external applications."""
 
 import cgi
 import sys
@@ -22,10 +22,7 @@ from .config import JsonValueError
 from .memento import memento
 from .timetable import TimeTable
 
-# TODO migliorare i log del socket
-# TODO decidere se dopo eccezioni non gestite si deve eseguire lo shutdown del demone
-
-__updated__ = '2016-03-06'
+__updated__ = '2016-03-20'
 __version__ = '0.5'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -61,7 +58,7 @@ class ControlThread(Thread):
         self.server = ControlServer(timetable, (host, port), ControlRequestHandler)
     
     def __repr__(self):
-        return "{module}.{cls}({timetable!r}, '{host}', {port:d})".format(
+        return '{module}.{cls}({timetable!r}, {host!r}, {port:d})'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     timetable=self.server.timetable,

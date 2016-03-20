@@ -23,7 +23,7 @@ from thermod import config, ScriptHeating
 
 __version__ = '1.0.0~beta6'
 __date__ = '2015-10-02'
-__updated__ = '2016-02-21'
+__updated__ = '2016-03-20'
 
 
 # Control commands
@@ -214,7 +214,7 @@ def main(argv=None):
                                               style=config.logger_fmt_style))
         logger.addHandler(syslog)
     
-    logger.debug('reading thermod configuration from files {}'.format(config.main_config_files))
+    logger.debug('reading Thermod configuration from files {}'.format(config.main_config_files))
     cfg = ConfigParser()
     _cfg_files_found = cfg.read(config.main_config_files)
     logger.debug('configuration files found: {}'.format(_cfg_files_found))

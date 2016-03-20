@@ -16,7 +16,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2016-03-06'
+__updated__ = '2016-03-17'
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class BaseThermometer(object):
         self._scale = scale
     
     def __repr__(self, *args, **kwargs):
-        return "{}.{}('{}')".format(self.__module__,
+        return '{}.{}({!r})'.format(self.__module__,
                                     self.__class__.__name__,
                                     self._scale)
     
@@ -170,7 +170,7 @@ class ScriptThermometer(BaseThermometer):
                      self._script)
     
     def __repr__(self, *args, **kwargs):
-        return "{module}.{cls}({script}, {debug}, {scale})".format(
+        return '{module}.{cls}({script!r}, {debug!r}, {scale!r})'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     script=self._script,

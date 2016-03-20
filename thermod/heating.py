@@ -17,7 +17,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-03-06'
+__updated__ = '2016-03-17'
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +204,7 @@ class ScriptHeating(BaseHeating):
                              self._status_script[0]))
     
     def __repr__(self, *args, **kwargs):
-        return "{module}.{cls}({on}, {off}, {status}, {debug})".format(
+        return '{module}.{cls}({on!r}, {off!r}, {status!r}, {debug!r})'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     on=self._switch_on_script,
