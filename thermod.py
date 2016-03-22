@@ -28,7 +28,7 @@ from thermod.config import JsonValueError, ScriptError
 # oppure https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles
 # usando StyleAdapter
 
-prog_version = '0.0.0~alpha4'
+prog_version = '0.0.0~alpha5'
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = config.RET_CODE_OK
 
@@ -161,17 +161,13 @@ try:
                'off': cfg.get('scripts', 'switchoff'),
                'status': cfg.get('scripts', 'status')}
     
-    # TODO documentare che questo non viene usato internamente
-    # può essere usato dagli script, a disposizione del programmatore
-    #device = cfg['scripts']['device']
-    
-    host = cfg.get('socket', 'host')  # TODO decidere come gestire l'ascolto su tutte le interfacce
+    host = cfg.get('socket', 'host')
     port = cfg.getint('socket', 'port')
         
     if (port < 0) or (port > 65535):
         # checking port here because the ControlThread is created after starting
         # the daemon and the resulting log file can be messy
-        raise OverflowError('socket port is outside range 0-65535')
+        raise OverflowError('socket port {:d} is outside range 0-65535'.format(port))
 
 except configparser.NoSectionError as nse:
     main_return_code = config.RET_CODE_CFG_FILE_INVALID
@@ -185,20 +181,20 @@ except configparser.NoOptionError as noe:
 
 except configparser.Error as cpe:
     main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
-    logger.critical('unknown error in configuration file: `%s`', cpe)
+    logger.critical('unknown error in configuration file: %s', cpe)
 
 except ValueError as ve:
     # raised by getboolean() and getint() methods
     main_return_code = config.RET_CODE_CFG_FILE_INVALID
-    logger.critical('invalid configuration: `{}`'.format(ve))
+    logger.critical('invalid configuration: {}'.format(ve))
 
 except OverflowError as oe:
     main_return_code = config.RET_CODE_CFG_FILE_INVALID
-    logger.critical('invalid configuration: `{}`'.format(oe))
+    logger.critical('invalid configuration: {}'.format(oe))
 
 except Exception as e:
     main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
-    logger.critical('unknown error in configuration file: `{}`'.format(e))
+    logger.critical('unknown error in configuration file: {}'.format(e))
 
 except KeyboardInterrupt:
     main_return_code = config.RET_CODE_KEYB_INTERRUPT

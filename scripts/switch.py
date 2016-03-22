@@ -23,7 +23,7 @@ from thermod import config, ScriptHeating
 
 __version__ = '1.0.0~beta6'
 __date__ = '2015-10-02'
-__updated__ = '2016-03-20'
+__updated__ = '2016-03-22'
 
 
 # Control commands
@@ -180,8 +180,8 @@ def main(argv=None):
     parser_cmd.add_argument('--off', action='store_const', const='off', default=False, help='switch off the heating')
     parser_cmd.add_argument('--status', action='store_true', help='get the status of the heating')
     
-    parser.add_argument('-d', '--device', metavar='DEV', action='store', default=None, help='use custom serial device')
-    parser.add_argument('-j', '--json', action='store_true', help='output result in json format for thermod daemon')
+    parser.add_argument('-d', '--device', metavar='DEV', action='store', default='/dev/ttyUSB0', help='serial device of TTL relay (default /dev/ttyUSB0)')
+    parser.add_argument('-j', '--json', action='store_true', help='output result in JSON format for Thermod daemon')
     parser.add_argument('-s', '--syslog', action='store_true', help='log messages to syslog')
     parser.add_argument('-D', '--debug', action='store_true', help='print debug messages too')
     parser.add_argument('-v', '--version', action='version', version=prog_version_msg)
