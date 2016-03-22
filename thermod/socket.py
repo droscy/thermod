@@ -22,7 +22,7 @@ from .config import JsonValueError
 from .memento import memento
 from .timetable import TimeTable
 
-__updated__ = '2016-03-20'
+__updated__ = '2016-03-22'
 __version__ = '0.5'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -303,7 +303,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 # Saving timetable state for a manual restore in case of
                 # errors during saving to filesystem or in case of errors
                 # updating more than one single setting.
-                restore_old_settings = memento(self.server.timetable)
+                restore_old_settings = memento(self.server.timetable,
+                                               exclude=['_lock'])
                 
                 # updating all settings
                 if req_settings_all in postvars:

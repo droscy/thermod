@@ -19,9 +19,10 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-03-20'
+__updated__ = '2016-03-22'
 
 logger = logging.getLogger(__name__)
+
 
 
 class ShouldBeOn(int):
@@ -50,6 +51,7 @@ class ShouldBeOn(int):
     @property
     def should_be_on(self):
         return bool(self)
+
 
 
 class TimeTable(object):
@@ -243,7 +245,7 @@ class TimeTable(object):
         return deepcopy(settings)
     
     
-    @transactional
+    @transactional(exclude=['_lock'])
     def __setstate__(self, state):
         """Set new internal state.
         
@@ -672,7 +674,7 @@ class TimeTable(object):
             logger.debug('new thermometer set')
     
     
-    @transactional
+    @transactional(exclude=['_lock'])
     def update(self, day, hour, quarter, temperature):
         """Update the target temperature in internal timetable."""
         # TODO scrivere documentazione
@@ -722,7 +724,7 @@ class TimeTable(object):
                      'temperature "{}"'.format(_day, _hour, _quarter, _temp))
     
     
-    @transactional
+    @transactional(exclude=['_lock'])
     def update_days(self, json_data):
         """Update timetable for one or more days.
         

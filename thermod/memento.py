@@ -13,48 +13,88 @@ import copy
 import logging
 
 __date__ = '2016-02-25'
-__updated__ = '2016-03-19'
+__updated__ = '2016-03-22'
 
 logger = logging.getLogger(__name__)
 
-# TODO finire messaggi di log
-# TODO controllare che con l'exclude funzioni bene, e forse fare in modo
-# che '_lock' venga aggiunto e non sia semplicemente il valore di default
 
-
-def memento(obj, deep=True, exclude=['_lock']):
-    """Return a function to restore the original state of an object."""
+def memento(obj, exclude=None, deep=True):
+    """Return a function to restore the original state of an object.
     
-    #state = (copy.deepcopy if deep else copy.copy)(obj.__dict__)
+    @param obj the object which to save the state of
+    @param exclude a list of attributes name that do not have to be saved
+        (empty list or `None` are accepted)
+    @param deep if copy.deepcopy should be used to save the state
+    """
+    
+    if exclude is None:
+        exclude = []
+    elif not isinstance(exclude, (list, tuple, dict)):
+        exclude = [exclude,]
     
     state = (copy.deepcopy if deep else copy.copy)({key: value for (key, value) in obj.__dict__.items() if key not in exclude})
     
     def restore():
         logger.debug('restoring old state of %s', obj)
-        #obj.__dict__.clear()  # TODO assicurarsi che così non serva più
-        # TODO cosa fa l'update? Sovrascrivere quelli esistente o inserisce solo quelli nuovi?
+        #obj.__dict__.clear()  # commented out when exclude argument was added
         obj.__dict__.update(state)
     
     return restore
 
 
-def transactional(method):
-    """If the decorated method fails the old state is restored."""
+def transactional(exclude=None):
+    """If the decorated method fails the old state is restored.
     
-    # TODO forse meglio chiamare obj invece di self, così non ci si confonde
-    def wrapper(self, *args, **kwargs):
-        logger.debug('executing transactional method %r', method)
-        restore = memento(self)
-        
-        try:
-            result = method(self, *args, **kwargs)
-        
-        except:
-            logger.debug('transaction aborted')
-            restore()
-            raise
-        
-        logger.debug('transaction completed')
-        return result
+    This decorator needs a list of attributes that don't have to be restored,
+    the list can also be empty or `None` if no exclusion is required.
     
+    @param exclude a list of attributes name that do not have to be saved
+        (empty list or `None` are accepted)
+    """
+    
+    def wrapper(method):
+        def wrapped_method(obj, *args, **kwargs):
+            logger.debug('executing transactional method %r', method)
+            restore = memento(obj, exclude)
+            
+            try:
+                result = method(obj, *args, **kwargs)
+            
+            except:
+                logger.debug('transaction aborted')
+                restore()
+                raise
+            
+            logger.debug('transaction completed')
+            return result
+        
+        return wrapped_method
     return wrapper
+
+
+
+# only for debug purpose
+if __name__ == '__main__':
+    class Test(object):
+        def __init__(self):
+            self.test1 = 'test1'
+            self.test2 = 'test2'
+        
+        @transactional('test2')
+        def update(self, param1):
+            self.test1 = 'updated'
+            self.test2 = 'updated'
+            raise RuntimeError('update failed')
+    
+    c = Test()
+    print('t1: ', c.test1)
+    print('t2: ', c.test2)
+    
+    try:
+        c.update('param1')
+    except:
+        pass
+    
+    print('t1: ', c.test1)
+    print('t2: ', c.test2)
+
