@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Test suite for `TimeTable` class."""
 
 import os
@@ -718,3 +719,5 @@ class TestTimeTable(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+# vim: fileencoding=utf-8

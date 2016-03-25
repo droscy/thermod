@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Interface to the real heating."""
 
 import sys
@@ -367,3 +368,5 @@ if __name__ == '__main__':
     heating.switch_on()
     print('JSON_STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
     print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
+
+# vim: fileencoding=utf-8

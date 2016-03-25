@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Test suite for `thermod.memento` module."""
 
 import copy
@@ -213,3 +214,5 @@ class TestMemento(unittest.TestCase):
       
 if __name__ == "__main__":
     unittest.main()
+
+# vim: fileencoding=utf-8

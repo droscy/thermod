@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Custom implementation of Memento pattern.
 
 We use a decorator function to confer transactional behaviour to methods
@@ -98,3 +99,4 @@ if __name__ == '__main__':
     print('t1: ', c.test1)
     print('t2: ', c.test2)
 
+# vim: fileencoding=utf-8

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Interface to the thermometer."""
 
 import sys
@@ -231,3 +232,5 @@ class ScriptThermometer(BaseThermometer):
         
         logger.debug('current temperature: %.2f', t)
         return t
+
+# vim: fileencoding=utf-8

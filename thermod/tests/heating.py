@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Test suite for `thermod.heating` module."""
 
 import os
@@ -150,3 +151,5 @@ if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.CRITICAL)
     unittest.main()
+
+# vim: fileencoding=utf-8

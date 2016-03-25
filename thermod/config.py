@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Utilities, functions and constants for Thermod daemon."""
 
 import os
@@ -267,3 +268,5 @@ def json_get_day_name(day):
         raise JsonValueError('the provided day name or number `{}` is not valid'.format(day))
     
     return result
+
+# vim: fileencoding=utf-8

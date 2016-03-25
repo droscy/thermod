@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Manage the timetable of Thermod."""
 
 import json
@@ -913,3 +914,5 @@ class TimeTable(object):
                      .format(should_be_on and 'ON' or 'OFF'))
         
         return ShouldBeOn(should_be_on, self._status, current, target)
+
+# vim: fileencoding=utf-8

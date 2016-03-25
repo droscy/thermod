@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-# encoding: utf-8
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 """
 Switch on/off or get the status of the heating using a serial TTL relay.
 
@@ -269,3 +269,5 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
+# vim: fileencoding=utf-8

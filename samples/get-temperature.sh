@@ -1,5 +1,5 @@
 #!/bin/bash
-#
+# -*- coding: utf-8 -*-
 # Wrapper for pcsensor https://github.com/peterfarsinsen/pcsensor.git
 # This script extracts temperature from CSV and prints a JSON string as
 # required by ScriptThermometer class of Thermod daemon.
@@ -80,3 +80,5 @@ fi
 log debug "$(printf 'current temperature is %.2f' "${TEMPERATURE}")"
 echo -n "${JSON}"
 exit 0
+
+# vim: fileencoding=utf-8

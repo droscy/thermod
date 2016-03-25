@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Control socket to manage Thermod from external applications."""
 
 import cgi
@@ -652,3 +653,5 @@ if __name__ == '__main__':
         cc.join()
     except:
         cc.stop()
+
+# vim: fileencoding=utf-8
