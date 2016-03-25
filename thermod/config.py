@@ -4,7 +4,11 @@ import os
 import math
 import calendar
 
-__updated__ = '2016-03-20'
+__updated__ = '2016-03-25'
+
+
+# program version
+PROGRAM_VERSION = '0.0.0~beta1'
 
 # paths to main config files
 main_config_files = ('thermod.conf',
@@ -29,6 +33,7 @@ RET_CODE_SOCKET_START_ERR = 31
 RET_CODE_SOCKET_STOP_ERR = 32
 RET_CODE_RUN_INVALID_STATE = 50
 RET_CODE_RUN_INVALID_VALUE = 51
+RET_CODE_RUN_HEATING_ERR = 52
 RET_CODE_RUN_OTHER_ERR = 59
 RET_CODE_SHUTDOWN_SWITCHOFF_ERR = 60
 RET_CODE_SHUTDOWN_OTHER_ERR = 69

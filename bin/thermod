@@ -28,13 +28,12 @@ from thermod.config import JsonValueError, ScriptError
 # oppure https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles
 # usando StyleAdapter
 
-prog_version = '0.0.0~alpha5'
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = config.RET_CODE_OK
 
 # parsing input arguments
 parser = argparse.ArgumentParser(description='thermod daemon')
-parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(prog_version))
+parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(config.PROGRAM_VERSION))
 parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground')
 parser.add_argument('-L', '--log', action='store', default=None, help='write messages to log file')
@@ -79,7 +78,7 @@ if args.log:
         
         except Exception as e:
             logger.error('cannot write logfile: %s', e)
-            logger.info('the daemon will start up wothout logfile')
+            logger.info('the daemon will start up without logfile')
     
     if logfile:
         logfile.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
@@ -323,24 +322,41 @@ def thermostat_cycle():
         socket.start()
     
     except OSError as oe:
-        # probably address already in use
+        # probably the socket address is already in use
         logger.critical('cannot start control socket: %s', oe)
-        shutdown(exitcode=config.RET_CODE_SOCKET_PORT_ERR)
+        main_return_code = config.RET_CODE_SOCKET_PORT_ERR
     
     except Exception as e:
         logger.critical('cannot start control socket: %s', e)
-        shutdown(exitcode=config.RET_CODE_SOCKET_START_ERR)
+        main_return_code = config.RET_CODE_SOCKET_START_ERR
 
     except KeyboardInterrupt:
         main_return_code = config.RET_CODE_KEYB_INTERRUPT
     
     except:
         logger.critical('unkown error starting control socket')
-        shutdown(exitcode=config.RET_CODE_SOCKET_START_ERR)
+        main_return_code = config.RET_CODE_SOCKET_START_ERR
     
     else:
-        logger.info('the heating is currently %s', (heating.is_on() and 'ON' or 'OFF'))
+        try:
+            logger.info('the heating is currently %s',
+                        (heating.is_on() and 'ON' or 'OFF'))
+            
+        except Exception as e:
+            # We report the error as a severe error but we do nothing because
+            # it can be a transient error, if it isn't transient, the error
+            # will appears again in the hereafter "while" cycle and it will
+            # be managed there.
+            logger.error('cannot query the heating to retrieve current status: %s', e)
+            
+        except KeyboardInterrupt:
+            shutdown(exitcode=config.RET_CODE_KEYB_INTERRUPT)
+            
+        except:
+            logger.critical('unknown error during first query to the heating')
+            shutdown(exitcode=config.RET_CODE_RUN_HEATING_ERR)
         
+        # the real cycle of temperature checking
         while enabled:
             try:
                 with timetable.lock:
