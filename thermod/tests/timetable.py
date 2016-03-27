@@ -21,7 +21,7 @@ else:
     JSONDecodeError = ValueError
 
 
-__updated__ = '2016-03-17'
+__updated__ = '2016-03-26'
 
 
 def fill_timetable(timetable):
@@ -84,8 +84,13 @@ class TestTimeTable(unittest.TestCase):
             self.timetable.reload()
         
         # invalid json file
+        invalid_json_file = os.path.join(tempfile.gettempdir(), 'thermod-invalid-json.conf')
+        
+        with open(invalid_json_file, 'w') as file:
+            file.write('[global] invalid = not json')
+        
         with self.assertRaises(ValueError):
-            self.timetable.filepath = 'thermod.conf'
+            self.timetable.filepath = invalid_json_file
             self.timetable.reload()
     
     

@@ -14,7 +14,8 @@ import copy
 import logging
 
 __date__ = '2016-02-25'
-__updated__ = '2016-03-22'
+__updated__ = '2016-03-27'
+__version__ = '2.0'
 
 logger = logging.getLogger(__name__)
 

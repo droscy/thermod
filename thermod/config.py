@@ -5,11 +5,9 @@ import os
 import math
 import calendar
 
-__updated__ = '2016-03-25'
+__date__ = '2015-09-13'
+__updated__ = '2016-03-27'
 
-
-# program version
-PROGRAM_VERSION = '0.0.0~beta1'
 
 # paths to main config files
 main_config_files = ('thermod.conf',

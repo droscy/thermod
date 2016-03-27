@@ -10,7 +10,7 @@ from threading import Thread
 from jsonschema import ValidationError
 #from json.decoder import JSONDecodeError
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -23,8 +23,9 @@ from .config import JsonValueError
 from .memento import memento
 from .timetable import TimeTable
 
-__updated__ = '2016-03-22'
-__version__ = '0.5'
+__date__ = '2015-11-05'
+__updated__ = '2016-03-27'
+__version__ = '0.6'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -74,6 +75,7 @@ class ControlThread(Thread):
     def stop(self):
         """Stop this control thread shutting down the internal HTTP server."""
         self.server.shutdown()
+        self.server.server_close()
         logger.info('control socket halted')
 
 
@@ -291,7 +293,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 postvars = cgi.parse_multipart(self.rfile, pdict)
             elif ctype == 'application/x-www-form-urlencoded':
                 length = int(self.headers['Content-Length'])
-                postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
+                postvars = parse_qs(self.rfile.read(length), keep_blank_values=1)
             else:
                 postvars = {}
             

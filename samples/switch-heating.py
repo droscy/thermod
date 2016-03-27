@@ -21,9 +21,9 @@ from serial import Serial, SerialException
 from thermod import config, ScriptHeating
 
 
-__version__ = '1.0.0~beta6'
+__version__ = '1.0.0b6'
 __date__ = '2015-10-02'
-__updated__ = '2016-03-22'
+__updated__ = '2016-03-27'
 
 
 # Control commands

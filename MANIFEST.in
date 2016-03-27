@@ -1,5 +1,8 @@
-include setup.py Doxyfile README.md MANIFEST.in
+include setup.py
+include MANIFEST.in
+include Doxyfile
+include README.md
 recursive-include thermod *.py
-graft bin
-graft etc
-graft samples
+include bin/thermod
+include etc/*
+include samples/*

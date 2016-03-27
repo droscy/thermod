@@ -20,7 +20,9 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
-__updated__ = '2016-03-22'
+__date__ = '2015-09-09'
+__updated__ = '2016-03-27'
+__version__ = '1.0'
 
 logger = logging.getLogger(__name__)
 

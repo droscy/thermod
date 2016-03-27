@@ -19,6 +19,7 @@ from thermod.heating import ScriptHeating, HeatingError
 from thermod.timetable import TimeTable
 from thermod.socket import ControlThread
 from thermod.config import JsonValueError, ScriptError
+from thermod.version import __version__ as PROGRAM_VERSION
 
 # TODO usare /usr/bin/python3 al posto di env in tutti gli script e script generati dai test
 # TODO mettere un SMTPHandler per i log di tipo WARNING e CRITICAL
@@ -34,7 +35,7 @@ main_return_code = config.RET_CODE_OK
 
 # parsing input arguments
 parser = argparse.ArgumentParser(description='thermod daemon')
-parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(config.PROGRAM_VERSION))
+parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(PROGRAM_VERSION))
 parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground')
 parser.add_argument('-L', '--log', action='store', default=None, help='write messages to log file')
@@ -91,7 +92,6 @@ if args.log:
 # reading configuration files
 try:
     cfg = configparser.ConfigParser()
-    cfg.read_string('[global] enabled = 0')  # basic settings to immediatly shutdown if config file is missing
     logger.debug('searching main configuration in files {}'.format(config.main_config_files))
     
     _cfg_files_found = cfg.read(config.main_config_files) # TODO in caso di più file quale ha precedenza?
@@ -99,8 +99,8 @@ try:
     if _cfg_files_found:
         logger.debug('configuration files found: {}'.format(_cfg_files_found))
     else:
-        main_return_code = config.RET_CODE_CFG_FILE_MISSING
-        logger.critical('no configuration files found in %s', config.main_config_files)
+        # manual managment of missing configuration file
+        raise FileNotFoundError()
 
 except configparser.MissingSectionHeaderError as mshe:
     main_return_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
@@ -126,6 +126,10 @@ except configparser.DuplicateOptionError as doe:
 except configparser.Error as cpe:
     main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('parsing error in configuration file: `%s`', cpe)
+
+except FileNotFoundError:
+    main_return_code = config.RET_CODE_CFG_FILE_MISSING
+    logger.critical('no configuration files found in %s', config.main_config_files)
 
 except Exception as e:
     main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
