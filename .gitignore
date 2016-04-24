@@ -10,3 +10,4 @@ dist/
 build/
 MANIFEST
 venv/
+README.htm*

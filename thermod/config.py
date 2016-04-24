@@ -6,13 +6,15 @@ import math
 import calendar
 
 __date__ = '2015-09-13'
-__updated__ = '2016-03-27'
+__updated__ = '2016-03-28'
 
 
 # paths to main config files
-main_config_files = ('thermod.conf',
-                     os.path.expanduser('~/.thermod.conf'),
-                    '/etc/thermod/thermod.conf')
+config_file = 'thermod.conf'
+main_config_files = (config_file,
+                     os.path.join(os.path.expanduser('~/.thermod'), config_file),
+                     os.path.join('/usr/local/etc/thermod', config_file),
+                     os.path.join('/etc/thermod', config_file))
 
 # return codes
 RET_CODE_OK = 0

@@ -1,0 +1,29 @@
+Source: thermod
+Section: python
+Priority: optional
+Maintainer: Simone Rossetto <simros85@gmail.com>
+Build-Depends: debhelper (>=9), dh-python, python3-all, python3-setuptools, doxygen, doxypy
+Standards-Version: 3.9.6
+X-Python3-Version: >= 3.4
+#Homepage: <insert the upstream URL, if relevant>
+#Vcs-Git: git://anonscm.debian.org/collab-maint/thermod.git
+#Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/thermod.git
+
+Package: thermod
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}
+Description: Programmable thermostat daemon for smart-heating automation
+ Programmable thermostat daemon for smart-heating automation.
+
+Package: python3-thermod
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}
+Suggests: python3-thermod-doc (= ${binary:Version})
+Description: Programmable thermostat daemon (libraries)
+ Programmable thermostat daemon for smart-heating automation.
+
+Package: python3-thermod-doc
+Architecture: all
+Depends: ${python3:Depends}, ${misc:Depends}
+Description: Programmable thermostat daemon (documentation)
+ Programmable thermostat daemon for smart-heating automation.

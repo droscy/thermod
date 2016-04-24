@@ -1,0 +1,9 @@
+Document: thermod
+Title: Thermod, Python package, User Manual
+Author: Simone Rossetto
+Abstract: This manual contains the API of Thermod Python package.
+Section: Programming/Python
+
+Format: HTML
+Index: /usr/share/doc/python3-thermod/html/index.html
+Files: /usr/share/doc/python3-thermod/html/*.html

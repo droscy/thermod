@@ -12,7 +12,7 @@ from thermod import TimeTable, config
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2016-03-22'
+__updated__ = '2016-03-27'
 
 
 class MementoTable(TimeTable):
@@ -168,6 +168,7 @@ class TestMemento(unittest.TestCase):
     
     
     def test06_threading(self):
+        self.timetable = None  # just to clear and avoid errors
         self.mttable.tmax = 30
         self.mttable.status = config.json_status_tmax
         
@@ -202,7 +203,7 @@ class TestMemento(unittest.TestCase):
         # the assert becomes False after the execution of the thread
         thread.join(30)  # no deadlock, timeout only to be sure
         self.assertFalse(thread.is_alive())  # exit join() for lock releasing
-        self.assertFalse(self.timetable.should_the_heating_be_on(20))  # new settings of thread
+        self.assertFalse(self.mttable.should_the_heating_be_on(20))  # new settings of thread
     
     def thread_change_status(self):
         self.assertTrue(self.mttable.should_the_heating_be_on(20))

@@ -1,0 +1,5 @@
+thermod (1.0.0~beta1-1) unstable; urgency=medium
+
+  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- Simone Rossetto <simros85@gmail.com>  Sun, 27 Mar 2016 10:10:36 +0200
