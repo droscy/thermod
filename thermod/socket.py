@@ -24,7 +24,7 @@ from .memento import memento
 from .timetable import TimeTable
 
 __date__ = '2015-11-05'
-__updated__ = '2016-03-27'
+__updated__ = '2016-04-25'
 __version__ = '0.6'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -54,7 +54,7 @@ rsp_fullmsg = 'explain'
 class ControlThread(Thread):
     """Start a HTTP server ready to receive commands."""
     
-    def __init__(self, timetable, host='localhost', port=4344):
+    def __init__(self, timetable, host, port):
         logger.debug('initializing ControlThread')
         super().__init__(name='ThermodControlThread')
         self.server = ControlServer(timetable, (host, port), ControlRequestHandler)

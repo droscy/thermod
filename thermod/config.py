@@ -4,17 +4,23 @@
 import os
 import math
 import calendar
+import logging
+import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-03-28'
+__updated__ = '2016-04-25'
 
 
-# paths to main config files
-config_file = 'thermod.conf'
-main_config_files = (config_file,
-                     os.path.join(os.path.expanduser('~/.thermod'), config_file),
-                     os.path.join('/usr/local/etc/thermod', config_file),
-                     os.path.join('/etc/thermod', config_file))
+# config module logger
+logger = logging.getLogger(__name__)
+
+# logger common settings
+logger_base_name = 'thermod'
+logger_fmt_msg = '{asctime},{msecs:03.0f} {name:19s} {levelname:8s} {message}'
+logger_fmt_msg_syslog = '{name}[{process:d}]: {levelname} {message}'
+logger_fmt_time = '%H:%M:%S'
+logger_fmt_datetime = '%y-%m-%d %H:%M:%S'
+logger_fmt_style = '{'
 
 # return codes
 RET_CODE_OK = 0
@@ -40,13 +46,160 @@ RET_CODE_SHUTDOWN_SWITCHOFF_ERR = 60
 RET_CODE_SHUTDOWN_OTHER_ERR = 69
 RET_CODE_KEYB_INTERRUPT = 130
 
-# logger common settings
-logger_base_name = 'thermod'
-logger_fmt_msg = '{asctime},{msecs:03.0f} {name:19s} {levelname:8s} {message}'
-logger_fmt_msg_syslog = '{name}[{process:d}]: {levelname} {message}'
-logger_fmt_time = '%H:%M:%S'
-logger_fmt_datetime = '%y-%m-%d %H:%M:%S'
-logger_fmt_style = '{'
+# socket default address and port
+SOCKET_DEFAULT_HOST = 'localhost'
+SOCKET_DEFAULT_PORT = 4344
+
+# main config files and parsers
+config_file = 'thermod.conf'
+main_config_files = (config_file,
+                     os.path.join(os.path.expanduser('~/.thermod'), config_file),
+                     os.path.join('/usr/local/etc/thermod', config_file),
+                     os.path.join('/etc/thermod', config_file))
+
+def read_config_files(config_files=main_config_files):
+    """Search and read main configuration files.
+    
+    @params config_files a list of possible path for configuration files
+    @return a tuple with a configparser.ConfigParser object and an error code
+        that can be used as POSIX return value (if no error occurred the error
+        code is 0)
+    """
+    
+    try:
+        cfg = configparser.ConfigParser()
+        logger.debug('searching main configuration in files {}'.format(config_files))
+        
+        _cfg_files_found = cfg.read(config_files) # TODO in caso di più file quale ha precedenza?
+        
+        if _cfg_files_found:
+            logger.debug('configuration files found: {}'.format(_cfg_files_found))
+        else:
+            # manual managment of missing configuration file
+            raise FileNotFoundError()
+    
+    except configparser.MissingSectionHeaderError as mshe:
+        error_code = RET_CODE_CFG_FILE_SYNTAX_ERR
+        logger.critical('invalid syntax in configuration file `%s`, '
+                        'missing sections', mshe.source)
+    
+    except configparser.ParsingError as pe:
+        error_code = RET_CODE_CFG_FILE_SYNTAX_ERR
+        (_lineno, _line) = pe.errors[0]
+        logger.critical('invalid syntax in configuration file `%s` at line %d: %s',
+                        pe.source, _lineno, _line)
+    
+    except configparser.DuplicateSectionError as dse:
+        error_code = RET_CODE_CFG_FILE_INVALID
+        logger.critical('duplicate section `%s` in configuration file `%s`',
+                        dse.section, dse.source)
+    
+    except configparser.DuplicateOptionError as doe:
+        error_code = RET_CODE_CFG_FILE_INVALID
+        logger.critical('duplicate option `%s` in section `%s` of configuration '
+                        'file `%s`', doe.option, doe.section, doe.source)
+    
+    except configparser.Error as cpe:
+        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        logger.critical('parsing error in configuration file: `%s`', cpe)
+    
+    except FileNotFoundError:
+        error_code = RET_CODE_CFG_FILE_MISSING
+        logger.critical('no configuration files found in %s', config_files)
+    
+    except Exception as e:
+        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        logger.critical('unknown error in configuration file: `%s`', e)
+    
+    except KeyboardInterrupt:
+        error_code = RET_CODE_KEYB_INTERRUPT
+    
+    except:
+        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        logger.critical('unknown error in configuration file, no more details')
+    
+    else:
+        error_code = RET_CODE_OK
+        logger.debug('main configuration files read')
+    
+    return (cfg, error_code)
+
+def parse_main_settings(cfg):
+    """Parse configuration settings previously read.
+    
+    @params cfg configparser.ConfigParser object to parse data from
+    
+    @return a tuple with the main settings: enabled, debug, timetable JSON file,
+        check interval, scripts for thermometer and heating, socket host,
+        socket port and error code; the error code can be used as POSIX return
+        value, if no error occurred the error code is 0.
+    
+    @exception TypeError if cfg is not a configparser.ConfigParser object
+    """
+    
+    if not isinstance(cfg, configparser.ConfigParser):
+        raise TypeError('ConfigParser object required to parse main settings')
+    
+    try:
+        # TODO finire controllo sui valori presenti nel file di config
+        enabled = cfg.getboolean('global', 'enabled')
+        debug = cfg.getboolean('global', 'debug')
+        tt_file = cfg.get('global', 'timetable')
+        interval = cfg.getint('global', 'interval')
+        
+        scripts = {'thermometer': cfg.get('scripts', 'thermometer'),
+                   'on': cfg.get('scripts', 'switchon'),
+                   'off': cfg.get('scripts', 'switchoff'),
+                   'status': cfg.get('scripts', 'status')}
+        
+        host = cfg.get('socket', 'host', fallback=SOCKET_DEFAULT_HOST)
+        port = cfg.getint('socket', 'port', fallback=SOCKET_DEFAULT_PORT)
+            
+        if (port < 0) or (port > 65535):
+            # checking port here because the ControlThread is created after starting
+            # the daemon and the resulting log file can be messy
+            raise OverflowError('socket port {:d} is outside range 0-65535'.format(port))
+    
+    except configparser.NoSectionError as nse:
+        error_code = RET_CODE_CFG_FILE_INVALID
+        logger.critical('incomplete configuration file, missing `%s` section',
+                        nse.section)
+    
+    except configparser.NoOptionError as noe:
+        error_code = RET_CODE_CFG_FILE_INVALID
+        logger.critical('incomplete configuration file, missing option `%s` '
+                        'in section `%s`', noe.option, noe.section)
+    
+    except configparser.Error as cpe:
+        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        logger.critical('unknown error in configuration file: %s', cpe)
+    
+    except ValueError as ve:
+        # raised by getboolean() and getint() methods
+        error_code = RET_CODE_CFG_FILE_INVALID
+        logger.critical('invalid configuration: {}'.format(ve))
+    
+    except OverflowError as oe:
+        error_code = RET_CODE_CFG_FILE_INVALID
+        logger.critical('invalid configuration: {}'.format(oe))
+    
+    except Exception as e:
+        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        logger.critical('unknown error in configuration file: {}'.format(e))
+    
+    except KeyboardInterrupt:
+        error_code = RET_CODE_KEYB_INTERRUPT
+    
+    except:
+        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        logger.critical('unknown error in configuration file, no more details')
+    
+    else:
+        error_code = RET_CODE_OK
+        logger.debug('main settings parsed')
+    
+    return (enabled, debug, tt_file, interval, scripts, host, port, error_code)
+
 
 # thermod name convention (from json file)
 json_status = 'status'

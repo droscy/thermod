@@ -21,7 +21,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2016-03-27'
+__updated__ = '2016-04-24'
 __version__ = '1.0'
 
 logger = logging.getLogger(__name__)
@@ -421,7 +421,7 @@ class TimeTable(object):
     
     
     def last_update_timestamp(self):
-        """Returns the timestamp of last settings update."""
+        """Return the timestamp of last settings update."""
         return self._last_update_timestamp
     
     

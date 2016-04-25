@@ -13,7 +13,7 @@ import thermod.socket as socket
 from thermod import TimeTable, ControlThread, config
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2016-02-25'
+__updated__ = '2016-04-25'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/heating'
 
@@ -29,7 +29,9 @@ class TestSocket(unittest.TestCase):
         self.timetable.filepath = os.path.join(tempfile.gettempdir(), 'timetable.json')
         self.timetable.save()
         
-        self.control_socket = ControlThread(self.timetable)
+        self.control_socket = ControlThread(self.timetable,
+                                            config.SOCKET_DEFAULT_HOST,
+                                            config.SOCKET_DEFAULT_PORT)
         self.control_socket.start()
    
 

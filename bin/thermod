@@ -7,7 +7,6 @@ import logging
 import argparse
 import signal
 import tempfile
-import configparser
 
 from daemon import DaemonContext
 from logging.handlers import SysLogHandler
@@ -90,131 +89,20 @@ if args.log:
 
 
 # reading configuration files
-try:
-    cfg = configparser.ConfigParser()
-    logger.debug('searching main configuration in files {}'.format(config.main_config_files))
-    
-    _cfg_files_found = cfg.read(config.main_config_files) # TODO in caso di più file quale ha precedenza?
-    
-    if _cfg_files_found:
-        logger.debug('configuration files found: {}'.format(_cfg_files_found))
-    else:
-        # manual managment of missing configuration file
-        raise FileNotFoundError()
+(cfg, main_return_code) = config.read_config_files()
 
-except configparser.MissingSectionHeaderError as mshe:
-    main_return_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
-    logger.critical('invalid syntax in configuration file `%s`, '
-                    'missing sections', mshe.source)
-
-except configparser.ParsingError as pe:
-    main_return_code = config.RET_CODE_CFG_FILE_SYNTAX_ERR
-    (_lineno, _line) = pe.errors[0]
-    logger.critical('invalid syntax in configuration file `%s` at line %d: %s',
-                    pe.source, _lineno, _line)
-
-except configparser.DuplicateSectionError as dse:
-    main_return_code = config.RET_CODE_CFG_FILE_INVALID
-    logger.critical('duplicate section `%s` in configuration file `%s`',
-                    dse.section, dse.source)
-
-except configparser.DuplicateOptionError as doe:
-    main_return_code = config.RET_CODE_CFG_FILE_INVALID
-    logger.critical('duplicate option `%s` in section `%s` of configuration '
-                    'file `%s`', doe.option, doe.section, doe.source)
-
-except configparser.Error as cpe:
-    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
-    logger.critical('parsing error in configuration file: `%s`', cpe)
-
-except FileNotFoundError:
-    main_return_code = config.RET_CODE_CFG_FILE_MISSING
-    logger.critical('no configuration files found in %s', config.main_config_files)
-
-except Exception as e:
-    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
-    logger.critical('unknown error in configuration file: `%s`', e)
-
-except KeyboardInterrupt:
-    main_return_code = config.RET_CODE_KEYB_INTERRUPT
-
-except:
-    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
-    logger.critical('unknown error in configuration file, no more details')
-
-else:
-    main_return_code = config.RET_CODE_OK
-    logger.debug('main configuration files read')
-
-finally:
-    if main_return_code != config.RET_CODE_OK:
-        logger.info('closing daemon with return code {}'.format(main_return_code))
-        exit(main_return_code)
+if main_return_code != config.RET_CODE_OK:
+    logger.info('closing daemon with return code {}'.format(main_return_code))
+    exit(main_return_code)
 
 
 # parsing main settings
-try:
-    # TODO finire controllo sui valori presenti nel file di config
-    enabled = cfg.getboolean('global', 'enabled')
-    debug = cfg.getboolean('global', 'debug') or args.debug
-    tt_file = cfg.get('global', 'timetable')
-    interval = cfg.getint('global', 'interval')
-    
-    scripts = {'thermometer': cfg.get('scripts', 'thermometer'),
-               'on': cfg.get('scripts', 'switchon'),
-               'off': cfg.get('scripts', 'switchoff'),
-               'status': cfg.get('scripts', 'status')}
-    
-    host = cfg.get('socket', 'host')
-    port = cfg.getint('socket', 'port')
-        
-    if (port < 0) or (port > 65535):
-        # checking port here because the ControlThread is created after starting
-        # the daemon and the resulting log file can be messy
-        raise OverflowError('socket port {:d} is outside range 0-65535'.format(port))
+(enabled, debug, tt_file, interval, scripts, host, port, main_return_code) = config.parse_main_settings(cfg)
+debug = debug or args.debug
 
-except configparser.NoSectionError as nse:
-    main_return_code = config.RET_CODE_CFG_FILE_INVALID
-    logger.critical('incomplete configuration file, missing `%s` section',
-                    nse.section)
-
-except configparser.NoOptionError as noe:
-    main_return_code = config.RET_CODE_CFG_FILE_INVALID
-    logger.critical('incomplete configuration file, missing option `%s` '
-                    'in section `%s`', noe.option, noe.section)
-
-except configparser.Error as cpe:
-    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
-    logger.critical('unknown error in configuration file: %s', cpe)
-
-except ValueError as ve:
-    # raised by getboolean() and getint() methods
-    main_return_code = config.RET_CODE_CFG_FILE_INVALID
-    logger.critical('invalid configuration: {}'.format(ve))
-
-except OverflowError as oe:
-    main_return_code = config.RET_CODE_CFG_FILE_INVALID
-    logger.critical('invalid configuration: {}'.format(oe))
-
-except Exception as e:
-    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
-    logger.critical('unknown error in configuration file: {}'.format(e))
-
-except KeyboardInterrupt:
-    main_return_code = config.RET_CODE_KEYB_INTERRUPT
-
-except:
-    main_return_code = config.RET_CODE_CFG_FILE_UNKNOWN_ERR
-    logger.critical('unknown error in configuration file, no more details')
-
-else:
-    main_return_code = config.RET_CODE_OK
-    logger.debug('main settings read')
-
-finally:
-    if main_return_code != config.RET_CODE_OK:
-        logger.info('closing daemon with return code {}'.format(main_return_code))
-        exit(main_return_code)
+if main_return_code != config.RET_CODE_OK:
+    logger.info('closing daemon with return code {}'.format(main_return_code))
+    exit(main_return_code)
 
 
 # if the daemon is disabled in configuration file we exit immediatly
