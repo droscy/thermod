@@ -8,7 +8,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-04-25'
+__updated__ = '2016-06-02'
 
 
 # config module logger
@@ -271,14 +271,14 @@ json_schema = {
     'definitions': {
         'day': {
             'patternProperties': {
-                '([01][0-9]|2[0-3])': {
+                'h([01][0-9]|2[0-3])': {
                     'type': 'array',
                     'items': {'anyOf': [{'type': 'number'},
                                         {'type': 'string', 'pattern': '[-+]?[0-9]*\.?[0-9]+'},
                                         {'enum': ['t0', 'tmin', 'tmax']}]}}},
-            'required': ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09',
-                         '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
-                         '20', '21', '22', '23'],
+            'required': ['h00', 'h01', 'h02', 'h03', 'h04', 'h05', 'h06', 'h07', 'h08', 'h09',
+                         'h10', 'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'h19',
+                         'h20', 'h21', 'h22', 'h23'],
             'additionalProperties': False}}
 }
 
@@ -374,17 +374,19 @@ def json_format_temperature(temperature):
 
 
 def json_format_hour(hour):
-    """Format the provided hour as a string in 24-hour clock with leading 0."""
+    """Format the provided hour as a string in 24H clock with a leading `h` and zeroes."""
     try:
         # if hour cannot be converted to int or is outside 0-23 range
         # raise a ValueError
-        if int(float(hour)) not in range(24):
+        _hour = int(float(str(hour).lstrip('h')))
+        if _hour not in range(24):
             raise Exception()
     except:
         raise JsonValueError('the provided hour is not valid `{}`, '
-                             'it must be in range 0-23'.format(hour))
+                             'it must be in range 0-23 with an optional '
+                             'leading `h`'.format(hour))
 
-    return format(int(float(hour)), '0>2d')
+    return 'h{:0>2d}'.format(_hour)
 
 
 def json_get_day_name(day):
