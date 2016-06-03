@@ -95,7 +95,7 @@
 				});
 				
 				$('#save').click(function(){
-					$.post('settings.php', {'settings': settings});
+					$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'settings': settings});
 				});
 				
 				/*$('#clear').click(function(){
@@ -107,20 +107,12 @@
 			});
 		</script>
 		<style>
-			/*select { width: 100px; }*/
-			/*#settings { float: left; border: 1px solid #000000; height: 150px; }*/
-			
-			/*.ui-slider-vertical { width: 1px; }
-			.ui-slider .ui-slider-handle { height: 1px; width: 0.8em; }
-			.head { float: left; background-color: #DDFFFF; }*/
-			
-			/* quelli buoni */
 			#tabs { font-size: 90%; }
 			#schedule p { margin: 0px 0px 1ex 0px; }
 			#days { margin-bottom: 3ex; }
 			#hours { margin-bottom: 1.5ex; }
 			.hour-box { float: left; text-align: center; margin-bottom: 1.5ex; width: 4.8em; }
-			.quarters-box { font-size: 60%; margin: 2px; }
+			.quarters-box { font-size: 60%; margin: 0.2ex; }
 			.clearer { clear: both; }
 		</style>
 	</head>

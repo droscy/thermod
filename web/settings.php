@@ -1,34 +1,33 @@
 <?php
-
 $HOST = (isset($_REQUEST['host']) ? htmlentities($_REQUEST['host']) : 'localhost');
 $PORT = (isset($_REQUEST['port']) ? htmlentities($_REQUEST['port']) : '4344');
 
-if(!isset($_POST['settings']))
+$result = null;
+
+if(function_exists('curl_version'))
 {
-	$settings = @file_get_contents("http://{$HOST}:{$PORT}/settings");
+	$curl = curl_init("http://{$HOST}:{$PORT}/settings");
+	curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
 	
-	if($settings !== false)
-		echo(preg_replace('/\s+/',' ',str_replace("\n",'',$settings)));
-	else
+	if(isset($_POST['settings']))
 	{
-		//print_r($http_response_header);
-		echo('{"error": "unable to retrive settings from Thermod, maybe wrong address or daemon down?"}');
+		curl_setopt_array($curl, array
+		(
+			CURLOPT_POST => 1,
+			//CURLOPT_POSTFIELDS => array('settings' => json_encode($_POST['settings'],JSON_NUMERIC_CHECK))
+			CURLOPT_POSTFIELDS => 'settings=' . urlencode(json_encode($_POST['settings'],JSON_NUMERIC_CHECK))
+		));
 	}
+	
+	$result = curl_exec($curl);
+		
+	if($result === false)
+		$result = json_encode(array('error' => curl_error($curl)));
+	
+	curl_close($curl);
 }
 else
-{
-	$postdata = http_build_query(array('settings' => json_encode($_POST['settings'],JSON_NUMERIC_CHECK)));
-	$opts = array
-	(
-		'http' => array
-		(
-			'method'  => 'POST',
-			'header'  => 'Content-type: application/x-www-form-urlencoded',
-			'content' => $postdata
-		)
-	);
-	
-	$context = stream_context_create($opts);
-	$result = @file_get_contents("http://{$HOST}:{$PORT}/settings", false, $context);
-}
+	$result = json_encode(array('error' => 'php-curl extension is not enabled in your web server'));
+		
+echo(preg_replace('/\s+/',' ',str_replace("\n",'',$result)));
 ?>
