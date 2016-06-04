@@ -18,8 +18,10 @@
 		<link href="css/jquery-ui.theme.css" rel="stylesheet">
 		<link href="css/jquery-ui.labeledslider.css" rel="stylesheet">
 		<script>
-			var settings;
+			// thermod settings
+			var settings;  
 
+			// map tmax temperature to 'heating on'
 			function is_on(temp)
 			{
 				if(temp == 'tmax')
@@ -30,29 +32,41 @@
 
 			$(function()
 			{
+				// main objects of the page
 				$('#tabs').tabs();
+				$('#target-status').selectmenu();
 				$('#days').buttonset();
 				$('.hour').button({disabled: true});
 				$('.quarter').button({disabled: true});
 				$('#save').button({disabled: true});
 
+				/*$('#target-status').selectmenu({change: function()
+				{
+					$('#target-status').selectmenu('refresh');
+				}});*/
+
+				$('#target-status').change(function()
+				{
+					// TODO gestire la selezione e il salvataggio dello stato
+					$(this).selectmenu('refresh');
+				});
+
 				$('#days input').change(function()
 				{
-					$('#save').button('option','disabled',false);
+					$('#save').button('option', 'disabled', false);
 
 					var day = $(this).prop('value');
 					for(var hour in settings['timetable'][day])
 					{
-						$('#' + hour).button('option','disabled',false);
+						$('#' + hour).button('option', 'disabled', false);
 						
 						for(quarter=0; quarter<4; quarter++)
 						{
-							$('#' + hour + 'q' + quarter).button('option','disabled',false);
+							$('#' + hour + 'q' + quarter).button('option', 'disabled', false);
 							$('#' + hour + 'q' + quarter).prop('checked',is_on(settings['timetable'][day][hour][quarter])).change();
 						}
 					}
 				});
-
 
 				$('.hour').click(function(event)
 				{
@@ -83,7 +97,7 @@
 								|| $('#' + hour + 'q3').prop('checked'))
 							checked = true;
 
-					$('#' + hour).prop('checked',checked).button('refresh');
+					$('#' + hour).prop('checked', checked).button('refresh');
 				});
 
 				$('.quarter').click(function()
@@ -93,21 +107,95 @@
 					var quarter = $(this).prop('name').substr(4,1);
 					settings['timetable'][day][hour][quarter] = ($(this).prop('checked') ? 'tmax' : 'tmin');
 				});
-				
-				$('#save').click(function(){
-					$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'settings': settings});
-				});
-				
-				/*$('#clear').click(function(){
-					$('#days input:checked').each(function(){ $(this).prop('checked', false).change(); });
-					$('#hours input:checked').each(function(){ $(this).prop('checked', false).change(); });
-				});*/
 
-				$.get('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data){ settings = data; }, 'json');
+				// buttons and dialogs
+				$("#dialog").dialog(
+				{
+					autoOpen: false,
+					modal: true,
+					resizable: false,
+					minWidth: 370,
+					closeOnEscape: true
+				});
+
+				$('#save').click(function()
+				{
+					$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'settings': settings}, function(data)
+					{
+						if(!('error' in data))
+						{
+							$("#dialog").dialog('option', 'title', 'Settings saved');
+							$("#dialog").dialog('option', 'buttons', {'Ok': function() { $(this).dialog('close'); }});
+							$("#dialog").html('<p><span class="ui-icon ui-icon-circle-check" style="float: left; margin: 0.3ex 1ex 2ex 0;"></span>New settings correctly saved!</p>');
+						}
+						else
+						{
+							$("#dialog").dialog('option', 'title', 'Error');
+							$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
+							$("#dialog").html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot save new settings, this is the reported error: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
+						}
+						
+						$("#dialog").dialog('open');
+					},'json');
+				});
+
+				// settings initialization
+				/*$.get('status.php', , {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
+				{
+					if(!('error' in data))
+					{
+						//
+					}
+				},'json');*/
+				
+				$.get('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
+				{
+					if(!('error' in data))
+					{
+						settings = data;
+
+						var status = null;
+						switch(settings['status'])
+						{
+							case 'auto':
+								status = 'Auto';
+								break;
+	
+							case 'on':
+							case 'tmax':this
+								status = 'On';
+								break;
+	
+							case 'off':
+							case 'tmin':
+								status = 'Off';
+								break;
+	
+							case 't0':
+								status = 'Antifreeze';
+								break;
+						}
+
+						$('#target-status option[value=' + settings['status'] + ']').prop('selected', true);
+						$('#target-status').change();
+						$('#status').html(status);
+						$('#<?=strtolower(date('l'));?>').prop('checked', true).change();
+					}
+					else
+					{
+						$('#days').buttonset('option', 'disabled', true);
+						$("#dialog").dialog('option', 'title','Error');
+						$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
+						$("#dialog").html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot retrieve data from Thermod, this is the reported error: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
+						$("#dialog").dialog('open');
+					}
+
+				},'json');
 			});
 		</script>
 		<style>
-			#tabs { font-size: 90%; }
+			#tabs, #settings { font-size: 90%; }
+			#target-status { width: 10em; }
 			#schedule p { margin: 0px 0px 1ex 0px; }
 			#days { margin-bottom: 3ex; }
 			#hours { margin-bottom: 1.5ex; }
@@ -119,18 +207,18 @@
 	<body>
 		<h1>Thermod Web Manager</h1>
 		<div id="settings">
-			<p>Current status: <span id="status">AUTO</span></p>
+			<p>Current status: <span id="status"></span><span id="now"></span></p>
 			<p>Change status to
-				<select name="target-status" id="target-status">
-					<option value="auto" selected="selected">Auto</option>
-					<option value="on">On</option>
-					<option value="off">Off</option>
-					<option value="tmax">t_max</option>
-					<option value="tmin">t_min</option>
-					<option value="t0">t_0</option>
+				<select id="target-status" name="target-status">
+					<option value="auto">Auto</option>
+					<option value="tmax">On</option>
+					<option value="tmin">Off</option>
+					<option value="t0">Antifreeze</option>
 				</select>
 			</p>
 		</div>
+		
+		<div id="dialog"></div>
 		
 		<div id="tabs">
 			<ul>
@@ -171,7 +259,6 @@
 					<p>Save settings</p>
 					<form action="?">
 					<input type="button" id="save" value="Save" />
-					<!--input type="button" id="clear" value="Clear" /-->
 				</div>
 			</div>
 			
