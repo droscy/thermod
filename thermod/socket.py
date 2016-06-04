@@ -24,8 +24,8 @@ from .memento import memento
 from .timetable import TimeTable
 
 __date__ = '2015-11-05'
-__updated__ = '2016-04-25'
-__version__ = '0.6'
+__updated__ = '2016-06-04'
+__version__ = '0.7'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -277,8 +277,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         @see thermod.timetable.TimeTable and its method
         """
         
-        logger.debug('{} received "{} {}" request'
-                     .format(self.client_address, self.command, self.path))
+        logger.info('{} received "{} {}" request'
+                    .format(self.client_address, self.command, self.path))
         
         code = None
         data = None
@@ -290,14 +290,15 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             ctype, pdict = cgi.parse_header(self.headers['Content-Type'])
             
             if ctype == 'multipart/form-data':
+                pdict['boundary'] = bytes(pdict['boundary'], 'utf-8')
                 postvars = cgi.parse_multipart(self.rfile, pdict)
+                postvars = {k: v[0].decode('utf-8') for k,v in postvars.items()}
             elif ctype == 'application/x-www-form-urlencoded':
                 length = int(self.headers['Content-Length'])
                 postvars = parse_qs(self.rfile.read(length), keep_blank_values=1)
+                postvars = {k.decode('utf-8'): v[0].decode('utf-8') for k,v in postvars.items()}
             else:
                 postvars = {}
-            
-            postvars = {k.decode('utf-8'): v[0].decode('utf-8') for k,v in postvars.items()}
             
             logger.debug('{} POST content-type: {}'.format(self.client_address, ctype))
             logger.debug('{} POST variables: {}'.format(self.client_address, postvars))
