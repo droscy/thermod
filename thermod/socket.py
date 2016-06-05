@@ -24,8 +24,8 @@ from .memento import memento
 from .timetable import TimeTable
 
 __date__ = '2015-11-05'
-__updated__ = '2016-06-04'
-__version__ = '0.7'
+__updated__ = '2016-06-05'
+__version__ = '0.8'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -487,9 +487,12 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                 self.server.timetable.grace_time = value
                                 newvalues[var] = self.server.timetable.grace_time
                             else:
-                                raise ValidationError('invalid field `{}` '
-                                                      'in request body'
-                                                      .format(var))
+                                logger.debug('{} invalid field `{}` ignored'
+                                             .format(self.client_address, var))
+                        
+                        # if no settings found in request body rise an error
+                        if len(newvalues) == 0:
+                            raise ValidationError('no valid fields found in request body')
                         
                         # saving changes to filesystem
                         self.server.timetable.save()
