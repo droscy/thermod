@@ -9,14 +9,20 @@ if(function_exists('curl_version'))
 	$curl = curl_init("http://{$HOST}:{$PORT}/settings");
 	curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 	
-	if(isset($_POST['settings']))
+	if($_SERVER['REQUEST_METHOD'] == 'POST')
 	{
-		curl_setopt_array($curl, array
-		(
-			CURLOPT_POST => true,
-			CURLOPT_POSTFIELDS => array('settings' => json_encode($_POST['settings'], JSON_NUMERIC_CHECK))  // multipart/form-data
-			//CURLOPT_POSTFIELDS => 'settings=' . curl_escape($curl,json_encode($_POST['settings'], JSON_NUMERIC_CHECK))  // application/x-www-form-urlencoded
-		));
+		curl_setopt($curl, CURLOPT_POST, true);
+		
+		if(isset($_POST['settings']))
+		{
+			// multipart/form-data
+			curl_setopt($curl, CURLOPT_POSTFIELDS, array('settings' => json_encode($_POST['settings'], JSON_NUMERIC_CHECK)));
+			
+			// application/x-www-form-urlencoded
+			//curl_setopt($curl, CURLOPT_POSTFIELDS , 'settings=' . curl_escape($curl,json_encode($_POST['settings'], JSON_NUMERIC_CHECK)));
+		}
+		else
+			curl_setopt($curl, CURLOPT_POSTFIELDS, $_POST);
 	}
 	
 	$settings = curl_exec($curl);
