@@ -39,10 +39,9 @@
 				{
 					if(!('error' in data))
 					{
-						// TODO non elabora quando siamo in Off e thermod ritorna -Infinity sulla target-temp
 						$('#current-status').prop('value', (data['status']==1 ? 'On' : 'Off'));
 						$('#current-temperature').prop('value', data['temperature'].toPrecision(4));
-						$('#target-temperature').prop('value', data['target'].toPrecision(4));
+						$('#target-temperature').prop('value', (data['target'] ? data['target'].toPrecision(4) : 'n.a.'));
 					}
 					else
 					{

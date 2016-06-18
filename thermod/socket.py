@@ -24,8 +24,8 @@ from .memento import memento
 from .timetable import TimeTable
 
 __date__ = '2015-11-05'
-__updated__ = '2016-06-05'
-__version__ = '0.8'
+__updated__ = '2016-06-18'
+__version__ = '0.9'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -203,7 +203,9 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 last_updt = time.time()
                 heating = {req_heating_status: timetable.heating.status(),
                            req_heating_temperature: timetable.thermometer.temperature,
-                           req_heating_target_temp: timetable.target_temperature()}
+                           req_heating_target_temp: (timetable.target_temperature()
+                                                     if abs(timetable.target_temperature()) != float('+Inf')
+                                                     else None)}
                 
             data = self._send_header(200, data=heating, last_modified=last_updt)
             
