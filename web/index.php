@@ -32,7 +32,7 @@
 				$('#spinner-back').addClass('ui-widget-overlay');
 			}
 
-			// hide spinner for long operations
+			// hide spinner
 			function stop_loading()
 			{
 				$('body').removeClass('loading');
@@ -57,8 +57,8 @@
 						var target = data['target'];
 						
 						$('#current-status').prop('value', (data['status']==1 ? 'On' : 'Off'));
-						$('#current-temperature').prop('value', (curr > 9 ? curr.toPrecision(4) : curr.toPrecision(3)));
-						$('#target-temperature').prop('value', (target ? (target > 9 ? target.toPrecision(4) : target.toPrecision(3)) : 'n.a.'));
+						$('#current-temperature').prop('value', data['temperature'].toFixed(2));
+						$('#target-temperature').prop('value', (data['target'] ? data['target'].toFixed(2) : 'n.a.'));
 					}
 					else
 					{
@@ -68,6 +68,51 @@
 						$('#target-temperature').prop('value', 'n.a.');
 					}
 				},'json');
+			}
+
+			// event 'slide' of slider
+			function slider_slide(event, ui)
+			{
+				var precision;
+				var tname = $(this).attr('id').substr(7);
+
+				switch(tname)
+				{
+					case 'grace-time':
+						precision = 0;
+						break;
+					
+					default:
+						precision = 1;
+				}
+
+				$('#' + tname).prop('value', ui.value.toFixed(precision));
+			}
+
+			// event 'change' of slider
+			function slider_change(event, ui)
+			{
+				var tname = $(this).attr('id').substr(7);
+
+				switch(tname)
+				{
+					case 'tmax':
+					case 'tmin':
+					case 't0':
+						settings['temperatures'][tname] = ui.value;
+						break;
+
+					case 'grace-time':
+						if(ui.value == 0)
+							settings['grace_time'] = null;
+						else
+							settings['grace_time'] = ui.value * 60;
+						break;
+
+					case 'differential':
+						settings['differential'] = ui.value;
+						break;
+				}
 			}
 
 			$(function()
@@ -108,19 +153,29 @@
 					min: 0.0,
 					max: 30.0,
 					step: 0.1,
-					slide: function(event, ui)
-					{
-						var tname = $(this).attr('id').substr(7);
-						$('#' + tname).prop('value', (ui.value > 9 ? ui.value.toPrecision(4) : ui.value.toPrecision(3)));
-					},
-					change: function(event, ui)
-					{
-						var tname = $(this).attr('id').substr(7);
-						settings['temperatures'][tname] = ui.value;
-					}
+					slide: slider_slide,
+					change: slider_change
 				});
 
-				$('.tinput').change(function()
+				$('.dslider').slider({
+					range: 'min',
+					min: 0.0,
+					max: 1.0,
+					step: 0.1,
+					slide: slider_slide,
+					change: slider_change
+				});
+
+				$('.gslider').slider({
+					range: 'min',
+					min: 0,
+					max: 120,
+					step: 5,
+					slide: slider_slide,
+					change: slider_change
+				});
+
+				$('.slider-input').change(function()
 				{
 					var name = $(this).prop('name');
 					var temp = $(this).prop('value');
@@ -235,17 +290,19 @@
 						update_status_menu();
 						$('#<?=strtolower(date('l'));?>').prop('checked', true).change();
 
-						var tmax = settings['temperatures']['tmax'];
-						var tmin = settings['temperatures']['tmin'];
-						var t0 = settings['temperatures']['t0'];
+						$('#tmax').prop('value', settings['temperatures']['tmax'].toFixed(1));
+						$('#tmin').prop('value', settings['temperatures']['tmin'].toFixed(1));
+						$('#t0').prop('value', settings['temperatures']['t0'].toFixed(1));
+						$('#differential').prop('value', settings['differential'].toFixed(1));
 
-						$('#tmax').prop('value', (tmax > 9 ? tmax.toPrecision(4) : tmax.toPrecision(3)));
-						$('#tmin').prop('value', (tmin > 9 ? tmin.toPrecision(4) : tmin.toPrecision(3)));
-						$('#t0').prop('value', (t0 > 9 ? t0.toPrecision(4) : t0.toPrecision(3)));
+						$('#slider-tmax').slider('option', 'value', settings['temperatures']['tmax']);
+						$('#slider-tmin').slider('option', 'value', settings['temperatures']['tmin']);
+						$('#slider-t0').slider('option', 'value', settings['temperatures']['t0']);
+						$('#slider-differential').slider('option', 'value', settings['differential']);
 
-						$('#slider-tmax').slider('option', 'value', tmax);
-						$('#slider-tmin').slider('option', 'value', tmin);
-						$('#slider-t0').slider('option', 'value', t0);
+						var grace = settings['grace_time'] ? settings['grace_time']/60 : 0;
+						$('#grace-time').prop('value', grace.toFixed(0));
+						$('#slider-grace-time').slider('option', 'value', grace);
 					}
 					else
 					{
@@ -304,10 +361,11 @@
 			.quarters-box { font-size: 60%; margin: 0.2ex; }
 			
 			/* settings */
-			.tslider { float: left; min-width: 100px; max-width: 400px; margin: 0.5ex 2ex 0px 2ex; } /* TODO cercare di disegnare la slider alla massima lunghezza possibile */
-			.tlabel { float: left; width: 9ex; text-align: right; margin: 0px 1ex 0px 0px; }
-			.tinput { float: left; text-align: center; }
-			.tslider-container { clear: both; padding-bottom: 5ex; margin-left: 1em; }
+			.slider-container { clear: both; padding-bottom: 5ex; margin-left: 1em; }
+			.slider-label { float: left; width: 9ex; text-align: right; margin: 0px 1ex 0px 0px; }
+			.slider-input { float: left; text-align: center; }
+			.tslider, .dslider, .gslider { float: left; min-width: 100px; max-width: 400px; margin: 0.5ex 2ex 0px 2ex; } /* TODO cercare di disegnare la slider alla massima lunghezza possibile */
+			
 			
 			/* save */
 			#buttons { font-size: 90%; padding: 1em 1.4em; background: #eee; margin-top: 1em; }
@@ -395,36 +453,36 @@
 
 			<div id="settings">
 				<p>Set temperatures</p>
-				<div class="tslider-container">
-					<label class="tlabel" for="tmax">Max</label>
-					<input class="tinput" type="text" id="tmax" name="tmax" size="5" />
+				<div class="slider-container">
+					<label class="slider-label" for="tmax">Max</label>
+					<input class="slider-input" type="text" id="tmax" name="tmax" size="5" />
 					<div class="tslider" id="slider-tmax"></div>
 				</div>
 				
-				<div class="tslider-container">
-					<label class="tlabel" for="tmin">Min</label>
-					<input class="tinput" type="text" id="tmin" name="tmin" size="5" />
+				<div class="slider-container">
+					<label class="slider-label" for="tmin">Min</label>
+					<input class="slider-input" type="text" id="tmin" name="tmin" size="5" />
 					<div class="tslider" id="slider-tmin"></div>
 				</div>
 				
-				<div class="tslider-container">
-					<label class="tlabel" for="t0">Antifreeze</label>
-					<input class="tinput" type="text" id="t0" name="t0" size="5" />
+				<div class="slider-container">
+					<label class="slider-label" for="t0">Antifreeze</label>
+					<input class="slider-input" type="text" id="t0" name="t0" size="5" />
 					<div class="tslider" id="slider-t0"></div>
 				</div>
 				
 				<p>Set other settings</p>
 				
-				<div class="tslider-container">
-					<label class="tlabel" for="diff">Differential</label>
-					<input class="tinput" type="text" id="diff" name="diff" size="5" />
-					<div class="tslider" id="slider-diff"></div>
+				<div class="slider-container">
+					<label class="slider-label" for="differential">Differential</label>
+					<input class="slider-input" type="text" id="differential" name="differential" size="5" />
+					<div class="dslider" id="slider-differential"></div>
 				</div>
 				
-				<div class="tslider-container">
-					<label class="tlabel" for="grace">Grace time</label>
-					<input class="tinput" type="text" id="grace" name="grace" size="5" />
-					<div class="tslider" id="slider-grace"></div>
+				<div class="slider-container">
+					<label class="slider-label" for="grace-time">Grace time</label>
+					<input class="slider-input" type="text" id="grace-time" name="grace-time" size="5" />
+					<div class="gslider" id="slider-grace-time"></div>
 				</div>
 			</div>
 		</div>

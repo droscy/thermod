@@ -4,6 +4,7 @@
 import cgi
 import sys
 import json
+import math
 import logging
 import time
 from threading import Thread
@@ -24,8 +25,8 @@ from .memento import memento
 from .timetable import TimeTable
 
 __date__ = '2015-11-05'
-__updated__ = '2016-06-18'
-__version__ = '0.9'
+__updated__ = '2016-06-19'
+__version__ = '0.10'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -201,11 +202,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
             with timetable.lock:
                 last_updt = time.time()
+                targett = timetable.target_temperature()
                 heating = {req_heating_status: timetable.heating.status(),
                            req_heating_temperature: timetable.thermometer.temperature,
-                           req_heating_target_temp: (timetable.target_temperature()
-                                                     if abs(timetable.target_temperature()) != float('+Inf')
-                                                     else None)}
+                           req_heating_target_temp: (targett if math.isfinite(targett) else None)}
                 
             data = self._send_header(200, data=heating, last_modified=last_updt)
             

@@ -8,7 +8,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-06-02'
+__updated__ = '2016-06-19'
 
 
 # config module logger
@@ -244,7 +244,7 @@ json_schema = {
         'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
         'grace_time': {'anyOf': [{'type': 'number', 'minimum': 0},
-                                 {'type': 'string', 'pattern': '[+]?[Ii][Nn][Ff]'}]},
+                                 {'type': 'string', 'pattern': '[+]?[Ii][Nn][Ff]([Ii][Nn][Ii][Tt][Ii])?'}]},
         'temperatures': {
             'type': 'object',
             'properties': {
@@ -322,10 +322,8 @@ def is_valid_temperature(temperature):
         except:
             result = False
         else:
-            if not math.isinf(t) and not math.isnan(t):
-                result = True
-            else:
-                result = False
+            # is valid any real number
+            result = math.isfinite(t)
 
     return result
 
