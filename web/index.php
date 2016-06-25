@@ -8,10 +8,10 @@
 	<head>
 		<meta charset="utf-8">
 		<title>Thermod Web Manager</title>
-		<script src="js/jquery.js"></script>
-		<script src="js/jquery-ui.js"></script>
-		<link href="css/jquery-ui.css" rel="stylesheet">
-		<link href="css/jquery-ui.theme.css" rel="stylesheet">
+		<script language="javascript" type="text/javascript" src="/javascript/jquery/jquery.js"></script>
+		<script language="javascript" type="text/javascript" src="/javascript/jquery-ui/jquery-ui.js"></script>
+		<link type="text/css" href="/javascript/jquery-ui/css/smoothness/jquery-ui.css" rel="stylesheet" />
+		<link type="text/css" href="/javascript/jquery-ui/themes/base/jquery.ui.all.css" rel="stylesheet" />
 		<script>
 			// thermod settings
 			var settings;  
@@ -39,11 +39,40 @@
 				$('#spinner-back').removeClass('ui-widget-overlay');
 			}
 
-			// update the selectmenu of current status
-			function update_status_menu()
+			// refresh the selectmenu of target status
+			function target_status_refresh()
 			{
 				$('#target-status option[value=' + settings['status'] + ']').prop('selected', true);
-				$('#target-status').selectmenu('refresh');
+
+				if($.ui.version >= '1.11')
+					$('#target-status').selectmenu('refresh');
+			}
+
+			// handle the change event of target status
+			function target_status_change(event, ui)
+			{
+					var target_status = $('#target-status option:selected').prop('value');
+
+					$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'status': target_status}, function(data)
+					{
+						if(!('error' in data))
+						{
+							settings['status'] = target_status;
+							get_heating_status_and_refresh();
+						}
+						else
+						{
+							var error = (('explain' in data) ? data['explain'] : data['error']);
+							$("#dialog").dialog('option', 'title', 'Cannot change status');
+							$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
+							$("#dialog").html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot change status: <em>&quot;' + error + '&quot;</em>.</p>');
+
+							stop_loading();
+							$("#dialog").dialog('open');
+							target_status_refresh();
+						}
+					},'json');
+
 			}
 
 			// retrieve heating status from daemon and refresh header web page
@@ -70,7 +99,7 @@
 				},'json');
 			}
 
-			// event 'slide' of slider
+			// handle 'slide' event of slider
 			function slider_slide(event, ui)
 			{
 				var precision;
@@ -89,7 +118,7 @@
 				$('#' + tname).prop('value', ui.value.toFixed(precision));
 			}
 
-			// event 'change' of slider
+			// handle 'change' event of slider
 			function slider_change(event, ui)
 			{
 				var tname = $(this).attr('id').substr(7);
@@ -118,37 +147,18 @@
 			$(function()
 			{
 				// main objects of the page
-				$('#target-status').selectmenu({change: function(event, ui)
-				{
-					var target_status = $('#target-status option:selected').prop('value');
-					
-					$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'status': target_status}, function(data)
-					{
-						if(!('error' in data))
-						{
-							settings['status'] = target_status;
-							get_heating_status_and_refresh();
-						}
-						else
-						{
-							var error = (('explain' in data) ? data['explain'] : data['error']);
-							$("#dialog").dialog('option', 'title', 'Cannot change status');
-							$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-							$("#dialog").html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot change status: <em>&quot;' + error + '&quot;</em>.</p>');
-
-							stop_loading();
-							$("#dialog").dialog('open');
-							update_status_menu();
-						}
-					},'json');
-				}});
+				if($.ui.version >= '1.11')
+					$('#target-status').selectmenu({change: target_status_change});
+				else
+					$('#target-status').change(target_status_change);
 
 				$('#tabs').tabs();
 				$('#days').buttonset();
 				$('.hour').button({disabled: true});
 				$('.quarter').button({disabled: true});
 
-				$('.tslider').slider({
+				$('.tslider').slider(
+				{
 					range: 'min',
 					min: 0.0,
 					max: 30.0,
@@ -157,7 +167,8 @@
 					change: slider_change
 				});
 
-				$('.dslider').slider({
+				$('.dslider').slider(
+				{
 					range: 'min',
 					min: 0.0,
 					max: 1.0,
@@ -166,7 +177,8 @@
 					change: slider_change
 				});
 
-				$('.gslider').slider({
+				$('.gslider').slider(
+				{
 					range: 'min',
 					min: 0,
 					max: 120,
@@ -287,7 +299,7 @@
 					if(!('error' in data))
 					{
 						settings = data;
-						update_status_menu();
+						target_status_refresh();
 						$('#<?=strtolower(date('l'));?>').prop('checked', true).change();
 
 						$('#tmax').prop('value', settings['temperatures']['tmax'].toFixed(1));
@@ -329,7 +341,7 @@
 				left: 0;
 				height: 100%;
 				width: 100%;
-				background: url('css/images/spinner_ef8c08.gif') 50% 50% no-repeat;
+				background: url('css/images/spinner.gif') 50% 50% no-repeat;
 				/*opacity: .8;
 				filter: Alpha(Opacity=80); /* support: IE8 */
 			}
@@ -358,7 +370,7 @@
 			#days { margin-bottom: 3ex; }
 			#hours { margin-bottom: 1.5ex; }
 			.hour-box { float: left; text-align: center; margin-bottom: 1.5ex; width: 4.8em; }
-			.quarters-box { font-size: 60%; margin: 0.2ex; }
+			.quarters-box { font-size: 58%; margin: 0.2ex; }
 			
 			/* settings */
 			.slider-container { clear: both; padding-bottom: 5ex; margin-left: 1em; }
