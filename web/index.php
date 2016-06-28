@@ -16,7 +16,7 @@
 			// thermod settings
 			var settings;  
 
-			// map tmax temperature to 'heating on'
+			// map tmax temperature to 'heating on' in hours/quarters buttons
 			function is_on(temp)
 			{
 				if(temp == 'tmax')
@@ -25,18 +25,18 @@
 					return false;
 			}
 
-			// show spinner for long operations
+			// show loding wheel for long operations
 			function start_loading()
 			{
 				$('body').addClass('loading');
-				$('#spinner-back').addClass('ui-widget-overlay');
+				$('#loading-back').addClass('ui-widget-overlay');
 			}
 
-			// hide spinner
+			// hide loding wheel
 			function stop_loading()
 			{
 				$('body').removeClass('loading');
-				$('#spinner-back').removeClass('ui-widget-overlay');
+				$('#loading-back').removeClass('ui-widget-overlay');
 			}
 
 			// refresh the selectmenu of target status
@@ -51,27 +51,27 @@
 			// handle the change event of target status
 			function target_status_change(event, ui)
 			{
-					var target_status = $('#target-status option:selected').prop('value');
+				var target_status = $('#target-status option:selected').prop('value');
 
-					$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'status': target_status}, function(data)
+				$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'status': target_status}, function(data)
+				{
+					if(!('error' in data))
 					{
-						if(!('error' in data))
-						{
-							settings['status'] = target_status;
-							get_heating_status_and_refresh();
-						}
-						else
-						{
-							var error = (('explain' in data) ? data['explain'] : data['error']);
-							$("#dialog").dialog('option', 'title', 'Cannot change status');
-							$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-							$("#dialog").html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot change status: <em>&quot;' + error + '&quot;</em>.</p>');
+						settings['status'] = target_status;
+						get_heating_status_and_refresh();
+					}
+					else
+					{
+						var error = (('explain' in data) ? data['explain'] : data['error']);
+						$('#dialog').dialog('option', 'title', 'Cannot change status');
+						$('#dialog').dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
+						$('#dialog').html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot change status: <em>&quot;' + error + '&quot;</em>.</p>');
 
-							stop_loading();
-							$("#dialog").dialog('open');
-							target_status_refresh();
-						}
-					},'json');
+						stop_loading();
+						$('#dialog').dialog('open');
+						target_status_refresh();
+					}
+				},'json');
 
 			}
 
@@ -91,10 +91,16 @@
 					}
 					else
 					{
-						stop_loading();
 						$('#current-status').prop('value', 'n.a.');
 						$('#current-temperature').prop('value', 'n.a.');
 						$('#target-temperature').prop('value', 'n.a.');
+
+						$('#dialog').dialog('option', 'title', 'Cannot get current status');
+						$('#dialog').dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
+						$('#dialog').html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot get current temperature and heating status: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
+
+						stop_loading();
+						$('#dialog').dialog('open');
 					}
 				},'json');
 			}
@@ -148,51 +154,44 @@
 			{
 				// main objects of the page
 				if($.ui.version >= '1.11')
-					$('#target-status').selectmenu({change: target_status_change});
+					$('#target-status').selectmenu({disabled: true, change: target_status_change});
 				else
+				{
+					$('#target-status').prop('disabled', true);
 					$('#target-status').change(target_status_change);
+				}
 
 				$('#tabs').tabs();
-				$('#days').buttonset();
+				$('#days').buttonset({disabled: true});
 				$('.hour').button({disabled: true});
 				$('.quarter').button({disabled: true});
 
-				$('.tslider').slider(
+				$('.set-temperatures').spinner(
 				{
-					range: 'min',
-					min: 0.0,
-					max: 30.0,
-					step: 0.1,
-					slide: slider_slide,
-					change: slider_change
-				});
-
-				$('.dslider').slider(
-				{
-					range: 'min',
-					min: 0.0,
-					max: 1.0,
-					step: 0.1,
-					slide: slider_slide,
-					change: slider_change
-				});
-
-				$('.gslider').slider(
-				{
-					range: 'min',
+					disabled: true,
+					max: 30,
 					min: 0,
-					max: 120,
-					step: 5,
-					slide: slider_slide,
-					change: slider_change
+					step: 0.1,
+					page: 5,
+					change: function(){ var val = Number($(this).prop('value')); $(this).prop('value', val.toFixed(1));}
 				});
 
-				$('.slider-input').change(function()
+				$('#differential').spinner(
 				{
-					var name = $(this).prop('name');
-					var temp = $(this).prop('value');
+					disabled: true,
+					max: 1,
+					min: 0,
+					step: 0.1,
+					page: 0.1
+				});
 
-					$('#slider-' + name).slider('option', 'value', temp);
+				$('#grace-time').spinner(
+				{
+					disabled: true,
+					max: 120,
+					min: 0,
+					step: 1,
+					page: 10
 				});
 				
 				$('#save').button({disabled: true});
@@ -202,23 +201,23 @@
 					autoOpen: false,
 					modal: true,
 					resizable: false,
-					minWidth: 370,
+					//minWidth: 250,
 					closeOnEscape: true
 				});
 
 				// bind events
 				$('#days input').change(function()
 				{
-					$('#save').button('option', 'disabled', false);
+					//$('#save').button('option', 'disabled', false);
 
 					var day = $(this).prop('value');
 					for(var hour in settings['timetable'][day])
 					{
-						$('#' + hour).button('option', 'disabled', false);
+						//$('#' + hour).button('option', 'disabled', false);
 						
 						for(quarter=0; quarter<4; quarter++)
 						{
-							$('#' + hour + 'q' + quarter).button('option', 'disabled', false);
+							//$('#' + hour + 'q' + quarter).button('option', 'disabled', false);
 							$('#' + hour + 'q' + quarter).prop('checked',is_on(settings['timetable'][day][hour][quarter])).change();
 						}
 					}
@@ -298,6 +297,7 @@
 				{
 					if(!('error' in data))
 					{
+						// refresh values
 						settings = data;
 						target_status_refresh();
 						$('#<?=strtolower(date('l'));?>').prop('checked', true).change();
@@ -307,20 +307,30 @@
 						$('#t0').prop('value', settings['temperatures']['t0'].toFixed(1));
 						$('#differential').prop('value', settings['differential'].toFixed(1));
 
-						$('#slider-tmax').slider('option', 'value', settings['temperatures']['tmax']);
-						$('#slider-tmin').slider('option', 'value', settings['temperatures']['tmin']);
-						$('#slider-t0').slider('option', 'value', settings['temperatures']['t0']);
-						$('#slider-differential').slider('option', 'value', settings['differential']);
-
 						var grace = settings['grace_time'] ? settings['grace_time']/60 : 0;
 						$('#grace-time').prop('value', grace.toFixed(0));
-						$('#slider-grace-time').slider('option', 'value', grace);
+
+						// enable objects
+						$('#target-status').prop('disabled', true);
+						$('#days').buttonset('option', 'disabled', false);
+						$('.hour').button('option', 'disabled', false);
+						$('.quarter').button('option', 'disabled', false);
+						$('.set-temperatures').spinner('option', 'disabled', false);
+						$('#differential').spinner('option', 'disabled', false);
+						$('#grace-time').spinner('option', 'disabled', false);
+						$('#save').button('option', 'disabled', false);
+
+
+						if($.ui.version >= '1.11')
+							$('#target-status').selectmenu('option', 'disabled', true);
+						else
+							$('#target-status').prop('disabled', false);
 					}
 					else
 					{
 						stop_loading();
-						$('#days').buttonset('option', 'disabled', true);
-						$("#dialog").dialog('option', 'title','Error');
+						$('#days').buttonset('option', 'disabled', true); // TODO capire come mai questo comando serve
+						$("#dialog").dialog('option', 'title', 'Error');
 						$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
 						$("#dialog").html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot retrieve data from Thermod, this is the reported error: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
 						$("#dialog").dialog('open');
@@ -332,8 +342,11 @@
 		</script>
 		<style>
 			/* global */
-			#spinner { display: none; }
-			#spinner-img
+			h1 { font-size: 130%; margin: 0.5ex 0;}
+			.ui-dialog { font-size: 90%; }
+			
+			#loading { display: none; }
+			#loading-img
 			{
 				position: fixed;
 				z-index: 1000;
@@ -341,13 +354,13 @@
 				left: 0;
 				height: 100%;
 				width: 100%;
-				background: url('css/images/spinner.gif') 50% 50% no-repeat;
+				background: url('images/wheel.gif') 50% 50% no-repeat;
 				/*opacity: .8;
 				filter: Alpha(Opacity=80); /* support: IE8 */
 			}
 			
 			body.loading { overflow: hidden; }
-			body.loading #spinner { display: block; }
+			body.loading #loading { display: block; }
 			
 			.clearer { clear: both; }
 			
@@ -358,7 +371,7 @@
 			#main ul li input { cursor: default; }
 			
 			#target-status { width: 9.8em; }
-			#target-status-button { margin-top: 0.3ex; }
+			/*#target-status-button { margin-top: 0.3ex; }*/
 			#current-status { width: 4em; margin-top: 0.3ex; }
 			#current-temperature { width: 4em; margin-top: 0.3ex; }
 			#target-temperature { width: 4em; margin-top: 0.3ex; }
@@ -366,22 +379,24 @@
 			#tabs { font-size: 90%; margin-top: 1em; }
 			
 			/* schedule */
-			#schedule p { margin: 0px 0px 1ex 0px; }
+			#schedule p { margin: 0 0 1ex 0; }
 			#days { margin-bottom: 3ex; }
 			#hours { margin-bottom: 1.5ex; }
 			.hour-box { float: left; text-align: center; margin-bottom: 1.5ex; width: 4.8em; }
 			.quarters-box { font-size: 58%; margin: 0.2ex; }
 			
 			/* settings */
-			.slider-container { clear: both; padding-bottom: 5ex; margin-left: 1em; }
-			.slider-label { float: left; width: 9ex; text-align: right; margin: 0px 1ex 0px 0px; }
-			.slider-input { float: left; text-align: center; }
-			.tslider, .dslider, .gslider { float: left; min-width: 100px; max-width: 400px; margin: 0.5ex 2ex 0px 2ex; } /* TODO cercare di disegnare la slider alla massima lunghezza possibile */
-			
+			#settings p { margin: 0 0 1.2ex 0; }
+			#settings ul { list-style-type: none; padding-left: 20px; }
+			#settings ul li { margin-bottom: 0.8ex; }
+			#settings ul li label { float: left; width: 10ex; text-align: right; margin: 0.5ex 1ex 0 0; }
+			#temperature-settings { margin: 0 0 2em 0; }
+			#other-settings { margin: 0; }
+			.set-temperatures, .set-other { float: left; text-align: center; }
 			
 			/* save */
 			#buttons { font-size: 90%; padding: 1em 1.4em; background: #eee; margin-top: 1em; }
-			#buttons p { margin: 0px 0px 1ex 0px; }
+			#buttons p { margin: 0 0 1ex 0; }
 		</style>
 	</head>
 	<body>
@@ -416,9 +431,9 @@
 		</div>
 
 		<div id="dialog"></div>
-		<div id="spinner">
-			<div id="spinner-img"></div>
-			<div id="spinner-back" class="ui-front"></div>
+		<div id="loading">
+			<div id="loading-img"></div>
+			<div id="loading-back" class="ui-front"></div>
 		</div>
 
 		<div id="tabs">
@@ -455,47 +470,21 @@
 					<?php endfor; ?>
 					<div class="clearer"></div>
 				</div>
-
-				<!--div id="buttons">
-					<p>Save settings</p>
-					<form action="?">
-					<input type="button" id="save" value="Save" />
-				</div-->
 			</div>
 
 			<div id="settings">
 				<p>Set temperatures</p>
-				<div class="slider-container">
-					<label class="slider-label" for="tmax">Max</label>
-					<input class="slider-input" type="text" id="tmax" name="tmax" size="5" />
-					<div class="tslider" id="slider-tmax"></div>
-				</div>
-				
-				<div class="slider-container">
-					<label class="slider-label" for="tmin">Min</label>
-					<input class="slider-input" type="text" id="tmin" name="tmin" size="5" />
-					<div class="tslider" id="slider-tmin"></div>
-				</div>
-				
-				<div class="slider-container">
-					<label class="slider-label" for="t0">Antifreeze</label>
-					<input class="slider-input" type="text" id="t0" name="t0" size="5" />
-					<div class="tslider" id="slider-t0"></div>
-				</div>
+				<ul id="temperature-settings">
+					<li><label for="tmax">Max</label> <input class="set-temperatures" type="text" id="tmax" name="tmax" size="4" /> degrees</li>
+					<li><label for="tmin">Min</label> <input class="set-temperatures" type="text" id="tmin" name="tmin" size="4" /> degrees</li>
+					<li><label for="t0">Antifreeze</label> <input class="set-temperatures" type="text" id="t0" name="t0" size="4" /> degrees</li>
+				</ul>
 				
 				<p>Set other settings</p>
-				
-				<div class="slider-container">
-					<label class="slider-label" for="differential">Differential</label>
-					<input class="slider-input" type="text" id="differential" name="differential" size="5" />
-					<div class="dslider" id="slider-differential"></div>
-				</div>
-				
-				<div class="slider-container">
-					<label class="slider-label" for="grace-time">Grace time</label>
-					<input class="slider-input" type="text" id="grace-time" name="grace-time" size="5" />
-					<div class="gslider" id="slider-grace-time"></div>
-				</div>
+				<ul id="other-settings">
+					<li><label for="differential">Differential</label> <input class="set-other" type="text" id="differential" name="differential" size="4" /> degrees</li>
+					<li><label for="grace-time">Grace time</label> <input class="set-other" type="text" id="grace-time" name="grace-time" size="4" /> minutes</li>
+				</ul>
 			</div>
 		</div>
 
