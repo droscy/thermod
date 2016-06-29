@@ -1,5 +1,5 @@
 <?php
-	// hostname (or IP address) and port on which Thermod is listening
+	// hostname (or IP address) and port which Thermod is listening on
 	$HOST = 'localhost';
 	$PORT = '4344';
 ?>
@@ -25,14 +25,14 @@
 					return false;
 			}
 
-			// show loding wheel for long operations
+			// show loading wheel for long operations
 			function start_loading()
 			{
 				$('body').addClass('loading');
 				$('#loading-back').addClass('ui-widget-overlay');
 			}
 
-			// hide loding wheel
+			// hide loading wheel
 			function stop_loading()
 			{
 				$('body').removeClass('loading');
@@ -65,7 +65,7 @@
 						var error = (('explain' in data) ? data['explain'] : data['error']);
 						$('#dialog').dialog('option', 'title', 'Cannot change status');
 						$('#dialog').dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-						$('#dialog').html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot change status: <em>&quot;' + error + '&quot;</em>.</p>');
+						$('#dialog').html('<p><span class="ui-icon ui-icon-alert"></span>Cannot change status: <em>&quot;' + error + '&quot;</em>.</p>');
 
 						stop_loading();
 						$('#dialog').dialog('open');
@@ -95,59 +95,15 @@
 						$('#current-temperature').prop('value', 'n.a.');
 						$('#target-temperature').prop('value', 'n.a.');
 
+						var error = (('explain' in data) ? data['explain'] : data['error']);
 						$('#dialog').dialog('option', 'title', 'Cannot get current status');
 						$('#dialog').dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-						$('#dialog').html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot get current temperature and heating status: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
+						$('#dialog').html('<p><span class="ui-icon ui-icon-alert"></span>Cannot get current temperature and heating status: <em>&quot;' + error + '&quot;</em>.</p>');
 
 						stop_loading();
 						$('#dialog').dialog('open');
 					}
 				},'json');
-			}
-
-			// handle 'slide' event of slider
-			function slider_slide(event, ui)
-			{
-				var precision;
-				var tname = $(this).attr('id').substr(7);
-
-				switch(tname)
-				{
-					case 'grace-time':
-						precision = 0;
-						break;
-					
-					default:
-						precision = 1;
-				}
-
-				$('#' + tname).prop('value', ui.value.toFixed(precision));
-			}
-
-			// handle 'change' event of slider
-			function slider_change(event, ui)
-			{
-				var tname = $(this).attr('id').substr(7);
-
-				switch(tname)
-				{
-					case 'tmax':
-					case 'tmin':
-					case 't0':
-						settings['temperatures'][tname] = ui.value;
-						break;
-
-					case 'grace-time':
-						if(ui.value == 0)
-							settings['grace_time'] = null;
-						else
-							settings['grace_time'] = ui.value * 60;
-						break;
-
-					case 'differential':
-						settings['differential'] = ui.value;
-						break;
-				}
 			}
 
 			$(function()
@@ -208,19 +164,10 @@
 				// bind events
 				$('#days input').change(function()
 				{
-					//$('#save').button('option', 'disabled', false);
-
 					var day = $(this).prop('value');
 					for(var hour in settings['timetable'][day])
-					{
-						//$('#' + hour).button('option', 'disabled', false);
-						
 						for(quarter=0; quarter<4; quarter++)
-						{
-							//$('#' + hour + 'q' + quarter).button('option', 'disabled', false);
-							$('#' + hour + 'q' + quarter).prop('checked',is_on(settings['timetable'][day][hour][quarter])).change();
-						}
-					}
+							$('#' + hour + 'q' + quarter).prop('checked', is_on(settings['timetable'][day][hour][quarter])).change();
 				});
 
 				$('.hour').click(function(event)
@@ -271,14 +218,15 @@
 						{
 							$("#dialog").dialog('option', 'title', 'Settings saved');
 							$("#dialog").dialog('option', 'buttons', {'Ok': function() { $(this).dialog('close'); }});
-							$("#dialog").html('<p><span class="ui-icon ui-icon-circle-check" style="float: left; margin: 0.3ex 1ex 2ex 0;"></span>New settings correctly saved!</p>');
+							$("#dialog").html('<p><span class="ui-icon ui-icon-circle-check"></span>New settings correctly saved!</p>');
 							get_heating_status_and_refresh();
 						}
 						else
 						{
+							var error = (('explain' in data) ? data['explain'] : data['error']);
 							$("#dialog").dialog('option', 'title', 'Cannot save settings');
 							$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-							$("#dialog").html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot save new settings, this is the reported error: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
+							$("#dialog").html('<p><span class="ui-icon ui-icon-alert"></span>Cannot save new settings: <em>&quot;' + error + '&quot;</em>.</p>');
 
 							// TODO forse il dialog di OK si può non mostrare e mostrare solo quello di errore
 							//stop_loading();
@@ -320,7 +268,6 @@
 						$('#grace-time').spinner('option', 'disabled', false);
 						$('#save').button('option', 'disabled', false);
 
-
 						if($.ui.version >= '1.11')
 							$('#target-status').selectmenu('option', 'disabled', true);
 						else
@@ -328,11 +275,13 @@
 					}
 					else
 					{
-						stop_loading();
+						var error = (('explain' in data) ? data['explain'] : data['error']);
 						$('#days').buttonset('option', 'disabled', true); // TODO capire come mai questo comando serve
 						$("#dialog").dialog('option', 'title', 'Error');
 						$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-						$("#dialog").html('<p><span class="ui-icon ui-icon-alert" style="float: left; margin: 0.3ex 1ex 7ex 0;"></span>Cannot retrieve data from Thermod, this is the reported error: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
+						$("#dialog").html('<p><span class="ui-icon ui-icon-alert"></span>Cannot retrieve data from Thermod: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
+
+						stop_loading();
 						$("#dialog").dialog('open');
 					}
 				},'json');
@@ -344,6 +293,7 @@
 			/* global */
 			h1 { font-size: 130%; margin: 0.5ex 0;}
 			.ui-dialog { font-size: 90%; }
+			.ui-icon { float: left; margin: 0.3ex 1ex 7ex 0; }
 			
 			#loading { display: none; }
 			#loading-img

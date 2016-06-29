@@ -12,6 +12,7 @@ from jsonschema import ValidationError
 #from json.decoder import JSONDecodeError
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+from datetime import datetime
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -23,10 +24,12 @@ from . import config
 from .config import JsonValueError
 from .memento import memento
 from .timetable import TimeTable
+from .heating import ScriptHeatingError
+from .thermometer import ScriptThermometerError
 
 __date__ = '2015-11-05'
-__updated__ = '2016-06-19'
-__version__ = '0.10'
+__updated__ = '2016-06-29'
+__version__ = '0.11b1'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -46,6 +49,7 @@ req_heating_target_temp = 'target'
 
 req_path_settings = ('settings', 'set')
 req_path_heating = ('heating', 'heat')
+req_path_teapot = ('elena', 'tea')
 
 rsp_error = 'error'
 rsp_message = 'message'
@@ -184,7 +188,9 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         logger.info('{} received "{} {}" request'
                     .format(self.client_address, self.command, self.path))
         
+        code = None
         data = None
+        
         pathlist = self.pathlist
         timetable = self.server.timetable
         
@@ -195,7 +201,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 settings = timetable.settings()
                 last_updt = timetable.last_update_timestamp()
             
-            data = self._send_header(200, data=settings, last_modified=last_updt)
+            data = self._send_header(code, data=settings, last_modified=last_updt)
         
         elif pathlist[0] in req_path_heating:
             logger.debug('{} sending back heating status'.format(self.client_address))
@@ -203,20 +209,64 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             with timetable.lock:
                 last_updt = time.time()
                 targett = timetable.target_temperature()
-                heating = {req_heating_status: timetable.heating.status(),
-                           req_heating_temperature: timetable.thermometer.temperature,
-                           req_heating_target_temp: (targett if math.isfinite(targett) else None)}
                 
-            data = self._send_header(200, data=heating, last_modified=last_updt)
+                try:
+                    response = {req_heating_status: timetable.heating.status(),
+                                req_heating_temperature: timetable.thermometer.temperature,
+                                req_heating_target_temp: (targett if math.isfinite(targett) else None)}
+                
+                # TODO finire di gestire gli errori e mostrare messaggi sensati, anche per l'interfaccia web
+                except ScriptHeatingError as she:
+                    code = 422
+                    message = 'cannot query the heating'
+                    logger.warning('{} {}: {}'.format(self.client_address, message, she))
+                    response = {rsp_error: message, rsp_fullmsg: str(she)}
+                
+                except ScriptThermometerError as ste:
+                    code = 422
+                    message = 'cannot query the thermometer'
+                    logger.warning('{} {}: {}'.format(self.client_address, message, ste))
+                    response = {rsp_error: message, rsp_fullmsg: str(ste)}
+                
+                except Exception as e:
+                    # this is an unhandled exception, a critical message is printed
+                    code = 500
+                    logger.critical('{} The {} request produced an unhandled '
+                                    '{} exception.'.format(self.client_address,
+                                                           self.command,
+                                                           type(e).__name__))
+                        
+                    logger.exception('{} {}'.format(self.client_address, e))
+                    
+                    message = 'cannot process the request'
+                    response = {rsp_error: message, rsp_fullmsg: str(e)}
+                
+                else:
+                    code = 200
+                    message = None
+                
+            data = self._send_header(code, message, response, last_updt)
+        
+        elif pathlist[0] in req_path_teapot:
+            logger.info('{} I\'m a teapot'.format(self.client_address))
             
+            code = 418
+            message = 'I\'m a teapot'
+            response = {rsp_error: 'To my future wife',
+                        rsp_fullmsg: ('I dedicate this application to Elena, '
+                                      'my future wife.')}
+            
+            last_updt = datetime(2017, 7, 29, 17, 0).timestamp()
+            data = self._send_header(code, message, response, last_updt)
+        
         else:
-            error = 404
+            code = 404
             message = 'invalid request'
             logger.warning('{} {} "{} {}" received'
                            .format(self.client_address, message,
                                    self.command, self.path))
                        
-            data = self._send_header(error, message, {rsp_error: message})
+            data = self._send_header(code, message, {rsp_error: message})
         
         self.end_headers()
         logger.debug('{} header sent'.format(self.client_address))
@@ -443,6 +493,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                         'mode and resubmit the last request.'
                                         .format(self.client_address))
                         
+                        # TODO far stampare l'eccezione invece del debug
                         logger.debug('{} {}: {}'.format(self.client_address,
                                                         type(e).__name__, e))
                         
@@ -560,6 +611,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                         'mode and resubmit the last request.'
                                         .format(self.client_address))
                         
+                        # TODO far stampare l'eccezione invece del debug
                         logger.debug('{} {}: {}'.format(self.client_address,
                                                         type(e).__name__, e))
                         
