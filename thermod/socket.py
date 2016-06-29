@@ -26,10 +26,11 @@ from .memento import memento
 from .timetable import TimeTable
 from .heating import ScriptHeatingError
 from .thermometer import ScriptThermometerError
+from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
 __updated__ = '2016-06-29'
-__version__ = '0.11b1'
+__version__ = '0.11'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -105,7 +106,7 @@ class ControlServer(HTTPServer):
 class ControlRequestHandler(BaseHTTPRequestHandler):
     """Receive and manages control commands."""
     
-    BaseHTTPRequestHandler.server_version = 'Thermod/{}'.format(__version__)
+    BaseHTTPRequestHandler.server_version = 'Thermod/{} Socket/{}'.format(PROGRAM_VERSION, __version__)
     
     def finish(self):
         """Execute the base-class `finish()` method and log a message."""
@@ -201,7 +202,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 settings = timetable.settings()
                 last_updt = timetable.last_update_timestamp()
             
-            data = self._send_header(code, data=settings, last_modified=last_updt)
+            data = self._send_header(200, data=settings, last_modified=last_updt)
         
         elif pathlist[0] in req_path_heating:
             logger.debug('{} sending back heating status'.format(self.client_address))
@@ -215,7 +216,6 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                 req_heating_temperature: timetable.thermometer.temperature,
                                 req_heating_target_temp: (targett if math.isfinite(targett) else None)}
                 
-                # TODO finire di gestire gli errori e mostrare messaggi sensati, anche per l'interfaccia web
                 except ScriptHeatingError as she:
                     code = 422
                     message = 'cannot query the heating'
@@ -493,9 +493,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                         'mode and resubmit the last request.'
                                         .format(self.client_address))
                         
-                        # TODO far stampare l'eccezione invece del debug
-                        logger.debug('{} {}: {}'.format(self.client_address,
-                                                        type(e).__name__, e))
+                        logger.exception('{} {}: {}'.format(self.client_address,
+                                                            type(e).__name__, e))
                         
                         message = 'cannot process the request'
                         response = {rsp_error: message, rsp_fullmsg: str(e)}
@@ -611,9 +610,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                         'mode and resubmit the last request.'
                                         .format(self.client_address))
                         
-                        # TODO far stampare l'eccezione invece del debug
-                        logger.debug('{} {}: {}'.format(self.client_address,
-                                                        type(e).__name__, e))
+                        logger.exception('{} {}: {}'.format(self.client_address,
+                                                            type(e).__name__, e))
                         
                         message = 'cannot process the request'
                         response = {rsp_error: message, rsp_fullmsg: str(e)}
