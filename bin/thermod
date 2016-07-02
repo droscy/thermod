@@ -207,7 +207,7 @@ def thermostat_cycle():
     """
     
     global main_return_code
-    logger.info('daemon started')
+    logger.info('daemon started (%s)', PROGRAM_VERSION)
     
     try:
         # starting control socket

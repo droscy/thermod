@@ -13,7 +13,7 @@ import thermod.socket as socket
 from thermod import TimeTable, ControlThread, config
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2016-04-25'
+__updated__ = '2016-06-02'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/heating'
 
@@ -143,10 +143,10 @@ class TestSocket(unittest.TestCase):
         friday = old_set[config.json_timetable][config.json_get_day_name(5)]
         sunday = old_set[config.json_timetable][config.json_get_day_name(7)]
         
-        friday['12'][0] = 44
-        friday['15'][1] = 45
-        sunday['06'][2] = 46
-        sunday['07'][3] = 47
+        friday['h12'][0] = 44
+        friday['h15'][1] = 45
+        sunday['h06'][2] = 46
+        sunday['h07'][3] = 47
         
         r = requests.post(__url_settings__,
             {socket.req_settings_days:
@@ -158,10 +158,10 @@ class TestSocket(unittest.TestCase):
         new_friday = new_set[config.json_timetable][config.json_get_day_name(5)]
         new_sunday = new_set[config.json_timetable][config.json_get_day_name(7)]
         
-        self.assertEqual(new_friday['12'][0], 44)
-        self.assertEqual(new_friday['15'][1], 45)
-        self.assertEqual(new_sunday['06'][2], 46)
-        self.assertEqual(new_sunday['07'][3], 47)
+        self.assertEqual(new_friday['h12'][0], 44)
+        self.assertEqual(new_friday['h15'][1], 45)
+        self.assertEqual(new_sunday['h06'][2], 46)
+        self.assertEqual(new_sunday['h07'][3], 47)
         
         # all settings
         tt2 = copy.deepcopy(self.timetable)

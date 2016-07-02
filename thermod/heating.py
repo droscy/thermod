@@ -18,7 +18,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-03-17'
+__updated__ = '2016-06-29'
 
 logger = logging.getLogger(__name__)
 
@@ -232,8 +232,8 @@ class ScriptHeating(BaseHeating):
             
             err = None
             if ScriptHeating.JSON_ERROR in out:
-                err = 'switch-on: {}'.format(str(out[ScriptHeating.JSON_ERROR]))
-                logger.debug(err)
+                err = out[ScriptHeating.JSON_ERROR]
+                logger.debug('switch-on: {}'.format(err))
             
             raise ScriptHeatingError((err or suberr), suberr, self._switch_on_script[0])
         
@@ -259,8 +259,8 @@ class ScriptHeating(BaseHeating):
             
             err = None
             if ScriptHeating.JSON_ERROR in out:
-                err = 'switch-off: {}'.format(str(out[ScriptHeating.JSON_ERROR]))
-                logger.debug(err)
+                err = out[ScriptHeating.JSON_ERROR]
+                logger.debug('switch-off: {}'.format(err))
             
             raise ScriptHeatingError((err or suberr), suberr, self._switch_off_script[0])
         
@@ -294,8 +294,8 @@ class ScriptHeating(BaseHeating):
             
             err = None
             if ScriptHeating.JSON_ERROR in out:
-                err = 'status: {}'.format(str(out[ScriptHeating.JSON_ERROR]))
-                logger.debug(err)
+                err = out[ScriptHeating.JSON_ERROR]
+                logger.debug('status: {}'.format(err))
             
             raise ScriptHeatingError((err or suberr), suberr, self._status_script[0])
         

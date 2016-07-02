@@ -6,6 +6,7 @@ import logging
 import jsonschema
 import os.path
 import time
+import math
 from copy import copy, deepcopy
 from threading import Condition
 from datetime import datetime
@@ -21,8 +22,8 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2016-04-24'
-__version__ = '1.0'
+__updated__ = '2016-06-19'
+__version__ = '1.1'
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class TimeTable(object):
         self._timetable = {}
         
         self._differential = 0.5
-        self._grace_time = float(3600)
+        self._grace_time = float('+Inf')  # disabled by default
 
         self._lock = Condition()
         """Provide single-thread access to methods of this class."""
@@ -281,7 +282,7 @@ class TimeTable(object):
                 self._differential = state[config.json_differential]
             
             if config.json_grace_time in state:
-                self._grace_time = float(state[config.json_grace_time])
+                self._grace_time = float(state[config.json_grace_time] or '+Inf')
             
             # validating new state
             try:
@@ -320,11 +321,18 @@ class TimeTable(object):
     
     
     def settings(self, indent=0, sort_keys=True):
-        """Get internal settings as JSON string."""
+        """Get internal settings as JSON string.
         
-        return json.dumps(self.__getstate__(),
-                          indent=indent,
-                          sort_keys=sort_keys)
+        To adhere to the JSON standard, the +Inf possible value of grace time
+        is converted to `None`, thus it will be `null` in JSON string.
+        """
+        
+        state = self.__getstate__()
+        
+        if math.isinf(state[config.json_grace_time]):
+            state[config.json_grace_time] = None
+        
+        return json.dumps(state, indent=indent, sort_keys=sort_keys, allow_nan=False)
     
     
     # no need for @transactional because __setstate__ is @transactionl
@@ -519,7 +527,7 @@ class TimeTable(object):
             try:
                 nvalue = float(seconds)
                 
-                if nvalue < 0:
+                if nvalue < 0 or math.isnan(nvalue):
                     raise ValueError()
             
             except:
