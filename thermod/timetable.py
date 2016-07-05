@@ -22,8 +22,8 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2016-06-19'
-__version__ = '1.1'
+__updated__ = '2016-07-05'
+__version__ = '1.2'
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ class TimeTable(object):
             thermod.thermometer.FakeThermometer is used to provide basic
             functionality (its `temperature` property always returns 20 degrees)
         
-        @see TimeTable.reload() for possible exception
+        @see TimeTable.reload() for possible exceptions
         """
         
         logger.debug('initializing {}'.format(self.__class__.__name__))
@@ -323,8 +323,8 @@ class TimeTable(object):
     def settings(self, indent=0, sort_keys=True):
         """Get internal settings as JSON string.
         
-        To adhere to the JSON standard, the +Inf possible value of grace time
-        is converted to `None`, thus it will be `null` in JSON string.
+        To adhere to the JSON standard, the `+Infinite` value of grace time is
+        converted to `None`, thus it will be `null` in the returned JSON string.
         """
         
         state = self.__getstate__()
@@ -348,7 +348,7 @@ class TimeTable(object):
             raised during storing of new settings
         """
         
-        self.__setstate__(json.loads(settings))
+        self.__setstate__(json.loads(settings, parse_constant=config.json_reject_invalid_float))
     
     
     # no need for @transactional because __setstate__ is @transactionl
@@ -383,7 +383,7 @@ class TimeTable(object):
             # loading json file
             with open(self.filepath, 'r') as file:
                 logger.debug('loading json file: {}'.format(self.filepath))
-                settings = json.load(file)
+                settings = json.load(file, parse_constant=config.json_reject_invalid_float)
                 logger.debug('json file loaded')
             
             self.__setstate__(settings)
@@ -415,9 +415,25 @@ class TimeTable(object):
             # validate and retrive settings
             settings = self.__getstate__()
             
-            with open(filepath or self.filepath, 'w') as file:
-                logger.debug('saving timetable to json file {}'.format(file.name))
-                json.dump(settings, file, indent=2, sort_keys=True)
+            # convert possible Infinite grace_time to None
+            if math.isinf(settings[config.json_grace_time]):
+                settings[config.json_grace_time] = None
+            
+            # save JSON settings
+            with open(filepath or self.filepath, 'r+') as file:
+                logger.debug('reading old JSON file {}'.format(file.name))
+                old_settings = json.load(file, parse_constant=config.json_reject_invalid_float)
+                
+                try:
+                    file.seek(0)
+                    logger.debug('saving timetable to JSON file {}'.format(file.name))
+                    json.dump(settings, file, indent=2, sort_keys=True, allow_nan=False)
+                
+                except:
+                    file.seek(0)
+                    logger.debug('cannot save new settings to filesystem, restoring old settings')
+                    json.dump(old_settings, file, indent=2, sort_keys=True, allow_nan=False)
+                    raise
         
             logger.debug('timetable saved')
     
@@ -745,10 +761,11 @@ class TimeTable(object):
         """
         
         # TODO fare in modo che accetti sia JSON sia un dictonary con le info del giorno da aggiornare
+        # TODO capire come mai pur essendo transactional è rimasta una gestione manuale per old_state
         
         logger.debug('updating timetable days')
         
-        data = json.loads(json_data)
+        data = json.loads(json_data, parse_constant=config.json_reject_invalid_float)
         days = []
         
         if not isinstance(data, dict) or not data:
@@ -868,7 +885,7 @@ class TimeTable(object):
         @return an instance of thermod.timetable.ShouldBeOn with a boolean value
             of `True` if the heating should be on, `False` otherwise
         
-        @see thermod.timetable.ShouldBeOn for additional returned values
+        @see thermod.timetable.ShouldBeOn for additional attributes of this class
         
         @exception jsonschema.ValidationError if internal settings are invalid
         @exception thermod.thermometer.ThermometerError if an error happens

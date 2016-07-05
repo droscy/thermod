@@ -29,7 +29,7 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2016-06-29'
+__updated__ = '2016-07-05'
 __version__ = '0.11'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
@@ -147,7 +147,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             else:
                 if isinstance(data, str):
                     try:
-                        json.loads(data)
+                        json.loads(data, parse_constant=config.json_reject_invalid_float)
                     except:
                         raise TypeError('the provided string is not in JSON format')
                     
@@ -155,7 +155,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 
                 elif isinstance(data, bytes):
                     try:
-                        json.loads(data.decode('utf-8'))
+                        json.loads(data.decode('utf-8'), parse_constant=config.json_reject_invalid_float)
                     except:
                         raise TypeError('the provided byte-string is not in JSON format')
                     
@@ -379,6 +379,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         message = 'invalid JSON syntax'
                         response = {rsp_error: message, rsp_fullmsg: str(jde)}
                     
+                    # TODO tutti i ValidationError devono essere divisi dagli altri
+                    # errori e nello stampare (o ritornare) il messaggio devono
+                    # includere anche l'attributo list(path) che contiene il
+                    # percorso nel file JSON con il valore invalido.
                     except (ValidationError, JsonValueError) as ve:
                         code = 400
                         logger.warning('{} cannot update settings, the POST '

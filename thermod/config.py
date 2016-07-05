@@ -8,7 +8,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-06-19'
+__updated__ = '2016-07-05'
 
 
 # config module logger
@@ -243,8 +243,9 @@ json_schema = {
     'properties': {
         'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
-        'grace_time': {'anyOf': [{'type': 'number', 'minimum': 0},
-                                 {'type': 'string', 'pattern': '[+]?[Ii][Nn][Ff]([Ii][Nn][Ii][Tt][Ii])?'}]},
+        # TODO la validazione deve fallire con NaN, sia per grace_time, che differential, che temperature
+        # al momento invece non fallisce, quindi bisogna trovare un modo per aderire allo standard.
+        'grace_time': {'type': ['number', 'null'], 'minimum': 0},
         'temperatures': {
             'type': 'object',
             'properties': {
@@ -322,7 +323,7 @@ def is_valid_temperature(temperature):
         except:
             result = False
         else:
-            # is valid any real number
+            # any real number is valid
             result = math.isfinite(t)
 
     return result
@@ -361,6 +362,9 @@ def json_format_temperature(temperature):
             # rounding returned value in order to avoid to many rapid changes
             # between on and off
             result = format(round(float(temperature), 1), '.1f')
+            # TODO capire come mai ho deciso di far tornare una stringa qui
+            # e quindi capire come mai nella validazione del JSON accetto anche
+            # stringhe che sono convertibili in float!
     else:
         raise JsonValueError('the provided temperature is not valid `{}`, '
                              'it must be a number or one of the following '
@@ -375,7 +379,7 @@ def json_format_hour(hour):
     """Format the provided hour as a string in 24H clock with a leading `h` and zeroes."""
     try:
         # if hour cannot be converted to int or is outside 0-23 range
-        # raise a ValueError
+        # raise a JsonValueError
         _hour = int(float(str(hour).lstrip('h')))
         if _hour not in range(24):
             raise Exception()
@@ -421,5 +425,16 @@ def json_get_day_name(day):
         raise JsonValueError('the provided day name or number `{}` is not valid'.format(day))
     
     return result
+
+
+def json_reject_invalid_float(value):
+    """Used as parser for `Infinity` and `NaN` values in `json.loads()` module.
+    
+    Always rises an exception because `Infinity` and `NaN` are not accepted
+    as valid values for numbers in Thermod.
+    """
+    
+    raise JsonValueError('numbers must have finite values in JSON data, '
+                         '`NaN` and `Infinity` are not accepted')
 
 # vim: fileencoding=utf-8
