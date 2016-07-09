@@ -190,7 +190,12 @@ def reload_timetable(signum=None, frame=None):
             logger.warning('cannot reload timetable file `%s`, old settings '
                            'remain unchanged: %s', timetable.filepath, oe)
         
-        except (ValidationError, ValueError) as ve:
+        except ValidationError as jsve:
+            logger.warning('cannot reload settings, timetable file contains '
+                           'invalid data in element %s: %s', list(jsve.path),
+                           jsve.message)
+        
+        except ValueError as ve:
             logger.warning('cannot reload settings, timetable file contains '
                            'invalid data: %s', ve)
         
@@ -283,7 +288,7 @@ def thermostat_cycle():
                         # the daemon, even if new settings are set from
                         # socket connection. So we print a critical error and
                         # we close the daemon.
-                        logger.critical(ve)
+                        logger.critical('invalid element %s in timetable file: %s', list(ve.path), ve)
                         shutdown(exitcode=config.RET_CODE_RUN_INVALID_STATE)
                     
                     except JsonValueError as jve:

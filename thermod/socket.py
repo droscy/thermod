@@ -21,7 +21,6 @@ else:
     JSONDecodeError = ValueError
 
 from . import config
-from .config import JsonValueError
 from .memento import memento
 from .timetable import TimeTable
 from .heating import ScriptHeatingError
@@ -29,8 +28,8 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2016-07-05'
-__version__ = '0.11'
+__updated__ = '2016-07-06'
+__version__ = '0.12'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -379,19 +378,31 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         message = 'invalid JSON syntax'
                         response = {rsp_error: message, rsp_fullmsg: str(jde)}
                     
+                    except ValidationError as jsve:
+                        code = 400
+                        logger.warning('{} cannot update settings, the POST '
+                                       'request contains incomplete or invalid '
+                                       'data in JSON element {}: {}'
+                                       .format(self.client_address,
+                                               list(jsve.path),
+                                               jsve.message))
+                        
+                        message = 'incomplete or invalid JSON element'
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{} {}: {}'.format(message, list(jsve.path), jsve.message)}
+                        
                     # TODO tutti i ValidationError devono essere divisi dagli altri
                     # errori e nello stampare (o ritornare) il messaggio devono
                     # includere anche l'attributo list(path) che contiene il
                     # percorso nel file JSON con il valore invalido.
-                    except (ValidationError, JsonValueError) as ve:
+                    except ValueError as ve:
                         code = 400
                         logger.warning('{} cannot update settings, the POST '
                                        'request contains incomplete or invalid '
-                                       'data: {}'.format(self.client_address,
-                                                         ve.message))
+                                       'data: {}'.format(self.client_address, ve))
                         
-                        message = 'incomplete or invalid JSON-encoded settings'
-                        response = {rsp_error: message, rsp_fullmsg: ve.message}
+                        message = 'incomplete or invalid settings'
+                        response = {rsp_error: message, rsp_fullmsg: str(ve)}
                     
                     except IOError as ioe:
                         # Can be raised only by timetable.save() method, so the
@@ -456,15 +467,27 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         message = 'invalid JSON syntax'
                         response = {rsp_error: message, rsp_fullmsg: str(jde)}
                     
-                    except (ValidationError, JsonValueError) as ve:
+                    except ValidationError as jsve:
                         code = 400
                         logger.warning('{} cannot update any days, the POST '
                                        'request contains incomplete or invalid '
-                                       'data: {}'.format(self.client_address,
-                                                         ve.message))
+                                       'data in JSON element {}: {}'
+                                       .format(self.client_address,
+                                               list(jsve.path),
+                                               jsve.message))
                         
-                        message = 'incomplete or invalid JSON-encoded days'
-                        response = {rsp_error: message, rsp_fullmsg: ve.message}
+                        message = 'incomplete or invalid JSON element'
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{} {}: {}'.format(message, list(jsve.path), jsve.message)}
+                    
+                    except ValueError as ve:
+                        code = 400
+                        logger.warning('{} cannot update any days, the POST '
+                                       'request contains incomplete or invalid '
+                                       'data: {}'.format(self.client_address, ve))
+                        
+                        message = 'incomplete or invalid days'
+                        response = {rsp_error: message, rsp_fullmsg: str(ve)}
                     
                     except IOError as ioe:
                         # Can be raised only by timetable.save() method, so the
@@ -553,32 +576,36 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         # saving changes to filesystem
                         self.server.timetable.save()
                     
-                    except ValidationError as ve:
-                        # This exception can be raised after having successfully
-                        # updated ad least one settings, so any setting must
-                        # be manually restored to the old state.
-                        
-                        code = 400
-                        logger.warning('{} cannot update settings: {}'
-                                       .format(self.client_address, ve.message))
-                        
-                        message = 'cannot update settings'
-                        response = {rsp_error: message, rsp_fullmsg: ve.message}
-                        
-                        # restoring old settings from memento
-                        restore_old_settings()
-                    
-                    except JsonValueError as jve:
+                    except ValidationError as jsve:
                         # This exception can be raised after having successfully
                         # updated ad least one settings, so any setting must
                         # be manually restored to the old state.
                         
                         code = 400
                         logger.warning('{} cannot update {}: {}'
-                                       .format(self.client_address, var, jve))
+                                       .format(self.client_address,
+                                               list(jsve.path),
+                                               jsve.message))
                         
                         message = 'cannot update settings'
-                        response = {rsp_error: message, rsp_fullmsg: str(jve)}
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: 'cannot update {}: {}'.format(list(jsve.path), jsve.message)}
+                        
+                        # restoring old settings from memento
+                        restore_old_settings()
+                    
+                    except ValueError as ve:
+                        # This exception can be raised after having successfully
+                        # updated ad least one settings, so any setting must
+                        # be manually restored to the old state.
+                        
+                        code = 400
+                        logger.warning('{} cannot update {}: {}'
+                                       .format(self.client_address, var, ve))
+                        
+                        message = 'cannot update settings'
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: 'cannot update {}: {}'.format(var, ve)}
                         
                         # restoring old settings from memento
                         restore_old_settings()
