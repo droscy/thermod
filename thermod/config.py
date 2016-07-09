@@ -8,7 +8,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-07-05'
+__updated__ = '2016-07-09'
 
 
 # config module logger
@@ -243,8 +243,6 @@ json_schema = {
     'properties': {
         'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
-        # TODO la validazione deve fallire con NaN, sia per grace_time, che differential, che temperature
-        # al momento invece non fallisce, quindi bisogna trovare un modo per aderire allo standard.
         'grace_time': {'type': ['number', 'null'], 'minimum': 0},
         'temperatures': {
             'type': 'object',

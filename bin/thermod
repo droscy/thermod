@@ -134,17 +134,15 @@ except PermissionError as pe:
 
 except OSError as oe:
     main_return_code = config.RET_CODE_TT_OTHER_ERR
-    logger.critical('error accessing timetable file `%s`', tt_file)
-    logger.critical(str(oe))
+    logger.critical('error accessing timetable file `%s`: %s', tt_file, oe)
 
 except ValueError as ve:
     main_return_code = config.RET_CODE_TT_INVALID_SYNTAX
-    logger.critical('timetable file is not in JSON format or has syntax errors')
-    logger.critical(str(ve))
+    logger.critical('timetable file is not in JSON format or has syntax errors: %s', ve)
 
 except ValidationError as jve:
     main_return_code = config.RET_CODE_TT_INVALID_CONTENT
-    logger.critical('timetable file is invalid: %s', jve)
+    logger.critical('invalid element %s in timetable file: %s', list(jve.path), jve.message)
 
 except Exception as e:
     main_return_code = config.RET_CODE_INIT_ERR

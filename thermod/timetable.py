@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Manage the timetable of Thermod."""
 
+import sys
 import json
 import logging
 import jsonschema
@@ -10,6 +11,12 @@ import math
 from copy import copy, deepcopy
 from threading import Condition
 from datetime import datetime
+
+# backward compatibility for Python 3.4 (TODO check for better handling)
+if sys.version[0:3] >= '3.5':
+    from json.decoder import JSONDecodeError
+else:
+    JSONDecodeError = ValueError
 
 from . import config
 from .config import JsonValueError
@@ -22,7 +29,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2016-07-05'
+__updated__ = '2016-07-09'
 __version__ = '1.2'
 
 logger = logging.getLogger(__name__)
@@ -30,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 class ShouldBeOn(int):
-    # TODO testare e documentare
+    """Behaves as a boolean with additional attribute for heating status."""
     
     def __new__(cls, should_be_on, *args, **kwargs):
         return int.__new__(cls, bool(should_be_on))
@@ -282,7 +289,8 @@ class TimeTable(object):
                 self._differential = state[config.json_differential]
             
             if config.json_grace_time in state:
-                self._grace_time = float(state[config.json_grace_time] or '+Inf')
+                # using grace_time setter to perform additional checks
+                self.grace_time = state[config.json_grace_time]
             
             # validating new state
             try:
@@ -308,6 +316,8 @@ class TimeTable(object):
         
         A full validation is performed only if TimeTable._has_been_validated
         is not `True`, otherwise silently exits without errors.
+        
+        @exception jsonschema.ValidationError if internal settings are invalid
         """
         
         with self._lock:
@@ -325,11 +335,13 @@ class TimeTable(object):
         
         To adhere to the JSON standard, the `+Infinite` value of grace time is
         converted to `None`, thus it will be `null` in the returned JSON string.
+        
+        @exception jsonschema.ValidationError if internal settings are invalid
         """
         
         state = self.__getstate__()
         
-        if math.isinf(state[config.json_grace_time]):
+        if not math.isfinite(state[config.json_grace_time]):
             state[config.json_grace_time] = None
         
         return json.dumps(state, indent=indent, sort_keys=sort_keys, allow_nan=False)
@@ -399,16 +411,20 @@ class TimeTable(object):
         pointed by `filepath` paramether (full path to file). If `filepath` is
         `None`, settings are saved to the internal TimeTable.filepath.
         
-        @exception jsonschema.ValidationError if the current timetable is not valid
+        @exception RuntimeError if no timetable JSON file is provided
+        @exception jsonschema.ValidationError if internal settings are invalid
         @exception OSError if the file cannot be written or other OS related errors
         """
         
         logger.debug('saving timetable to file')
         
+        if filepath is None:
+            filepath = self.filepath
+        
         with self._lock:
             logger.debug('lock acquired to save timetable')
             
-            if not (filepath or self.filepath):  # empty strings or None
+            if not filepath:  # empty strings or None
                 logger.debug('filepath not set, cannot save timetable')
                 raise RuntimeError('no timetable file provided, cannot save data')
             
@@ -419,20 +435,33 @@ class TimeTable(object):
             if math.isinf(settings[config.json_grace_time]):
                 settings[config.json_grace_time] = None
             
+            # if an old JSON file exist, load its content
+            try:
+                logger.debug('reading old JSON file {}'.format(filepath))
+                with open(filepath, 'r') as file:
+                    old_settings = json.load(file, parse_constant=config.json_reject_invalid_float)
+            
+            except FileNotFoundError:
+                logger.debug('old JSON file does not exist, skipping')
+                old_settings = None
+            
+            except JSONDecodeError:
+                logger.debug('old JSON file is invalid, it will be overwrited')
+                old_settings = None
+            
             # save JSON settings
-            with open(filepath or self.filepath, 'r+') as file:
-                logger.debug('reading old JSON file {}'.format(file.name))
-                old_settings = json.load(file, parse_constant=config.json_reject_invalid_float)
-                
+            with open(filepath, 'w') as file:
                 try:
-                    file.seek(0)
                     logger.debug('saving timetable to JSON file {}'.format(file.name))
                     json.dump(settings, file, indent=2, sort_keys=True, allow_nan=False)
                 
                 except:
-                    file.seek(0)
-                    logger.debug('cannot save new settings to filesystem, restoring old settings')
-                    json.dump(old_settings, file, indent=2, sort_keys=True, allow_nan=False)
+                    logger.debug('cannot save new settings to filesystem')
+                    
+                    if old_settings:
+                        logger.debug('restoring old settings')
+                        json.dump(old_settings, file, indent=2, sort_keys=True, allow_nan=False)
+                    
                     raise
         
             logger.debug('timetable saved')
@@ -541,16 +570,19 @@ class TimeTable(object):
             logger.debug('lock acquired to set a new grace time')
             
             try:
-                nvalue = float(seconds)
+                nvalue = float(seconds is None and '+Inf' or seconds)
                 
-                if nvalue < 0 or math.isnan(nvalue):
+                if nvalue < 0:
                     raise ValueError()
+                
+                if math.isnan(nvalue):
+                    nvalue = float('+Inf')
             
             except:
                 logger.debug('invalid new grace time: {}'.format(seconds))
                 raise JsonValueError(
                     'the new grace time `{}` is invalid, it must be a positive '
-                    'number expressed in seconds or the string `inf`'.format(seconds))
+                    'number expressed in seconds or the string `Inf`'.format(seconds))
             
             self._grace_time = round(nvalue, 0)
             self._has_been_validated = False
@@ -728,7 +760,7 @@ class TimeTable(object):
                     raise Exception()
             except:
                 logger.debug('invalid quarter: {}'.format(quarter))
-                raise JsonValueError('the provided quarter is not valid `{}`, '
+                raise JsonValueError('the provided quarter `{}` is not valid, '
                                      'it must be in range 0-3'.format(quarter))
             
             # format temperature and check validity
