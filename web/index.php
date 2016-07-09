@@ -129,7 +129,14 @@
 					min: 0,
 					step: 0.1,
 					page: 5,
-					change: function(){ var val = Number($(this).prop('value')); $(this).prop('value', val.toFixed(1));}
+					change: function()
+					{
+						var val = Number($(this).prop('value'));
+						$(this).prop('value', val.toFixed(1));
+
+						var tname = $(this).attr('id');
+						settings['temperatures'][tname] = val;
+					}
 				});
 
 				$('#differential').spinner(
@@ -138,7 +145,23 @@
 					max: 1,
 					min: 0,
 					step: 0.1,
-					page: 0.1
+					page: 0.1,
+					change: function(event, ui)
+					{
+						var val = Number($(this).prop('value'));
+
+						if(val >= 0 && val <= 1)
+							settings['differential'] = val;
+						else
+						{
+							$("#dialog").dialog('option', 'title', 'Invalid value');
+							$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
+							$("#dialog").html('<p><span class="ui-icon ui-icon-alert"></span>Differential value must be between 0 and 1 degree.</p>');
+							$("#dialog").dialog('open');
+
+							$(this).prop('value', settings['differential']);
+						}
+					}
 				});
 
 				$('#grace-time').spinner(
@@ -147,7 +170,29 @@
 					max: 120,
 					min: 0,
 					step: 1,
-					page: 10
+					page: 10,
+					spin: function(event, ui)
+					{
+						if(ui.value == 0)
+						{
+							$(this).prop('value', 'disabled');
+							return false;
+						}
+					},
+					change: function()
+					{
+						var val = $(this).prop('value');
+						if(isNaN(val) || Number(val) == 0)
+						{
+							settings['grace_time'] = null;
+							$(this).prop('value', 'disabled');
+						}
+						else
+						{
+							settings['grace_time'] = Number(val) * 60;
+							$(this).prop('value', Number(val).toFixed(0));
+						}
+					}
 				});
 				
 				$('#save').button({disabled: true});
@@ -240,7 +285,7 @@
 
 				// settings initialization
 				get_heating_status_and_refresh();
-				
+
 				$.get('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
 				{
 					if(!('error' in data))
@@ -255,8 +300,8 @@
 						$('#t0').prop('value', settings['temperatures']['t0'].toFixed(1));
 						$('#differential').prop('value', settings['differential'].toFixed(1));
 
-						var grace = settings['grace_time'] ? settings['grace_time']/60 : 0;
-						$('#grace-time').prop('value', grace.toFixed(0));
+						var grace = settings['grace_time'] ? (settings['grace_time']/60) : 0;
+						$('#grace-time').spinner('value', grace.toFixed(0));
 
 						// enable objects
 						$('#target-status').prop('disabled', true);
@@ -305,8 +350,6 @@
 				height: 100%;
 				width: 100%;
 				background: url('images/wheel.gif') 50% 50% no-repeat;
-				/*opacity: .8;
-				filter: Alpha(Opacity=80); /* support: IE8 */
 			}
 			
 			body.loading { overflow: hidden; }

@@ -15,6 +15,10 @@ if(function_exists('curl_version'))
 		
 		if(isset($_POST['settings']))
 		{
+			// manage grace_time null value
+			if(empty($_POST['settings']['grace_time']) || trim($_POST['settings']['grace_time']) === '')
+				$_POST['settings']['grace_time'] = null;
+			
 			// multipart/form-data
 			curl_setopt($curl, CURLOPT_POSTFIELDS, array('settings' => json_encode($_POST['settings'], JSON_NUMERIC_CHECK)));
 			
