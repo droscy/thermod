@@ -6,3 +6,4 @@ recursive-include thermod *.py
 include bin/thermod
 include etc/*
 include samples/*
+recursive-include web *

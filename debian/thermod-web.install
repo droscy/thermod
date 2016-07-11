@@ -1,0 +1,4 @@
+web/index.php usr/share/thermod/
+web/settings.php usr/share/thermod/
+web/status.php usr/share/thermod/
+web/images/wheel.gif usr/share/thermod/images/

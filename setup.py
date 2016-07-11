@@ -18,12 +18,9 @@ setup(name='thermod',
       license = 'GPL-3.0+',
       packages=['thermod'],
       scripts=['bin/thermod'],
-      #data_files=[('/etc/thermod', ['etc/thermod.conf', 'etc/timetable.json']),
-      #            #('/lib/systemd/system', ['thermod.service']),
-      #            ],
-      install_requires=['python-daemon >= 2.0.5', 'jsonschema >= 2.5.1'],
-      test_suite='nose.collector',
-      tests_require=['nose', 'requests >= 2.9.1'],
+      install_requires=['python-daemon >= 2.0.5', 'jsonschema >= 2.3.0'],
+      #test_suite='nose.collector',
+      #tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'],
 )
 
 # vim: fileencoding=utf-8
