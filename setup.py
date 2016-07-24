@@ -19,8 +19,8 @@ setup(name='thermod',
       packages=['thermod'],
       scripts=['bin/thermod'],
       install_requires=['python-daemon >= 2.0.5', 'jsonschema >= 2.3.0'],
-      #test_suite='nose.collector',
-      #tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'],
+      test_suite='nose.collector',
+      tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'],
 )
 
 # vim: fileencoding=utf-8

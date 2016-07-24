@@ -1,2 +1,3 @@
+bin/thermod usr/bin/
 etc/thermod.conf etc/thermod/
 etc/timetable.json etc/thermod/
