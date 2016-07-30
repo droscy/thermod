@@ -233,4 +233,4 @@ class ScriptThermometer(BaseThermometer):
         logger.debug('current temperature: %.2f', t)
         return t
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

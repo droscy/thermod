@@ -81,4 +81,4 @@ log debug "$(printf 'current temperature is %.2f' "${TEMPERATURE}")"
 echo -n "${JSON}"
 exit 0
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=2 shiftwidth=2 expandtab

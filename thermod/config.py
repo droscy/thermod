@@ -435,4 +435,4 @@ def json_reject_invalid_float(value):
     raise JsonValueError('numbers must have finite values in JSON data, '
                          '`NaN` and `Infinity` are not accepted')
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

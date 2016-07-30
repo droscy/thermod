@@ -270,4 +270,4 @@ def main(argv=None):
 if __name__ == "__main__":
     sys.exit(main())
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

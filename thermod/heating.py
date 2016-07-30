@@ -369,4 +369,4 @@ if __name__ == '__main__':
     print('JSON_STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
     print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

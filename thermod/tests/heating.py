@@ -152,4 +152,4 @@ if __name__ == "__main__":
     logger.setLevel(logging.CRITICAL)
     unittest.main()
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

@@ -5,4 +5,4 @@ from thermod.tests.socket import TestSocket
 from thermod.tests.timetable import TestTimeTable
 from thermod.tests.thermometer import TestThermometer
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

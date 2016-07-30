@@ -10,4 +10,4 @@ from thermod.thermometer import BaseThermometer, ScriptThermometer, ThermometerE
 # it is here only for convenience. If someone wants to use it functionality
 # he/she can manually import thermod.memento.
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

@@ -974,4 +974,4 @@ class TimeTable(object):
         
         return ShouldBeOn(should_be_on, self._status, current, target)
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

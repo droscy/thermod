@@ -725,4 +725,4 @@ class TestTimeTable(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
-# vim: fileencoding=utf-8
+# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
