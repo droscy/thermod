@@ -8,7 +8,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-07-09'
+__updated__ = '2016-08-24'
 
 
 # config module logger
@@ -25,6 +25,7 @@ logger_fmt_style = '{'
 # return codes
 RET_CODE_OK = 0
 RET_CODE_DAEMON_DISABLED = 3
+RET_CODE_PID_FILE_ERROR = 4
 RET_CODE_CFG_FILE_MISSING = 10
 RET_CODE_CFG_FILE_SYNTAX_ERR = 11
 RET_CODE_CFG_FILE_INVALID = 12
@@ -57,7 +58,7 @@ main_config_files = (config_file,
                      os.path.join('/usr/local/etc/thermod', config_file),
                      os.path.join('/etc/thermod', config_file))
 
-def read_config_files(config_files=main_config_files):
+def read_config_files(config_files=None):
     """Search and read main configuration files.
     
     @params config_files a list of possible path for configuration files
@@ -65,6 +66,9 @@ def read_config_files(config_files=main_config_files):
         that can be used as POSIX return value (if no error occurred the error
         code is 0)
     """
+    
+    if config_files is None:
+        config_files = main_config_files
     
     try:
         cfg = configparser.ConfigParser()

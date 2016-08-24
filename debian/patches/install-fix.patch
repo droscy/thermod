@@ -1,18 +1,20 @@
 --- a/setup.py
 +++ b/setup.py
-@@ -17,10 +17,10 @@
+@@ -17,12 +17,12 @@
        url='TODO',
        license = 'GPL-3.0+',
        packages=['thermod'],
 -      scripts=['bin/thermod'],
 +      #scripts=['bin/thermod'],
-       install_requires=['python-daemon >= 2.0.5', 'jsonschema >= 2.3.0'],
+       install_requires=['python-daemon >= 2.0.5',
+                         'jsonschema >= 2.3.0',
+                         'requests >= 2.4.3'],
 -      test_suite='nose.collector',
 -      tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'],
 +      #test_suite='nose.collector',
 +      #tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'],
  )
  
--# vim: fileencoding=utf-8
+-# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
 \ No newline at end of file
-+# vim: fileencoding=utf-8
++# vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

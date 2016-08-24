@@ -1,0 +1,22 @@
+[Unit]
+Description=Thermod thermostat daemon
+Requires=syslog.service
+Wants=network.target
+After=syslog.service network.target
+
+[Service]
+Type=forking
+User=thermod
+Group=nogroup
+PIDFile=/var/run/thermod/thermod.pid
+# run ExecStartPre with root permissions
+PermissionsStartOnly=true
+ExecStartPre=-/bin/mkdir -p /var/run/thermod
+ExecStartPre=/bin/chown thermod:nogroup /var/run/thermod
+# run ExecStart with custom user and group permissions
+ExecStart=/usr/bin/thermod --pid /var/run/thermod/thermod.pid
+ExecReload=/bin/kill -HUP $MAINPID
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

@@ -533,7 +533,7 @@ class TimeTable(object):
                 if nvalue < 0 or nvalue > 1:
                     raise ValueError()
             
-            # i catch and raise again the same exception to change the message
+            # I catch and raise again the same exception to change the message
             except:
                 logger.debug('invalid new differential value: {}'.format(value))
                 raise JsonValueError(
@@ -607,7 +607,7 @@ class TimeTable(object):
             try:
                 nvalue = config.temperature_to_float(value)
             
-            # i catch and raise again the same exception to change the message
+            # I catch and raise again the same exception to change the message
             except:
                 logger.debug('invalid new value for t0 temperature: {}'.format(value))
                 raise JsonValueError(
@@ -637,7 +637,7 @@ class TimeTable(object):
             try:
                 nvalue = config.temperature_to_float(value)
             
-            # i catch and raise again the same exception to change the message
+            # I catch and raise again the same exception to change the message
             except:
                 logger.debug('invalid new value for tmin temperature: {}'.format(value))
                 raise JsonValueError(
@@ -667,7 +667,7 @@ class TimeTable(object):
             try:
                 nvalue = config.temperature_to_float(value)
             
-            # i catch and raise again the same exception to change the message
+            # I catch and raise again the same exception to change the message
             except:
                 logger.debug('invalid new value for tmax temperature: {}'.format(value))
                 raise JsonValueError(

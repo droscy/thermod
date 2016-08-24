@@ -7,8 +7,9 @@ import logging
 import argparse
 import signal
 import tempfile
+import lockfile
 
-from daemon import DaemonContext
+from daemon import DaemonContext, pidfile
 from logging.handlers import SysLogHandler
 from jsonschema import ValidationError
 
@@ -25,6 +26,9 @@ from thermod.version import __version__ as PROGRAM_VERSION
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
 
+# TODO disabilitare il demone nel file di config e mettere una nota per ricordare
+# all'utente che deve configurare i path agli script
+
 # TODO rivedere i messaggi di log, decidere se usare %-formatting
 # oppure https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles
 # usando StyleAdapter
@@ -35,9 +39,11 @@ main_return_code = config.RET_CODE_OK
 # parsing input arguments
 parser = argparse.ArgumentParser(description='thermod daemon')
 parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(PROGRAM_VERSION))
+parser.add_argument('-C', '--config', action='store', default=None, help='read configuration from CONFIG file (full path)')
 parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground')
-parser.add_argument('-L', '--log', action='store', default=None, help='write messages to log file')
+parser.add_argument('-L', '--log', action='store', default=None, help='write messages to LOG file (full path)')
+parser.add_argument('-P', '--pid', action='store', default='/var/run/thermod/thermod.pid', help='where to create PID file (full path)')
 args = parser.parse_args()
 
 # setting up logging system
@@ -89,7 +95,7 @@ if args.log:
 
 
 # reading configuration files
-(cfg, main_return_code) = config.read_config_files()
+(cfg, main_return_code) = config.read_config_files(args.config)
 
 if main_return_code != config.RET_CODE_OK:
     logger.info('closing daemon with return code {}'.format(main_return_code))
@@ -252,33 +258,40 @@ def thermostat_cycle():
             logger.critical('unknown error during first query to the heating')
             shutdown(exitcode=config.RET_CODE_RUN_HEATING_ERR)
         
+        # The following variable is needed to print info messages only
+        # when no timeout has occurred, that means that someone has changed
+        # some settings.
+        cycle_timeout = False
+        
         # the real cycle of temperature checking
         while enabled:
             try:
                 with timetable.lock:
                     try:
                         should_be_on = timetable.should_the_heating_be_on()
-                        _msg = ('current status is {!r}, '
-                                'current temperature is {:.1f}, '
-                                'target temperature is {:.1f}').format(
+                        _msg = ('status: {!r}, '
+                                'current: {:.1f}, '
+                                'target: {:.1f}').format(
                                             should_be_on.status,
                                             should_be_on.current_temperature,
                                             should_be_on.target_temperature)
                         
                         if should_be_on:
                             if not heating.is_on():
-                                logger.info(_msg)
                                 heating.switch_on()
-                                logger.info('heating switched ON')
+                                logger.info('heating switched ON (%s)', _msg)
+                            elif not cycle_timeout:
+                                logger.info('heating already ON (%s)', _msg)
                             else:
-                                logger.debug('heating already ON')
+                                logger.debug('heating already ON (%s)', _msg)
                         else:
                             if heating.is_on():
-                                logger.info(_msg)
                                 heating.switch_off()
-                                logger.info('heating switched OFF')
+                                logger.info('heating switched OFF (%s)', _msg)
+                            elif not cycle_timeout:
+                                logger.info('heating already OFF (%s)', _msg)
                             else:
-                                logger.debug('heating already OFF')
+                                logger.debug('heating already OFF (%s)', _msg)
                     
                     except ValidationError as ve:
                         # The internal settings must be valid otherwise an error
@@ -320,7 +333,11 @@ def thermostat_cycle():
                     # this point and in such situation we don't have to
                     # wait for a notify, simply go on and exit the cycle.
                     if enabled:
-                        timetable.lock.wait(interval)
+                        # We suspend the process and wait to recheck the temperature.
+                        # The 'wait' method returns False on timeout, thus we
+                        # negate it to have cycle_timeout equal True when a
+                        # timeout has occurred.
+                        cycle_timeout = not timetable.lock.wait(interval)
             
             except KeyboardInterrupt:
                 shutdown(exitcode=config.RET_CODE_KEYB_INTERRUPT)
@@ -432,14 +449,28 @@ else:
     logger.debug('starting daemon in background')
     
     daemon = DaemonContext()
-    daemon.signal_map={signal.SIGTERM: shutdown,
-                       signal.SIGHUP: reload_timetable}
-
+    daemon.pidfile = pidfile.PIDLockFile(args.pid)
+    daemon.signal_map = {signal.SIGTERM: shutdown,
+                         signal.SIGHUP: reload_timetable}
+    
     if args.log:
         daemon.files_preserve = [logfile.stream]
-
-    with daemon:
-        thermostat_cycle()
+    
+    try:
+        with daemon:
+            thermostat_cycle()
+    
+    except lockfile.LockFailed:
+        logger.critical('cannot create PID file {}'.format(daemon.pidfile.path))
+        main_return_code = config.RET_CODE_PID_FILE_ERROR
+    
+    except lockfile.AlreadyLocked:
+        logger.critical('PID file {} is already locked'.format(daemon.pidfile.path))
+        main_return_code = config.RET_CODE_PID_FILE_ERROR
+    
+    except lockfile.LockError:
+        logger.critical('unkown error writing PID file {}'.format(daemon.pidfile.path))
+        main_return_code = config.RET_CODE_PID_FILE_ERROR
 
 
 # closing daemon
