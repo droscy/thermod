@@ -1,5 +1,6 @@
 <?php
-	// hostname (or IP address) and port which Thermod is listening on
+	// hostname (or IP address) and port where Thermod socket is listening on
+	// see section 'socket' in file etc/thermod.conf
 	$HOST = 'localhost';
 	$PORT = '4344';
 ?>
@@ -7,7 +8,14 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		
 		<title>Thermod Web Manager</title>
+		<meta name="Description" content="Web manager for Thermod daemon." />
+		<meta name="author" content="Simone Rossetto" />
+		<meta name="keywords" content="thermod, thermostat, temperature, heating" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		
 		<script language="javascript" type="text/javascript" src="/javascript/jquery/jquery.js"></script>
 		<script language="javascript" type="text/javascript" src="/javascript/jquery-ui/jquery-ui.js"></script>
 		<link type="text/css" href="/javascript/jquery-ui/css/smoothness/jquery-ui.css" rel="stylesheet" />
@@ -336,7 +344,7 @@
 		</script>
 		<style>
 			/* global */
-			h1 { font-size: 130%; margin: 0.5ex 0;}
+			h1 { font-size: 150%; margin: 0.5ex 0;}
 			.ui-dialog { font-size: 90%; }
 			.ui-icon { float: left; margin: 0.3ex 1ex 7ex 0; }
 			
@@ -390,6 +398,10 @@
 			/* save */
 			#buttons { font-size: 90%; padding: 1em 1.4em; background: #eee; margin-top: 1em; }
 			#buttons p { margin: 0 0 1ex 0; }
+			
+			/* copyright */
+			#copyright { margin: 1em auto; text-align: center; }
+			#copyright p { margin: 0; padding: 0.2ex 0; font-size: 80%; color: #999999; }
 		</style>
 	</head>
 	<body>
@@ -484,6 +496,12 @@
 		<div id="buttons" class="ui-widget ui-widget-content ui-corner-all">
 			<p>Save settings</p>
 			<input type="button" id="save" value="Save" />
+		</div>
+		
+		<div id="copyright">
+			<p>Thermod Web Manager v1.0.0</p>
+			<p>Copyright &copy; 2016<?=(date('Y')>2016?'-'.date('Y'):'');?> Simone Rossetto</p>
+			<p>GNU General Public License v3.0</p>
 		</div>
 	</body>
 </html>

@@ -1,0 +1,22 @@
+--- a/etc/thermod.conf
++++ b/etc/thermod.conf
+@@ -12,7 +12,8 @@
+ 
+ [scripts]
+ # These variables must be full path to executable scripts that return a JSON
+-# string after having completed their job. See samples folder for some examples.
++# string after having completed their job. See /usr/share/doc/thermod/samples
++# folder for some sample scripts.
+ thermometer = /etc/thermod/get-temperature
+ switchon = /etc/thermod/switch-heating --on -j -s
+ switchoff = /etc/thermod/switch-heating --off -j -s
+--- a/web/index.php
++++ b/web/index.php
+@@ -1,6 +1,6 @@
+ <?php
+ 	// hostname (or IP address) and port where Thermod socket is listening on
+-	// see section 'socket' in file etc/thermod.conf
++	// see section 'socket' in file /etc/thermod/thermod.conf
+ 	$HOST = 'localhost';
+ 	$PORT = '4344';
+ ?>

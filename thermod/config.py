@@ -8,7 +8,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-08-24'
+__updated__ = '2016-08-27'
 
 
 # config module logger
@@ -74,7 +74,7 @@ def read_config_files(config_files=None):
         cfg = configparser.ConfigParser()
         logger.debug('searching main configuration in files {}'.format(config_files))
         
-        _cfg_files_found = cfg.read(config_files) # TODO in caso di più file quale ha precedenza?
+        _cfg_files_found = cfg.read(config_files)
         
         if _cfg_files_found:
             logger.debug('configuration files found: {}'.format(_cfg_files_found))
@@ -145,7 +145,6 @@ def parse_main_settings(cfg):
         raise TypeError('ConfigParser object required to parse main settings')
     
     try:
-        # TODO finire controllo sui valori presenti nel file di config
         enabled = cfg.getboolean('global', 'enabled')
         debug = cfg.getboolean('global', 'debug')
         tt_file = cfg.get('global', 'timetable')

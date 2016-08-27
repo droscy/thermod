@@ -26,9 +26,6 @@ from thermod.version import __version__ as PROGRAM_VERSION
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
 
-# TODO disabilitare il demone nel file di config e mettere una nota per ricordare
-# all'utente che deve configurare i path agli script
-
 # TODO rivedere i messaggi di log, decidere se usare %-formatting
 # oppure https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles
 # usando StyleAdapter
@@ -43,7 +40,7 @@ parser.add_argument('-C', '--config', action='store', default=None, help='read c
 parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground')
 parser.add_argument('-L', '--log', action='store', default=None, help='write messages to LOG file (full path)')
-parser.add_argument('-P', '--pid', action='store', default='/var/run/thermod/thermod.pid', help='where to create PID file (full path)')
+parser.add_argument('-P', '--pid', action='store', default='/run/thermod/thermod.pid', help='where to create PID file (full path)')
 args = parser.parse_args()
 
 # setting up logging system
@@ -111,7 +108,10 @@ if main_return_code != config.RET_CODE_OK:
     exit(main_return_code)
 
 
-# if the daemon is disabled in configuration file we exit immediatly
+# if executed in foreground we ignore the 'enabled' setting in config file
+enabled = enabled or args.foreground
+
+# if the daemon is disabled we exit immediately
 if not enabled:
     logger.info('daemon disabled in configuration file, exiting...')
     exit(config.RET_CODE_DAEMON_DISABLED)

@@ -25,11 +25,10 @@ from .memento import transactional
 from .thermometer import BaseThermometer, FakeThermometer
 
 # TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
-# TODO controllare se serve copy.deepcopy() nella gestione degli array letti da json
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2016-07-09'
+__updated__ = '2016-08-27'
 __version__ = '1.2'
 
 logger = logging.getLogger(__name__)
@@ -964,6 +963,12 @@ class TimeTable(object):
                 logger.debug('is_on: {}, switch_off_time: {}, grace_time: {}'
                              .format(ison, datetime.fromtimestamp(offts), grace))
                 
+                # TODO il grace-time deve funzionare anche al contrario: quando
+                # è acceso da più di grace-time e la temperatura è tra target e
+                # target+diff allora si spegne, vuol dire che la caldaia non riesce
+                # a far salire ulteriormente la temperatura. Si deve però trovare
+                # un modo per salvarsi il primo orario in cui la temperatura
+                # ha raggiunto target!!
                 should_be_on = (
                     (current <= (target - diff))
                     or ((current < target) and ((nowts - offts) > grace))

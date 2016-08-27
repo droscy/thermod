@@ -28,8 +28,8 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2016-07-06'
-__version__ = '0.12'
+__updated__ = '2016-08-27'
+__version__ = '1.0'
 
 logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
 
@@ -390,11 +390,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         message = 'incomplete or invalid JSON element'
                         response = {rsp_error: message,
                                     rsp_fullmsg: '{} {}: {}'.format(message, list(jsve.path), jsve.message)}
-                        
-                    # TODO tutti i ValidationError devono essere divisi dagli altri
-                    # errori e nello stampare (o ritornare) il messaggio devono
-                    # includere anche l'attributo list(path) che contiene il
-                    # percorso nel file JSON con il valore invalido.
+                    
                     except ValueError as ve:
                         code = 400
                         logger.warning('{} cannot update settings, the POST '
@@ -571,14 +567,14 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         
                         # if no settings found in request body rise an error
                         if len(newvalues) == 0:
-                            raise ValidationError('no valid fields found in request body')
+                            raise ValidationError('no valid fields found in request body', ('any settings',))
                         
                         # saving changes to filesystem
                         self.server.timetable.save()
                     
                     except ValidationError as jsve:
                         # This exception can be raised after having successfully
-                        # updated ad least one settings, so any setting must
+                        # updated at least one settings, so any setting must
                         # be manually restored to the old state.
                         
                         code = 400
@@ -596,7 +592,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     except ValueError as ve:
                         # This exception can be raised after having successfully
-                        # updated ad least one settings, so any setting must
+                        # updated at least one settings, so any setting must
                         # be manually restored to the old state.
                         
                         code = 400

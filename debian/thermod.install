@@ -1,3 +1,5 @@
 bin/thermod usr/bin/
 etc/thermod.conf etc/thermod/
 etc/timetable.json etc/thermod/
+samples/get-temperature usr/share/doc/thermod/samples/
+samples/switch-heating usr/share/doc/thermod/samples/

@@ -17,7 +17,6 @@ __updated__ = '2016-06-02'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/heating'
 
-# TODO cercare di capire come mai ogni tanto i test falliscono per "OSError: [Errno 98] Address already in use"
 
 class TestSocket(unittest.TestCase):
     """Test cases for `thermod.socket` module."""
