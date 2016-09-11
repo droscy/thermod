@@ -8,7 +8,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-08-27'
+__updated__ = '2016-09-11'
 
 
 # config module logger
@@ -18,8 +18,16 @@ logger = logging.getLogger(__name__)
 logger_base_name = 'thermod'
 logger_fmt_msg = '{asctime},{msecs:03.0f} {name:19s} {levelname:8s} {message}'
 logger_fmt_msg_syslog = '{name}[{process:d}]: {levelname} {message}'
+logger_fmt_msg_maillog = '''\
+Thermod daemon reported the following {levelname} alert:
+
+{message}
+
+Module: {name}
+Date and time: {asctime}
+'''
 logger_fmt_time = '%H:%M:%S'
-logger_fmt_datetime = '%y-%m-%d %H:%M:%S'
+logger_fmt_datetime = '%Y-%m-%d %H:%M:%S'
 logger_fmt_style = '{'
 
 # return codes
@@ -162,6 +170,15 @@ def parse_main_settings(cfg):
             # checking port here because the ControlThread is created after starting
             # the daemon and the resulting log file can be messy
             raise OverflowError('socket port {:d} is outside range 0-65535'.format(port))
+        
+        eserver = cfg.get('email', 'server').split(':')
+        euser = cfg.get('email', 'user', fallback='')
+        epwd = cfg.get('email', 'password', fallback='')
+        email = {'server': (len(eserver)>1 and (eserver[0], eserver[1]) or eserver[0]),
+                 'sender': cfg.get('email', 'sender'),
+                 'recipients': [rcpt for _,rcpt in cfg.items('email/rcpt')],
+                 'subject': cfg.get('email', 'subject', fallback='Thermod alert'),
+                 'credentials': ((euser or epwd) and (euser, epwd) or None)}
     
     except configparser.NoSectionError as nse:
         error_code = RET_CODE_CFG_FILE_INVALID
@@ -201,7 +218,7 @@ def parse_main_settings(cfg):
         error_code = RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return (enabled, debug, tt_file, interval, scripts, host, port, error_code)
+    return (enabled, debug, tt_file, interval, scripts, host, port, email, error_code)
 
 
 # thermod name convention (from json file)

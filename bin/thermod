@@ -10,7 +10,7 @@ import tempfile
 import lockfile
 
 from daemon import DaemonContext, pidfile
-from logging.handlers import SysLogHandler
+from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
 
 from thermod import config
@@ -100,7 +100,7 @@ if main_return_code != config.RET_CODE_OK:
 
 
 # parsing main settings
-(enabled, debug, tt_file, interval, scripts, host, port, main_return_code) = config.parse_main_settings(cfg)
+(enabled, debug, tt_file, interval, scripts, host, port, email, main_return_code) = config.parse_main_settings(cfg)
 debug = debug or args.debug
 
 if main_return_code != config.RET_CODE_OK:
@@ -115,6 +115,22 @@ enabled = enabled or args.foreground
 if not enabled:
     logger.info('daemon disabled in configuration file, exiting...')
     exit(config.RET_CODE_DAEMON_DISABLED)
+
+
+# if mail server is present in configuration file, a new SMTPHandler is created
+if email['server']:
+    maillog = SMTPHandler(email['server'],
+                          email['sender'],
+                          email['recipients'],
+                          email['subject'],
+                          email['credentials'])
+    
+    maillog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_maillog,
+                                           datefmt=config.logger_fmt_datetime,
+                                           style=config.logger_fmt_style))
+    
+    maillog.setLevel(logging.WARNING)
+    logger.addHandler(maillog)
 
 
 # setting again the debug level if requested in configuration file

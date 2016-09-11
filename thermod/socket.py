@@ -28,10 +28,10 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2016-08-27'
+__updated__ = '2016-09-11'
 __version__ = '1.0'
 
-logger = logging.getLogger((__name__ == '__main__' and 'thermod') or __name__)
+logger = logging.getLogger((__name__ == '__main__' and config.logger_base_name) or __name__)
 
 
 req_settings_all = 'settings'
@@ -106,6 +106,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     """Receive and manages control commands."""
     
     BaseHTTPRequestHandler.server_version = 'Thermod/{} Socket/{}'.format(PROGRAM_VERSION, __version__)
+    
+    # TODO usare un LogAdapter per loggare automaticamente l'ip del client
     
     def finish(self):
         """Execute the base-class `finish()` method and log a message."""
@@ -622,6 +624,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                    'they will be lost, try again in a couple '
                                    'of minutes')
                         
+                        # TODO probabilmente inveriti i messaggi in rsp_error e rsp_fullmsg, controllare in tutto il codice
+                        # TODO gestire diversamente l'errore 503 sulla pagina web perché graficamente
+                        # le impostazioni devono rispecchiare quelle nuove impostate anche se non
+                        # sono state salvate su filesystem
                         response = {rsp_error: message, rsp_fullmsg: str(ioe)}
                     
                     except Exception as e:

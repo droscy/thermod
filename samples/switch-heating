@@ -4,7 +4,7 @@
 Switch on/off or get the status of the heating using a serial TTL relay.
 
 @author:     Simone Rossetto
-@copyright:  2015 Simone Rossetto
+@copyright:  2015-2016 Simone Rossetto
 @license:    GNU General Public License v3
 @contact:    simros85@gmail.com
 """
@@ -21,9 +21,9 @@ from serial import Serial, SerialException
 from thermod import config, ScriptHeating
 
 
-__version__ = '1.0.0b6'
+__version__ = '1.0.0b7'
 __date__ = '2015-10-02'
-__updated__ = '2016-03-27'
+__updated__ = '2016-09-11'
 
 
 # Control commands
@@ -49,7 +49,7 @@ relay_com2close_rsp = b'\x33\x3C\x00\x00\x00\x00\x02\x71'
 
 
 # defult logger for this scripts
-logger = logging.getLogger('{}.switch'.format(config.logger_base_name))
+logger = logging.getLogger(config.logger_base_name).getChild('switch')
 
 
 def switch_on(device, timeout=5):
@@ -189,10 +189,10 @@ def main(argv=None):
     args = parser.parse_args()
     
     global logger
-    logger = logging.getLogger('{}.{}'.format(config.logger_base_name,
-                                              args.on and 'switchon'
-                                              or (args.off and 'switchoff'
-                                                   or 'status')))
+    logger = logging.getLogger(config.logger_base_name).getChild(
+                                            args.on and 'switchon'
+                                            or (args.off and 'switchoff'
+                                                or 'status'))
     
     if args.debug:
         logger.setLevel(logging.DEBUG)
