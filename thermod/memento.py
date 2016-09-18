@@ -8,6 +8,10 @@ The original implementation of this Memento pattern is described here
 http://code.activestate.com/recipes/413838/ while a full implementation of
 the Memento pattern can be found here
 https://benzidwael.wordpress.com/2014/12/13/memento-design-pattern-part-2/.
+
+Copyright (C) 2005 Zoran Isailovski
+Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Python Software Foundation License
 """
 
 import copy
