@@ -28,8 +28,8 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2016-09-11'
-__version__ = '1.0'
+__updated__ = '2016-09-18'
+__version__ = '1.1'
 
 logger = logging.getLogger((__name__ == '__main__' and config.logger_base_name) or __name__)
 
@@ -378,7 +378,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        '{}'.format(self.client_address, jde))
                         
                         message = 'invalid JSON syntax'
-                        response = {rsp_error: message, rsp_fullmsg: str(jde)}
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{}: {}'.format(message, jde)}
                     
                     except ValidationError as jsve:
                         code = 400
@@ -400,7 +401,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        'data: {}'.format(self.client_address, ve))
                         
                         message = 'incomplete or invalid settings'
-                        response = {rsp_error: message, rsp_fullmsg: str(ve)}
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{}: {}'.format(message, ve)}
                     
                     except IOError as ioe:
                         # Can be raised only by timetable.save() method, so the
@@ -412,13 +414,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
-                        message = ('new settings accepted and applied on '
-                                   'running Thermod but they cannot be '
-                                   'saved to filesystem so, on daemon restart, '
-                                   'they will be lost, try again in a couple '
-                                   'of minutes')
-                        
-                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
+                        message = 'cannot save new settings to fileystem'
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: ('new settings accepted and '
+                                        'applied on running Thermod but they '
+                                        'cannot be saved to filesystem so, on '
+                                        'daemon restart, they will be lost, '
+                                        'try again in a couple of minutes')}
                     
                     except Exception as e:
                         # This is an unhandled exception, so we execute a
@@ -434,7 +436,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         logger.exception('{} {}'.format(self.client_address, e))
                         
                         message = 'cannot process the request'
-                        response = {rsp_error: message, rsp_fullmsg: str(e)}
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{}: {}'.format(message, e)}
                         
                         # restoring old settings from memento
                         restore_old_settings()
@@ -463,7 +466,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        '{}'.format(self.client_address, jde))
                         
                         message = 'invalid JSON syntax'
-                        response = {rsp_error: message, rsp_fullmsg: str(jde)}
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{}: {}'.format(message, jde)}
                     
                     except ValidationError as jsve:
                         code = 400
@@ -485,7 +489,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        'data: {}'.format(self.client_address, ve))
                         
                         message = 'incomplete or invalid days'
-                        response = {rsp_error: message, rsp_fullmsg: str(ve)}
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{}: {}'.format(message, ve)}
                     
                     except IOError as ioe:
                         # Can be raised only by timetable.save() method, so the
@@ -497,13 +502,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
-                        message = ('new settings accepted and applied on '
-                                   'running Thermod but they cannot be '
-                                   'saved to filesystem so, on daemon restart, '
-                                   'they will be lost, try again in a couple '
-                                   'of minutes')
-                        
-                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
+                        message = 'cannot save new settings to fileystem'
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: ('new settings accepted and '
+                                        'applied on running Thermod but they '
+                                        'cannot be saved to filesystem so, on '
+                                        'daemon restart, they will be lost, '
+                                        'try again in a couple of minutes')}
                     
                     except Exception as e:
                         # This is an unhandled exception, so we execute a
@@ -522,7 +527,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                                             type(e).__name__, e))
                         
                         message = 'cannot process the request'
-                        response = {rsp_error: message, rsp_fullmsg: str(e)}
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{}: {}'.format(message, e)}
                         
                         # restoring old settings from memento
                         restore_old_settings()
@@ -618,17 +624,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         logger.error('{} cannot save new settings to '
                             'fileystem: {}'.format(self.client_address, ioe))
                         
-                        message = ('new settings accepted and applied on '
-                                   'running Thermod but they cannot be '
-                                   'saved to filesystem so, on daemon restart, '
-                                   'they will be lost, try again in a couple '
-                                   'of minutes')
-                        
-                        # TODO probabilmente inveriti i messaggi in rsp_error e rsp_fullmsg, controllare in tutto il codice
-                        # TODO gestire diversamente l'errore 503 sulla pagina web perché graficamente
-                        # le impostazioni devono rispecchiare quelle nuove impostate anche se non
-                        # sono state salvate su filesystem
-                        response = {rsp_error: message, rsp_fullmsg: str(ioe)}
+                        message = 'cannot save new settings to fileystem'
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: ('new settings accepted and '
+                                        'applied on running Thermod but they '
+                                        'cannot be saved to filesystem so, on '
+                                        'daemon restart, they will be lost, '
+                                        'try again in a couple of minutes')}
                     
                     except Exception as e:
                         # This is an unhandled exception, so we execute a
@@ -647,7 +649,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                                             type(e).__name__, e))
                         
                         message = 'cannot process the request'
-                        response = {rsp_error: message, rsp_fullmsg: str(e)}
+                        response = {rsp_error: message,
+                                    rsp_fullmsg: '{}: {}'.format(message, e)}
                         
                         # restoring old settings from memento
                         restore_old_settings()

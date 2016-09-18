@@ -3,6 +3,7 @@ $HOST = (isset($_REQUEST['host']) ? htmlentities($_REQUEST['host']) : 'localhost
 $PORT = (isset($_REQUEST['port']) ? htmlentities($_REQUEST['port']) : '4344');
 
 $settings = null;
+$socket_http_code = null;
 
 if(function_exists('curl_version'))
 {
@@ -30,14 +31,23 @@ if(function_exists('curl_version'))
 	}
 	
 	$settings = curl_exec($curl);
+	$socket_http_code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
 		
 	if($settings === false)
-		$settings = json_encode(array('error' => curl_error($curl)));
+		$settings = json_encode(array('error' => curl_error($curl), 'socket_http_code' => $socket_http_code));
+	else
+	{
+		// adding Thermod response HTTP code to the JSON response
+		$settings = json_decode($settings);
+		$settings->{'socket_http_code'} = $socket_http_code;
+		$settings = json_encode($settings);
+	}
 	
 	curl_close($curl);
 }
 else
 	$settings = json_encode(array('error' => 'php-curl extension is not enabled in your web server'));
-		
+
+header('Content-Type: application/json;charset=utf-8');
 echo(preg_replace('/\s+/', ' ', str_replace("\n", '', $settings)));
 ?>

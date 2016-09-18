@@ -77,6 +77,13 @@
 
 						stop_loading();
 						$('#dialog').dialog('open');
+
+						if(data['socket_http_code'] = 503)
+						{
+							settings['status'] = target_status;
+							get_heating_status_and_refresh();
+						}
+						
 						target_status_refresh();
 					}
 				},'json');
