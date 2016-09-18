@@ -19,8 +19,8 @@ set -e
 
 case "$1" in
     configure)
-        adduser --system --home /run/thermod thermod
-        chown thermod /etc/thermod/timetable.json
+        adduser --system --home /run/thermod --gecos 'Thermod User,,,' thermod
+        chown -R thermod /var/lib/thermod
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
@@ -32,6 +32,10 @@ case "$1" in
         exit 1
     ;;
 esac
+
+# TODO c'è un errore lintian di init.d-script-not-included-in-package
+# perché il debhelper sotto aggiunge anche comandi per lo script in init.d
+# che però non esiste per questo pacchetto.
 
 #DEBHELPER#
 

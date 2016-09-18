@@ -11,7 +11,7 @@ X-Python3-Version: >= 3.4
 
 Package: thermod
 Architecture: all
-Depends: ${python3:Depends}, ${misc:Depends}
+Depends: ${python3:Depends}, ${misc:Depends}, adduser
 Description: Programmable thermostat daemon for smart-heating automation
  Programmable thermostat daemon for smart-heating automation.
 
@@ -20,25 +20,28 @@ Architecture: all
 Depends: ${python3:Depends}, ${misc:Depends}
 Suggests: python3-thermod-doc (=${binary:Version})
 Description: Programmable thermostat daemon (libraries)
- Programmable thermostat daemon for smart-heating automation.
+ Python modules for Thermod daemon.
 
 Package: python3-thermod-doc
+Section: doc
 Architecture: all
 Depends: ${python3:Depends}, ${misc:Depends}
 Description: Programmable thermostat daemon (documentation)
- Programmable thermostat daemon for smart-heating automation.
+ Documentation API for Thermod Python modules.
 
 Package: thermod-web
+Section: web
 Architecture: all
 Depends: ${misc:Depends}
 Recommends: ${misc:Recommends}
 Description: Programmable thermostat daemon (web application)
- Programmable thermostat daemon for smart-heating automation.
+ Web managment application to interact with Thermod daemon.
 
 Package: munin-plugins-thermod
+Section: net
 Architecture: all
-Depends: munin-node, ${misc:Depends}
+Depends: munin-node, python3 (>=3.4), ${misc:Depends}
 Suggests: thermod (=${binary:Version})
-Description: Programmable thermostat daemon (Munin plugins)
- Programmable thermostat daemon for smart-heating automation.
+Description: Programmable thermostat daemon (Munin plugin)
+ Munin plugin to plot status informations retrieved from Thermod daemon.
 

@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: thermod
-Source: <url://example.com>
+Source: home server, no public url at present time
 
 Files: *
 Copyright: 2016 Simone Rossetto <simros85@gmail.com>

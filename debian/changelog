@@ -1,5 +1,5 @@
 thermod (1.0.0~beta4-1) unstable; urgency=medium
 
-  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+  * Initial release.
 
- -- Simone Rossetto <simros85@gmail.com>  Sun, 27 Mar 2016 10:10:36 +0200
+ -- Simone Rossetto <simros85@gmail.com>  Sun, 18 Sep 2016 13:12:41 +0200

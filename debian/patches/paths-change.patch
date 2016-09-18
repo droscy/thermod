@@ -1,6 +1,12 @@
 --- a/etc/thermod.conf
 +++ b/etc/thermod.conf
-@@ -12,7 +12,8 @@
+@@ -7,12 +7,13 @@
+ [global]
+ enabled = false
+ debug = false
+-timetable = /etc/thermod/timetable.json
++timetable = /var/lib/thermod/timetable.json
+ interval = 30
  
  [scripts]
  # These variables must be full path to executable scripts that return a JSON
@@ -12,8 +18,9 @@
  switchoff = /etc/thermod/switch-heating --off -j -s
 --- a/web/index.php
 +++ b/web/index.php
-@@ -1,6 +1,6 @@
- <?php
+@@ -19,7 +19,7 @@
+  */
+ 
  	// hostname (or IP address) and port where Thermod socket is listening on
 -	// see section 'socket' in file etc/thermod.conf
 +	// see section 'socket' in file /etc/thermod/thermod.conf

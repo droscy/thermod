@@ -36,7 +36,7 @@ from thermod import config, ScriptHeating
 
 __version__ = '1.0.0b7'
 __date__ = '2015-10-02'
-__updated__ = '2016-09-11'
+__updated__ = '2016-09-18'
 
 
 # Control commands
