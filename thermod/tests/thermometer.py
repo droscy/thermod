@@ -40,7 +40,7 @@ class TestThermometer(unittest.TestCase):
             
         with open(self.script, 'w') as file:
             file.write(
-'''#!/usr/bin/env python
+'''#!/usr/bin/python3
 import json
 
 retcode = 0
@@ -95,7 +95,7 @@ exit(retcode)
         with self.assertRaises(ThermometerError):
             with open(self.script, 'w') as file:
                 file.write(
-'''#!/usr/bin/env python
+'''#!/usr/bin/python3
 import json
 print(json.dumps({'error': None}))
 exit(0)
@@ -106,7 +106,7 @@ exit(0)
         with self.assertRaises(ThermometerError):
             with open(self.script, 'w') as file:
                 file.write(
-'''#!/usr/bin/env python
+'''#!/usr/bin/python3
 import json
 print(json.dumps({'temperature': 'invalid', 'error': None}))
 exit(0)
@@ -117,7 +117,7 @@ exit(0)
         with self.assertRaises(ThermometerError):
             with open(self.script, 'w') as file:
                 file.write(
-'''#!/usr/bin/env python
+'''#!/usr/bin/python3
 import json
 print(json.dumps({'temperature': None, 'error': None}))
 exit(0)
@@ -128,7 +128,7 @@ exit(0)
         with self.assertRaises(ThermometerError):
             with open(self.script, 'w') as file:
                 file.write(
-'''#!/usr/bin/env python
+'''#!/usr/bin/python3
 import json
 print(json.dumps({'temperature': None}))
 exit(1)

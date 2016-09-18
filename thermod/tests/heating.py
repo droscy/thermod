@@ -42,7 +42,7 @@ class TestHeating(unittest.TestCase):
         
         with open(self.switch_on_script, 'w') as file:
             file.write(
-'''#!/usr/bin/env python
+'''#!/usr/bin/python3
 import json
 
 retcode = 0
@@ -65,7 +65,7 @@ exit(retcode)
         
         with open(self.switch_off_script, 'w') as file:
             file.write(
-'''#!/usr/bin/env python
+'''#!/usr/bin/python3
 import json
 
 retcode = 0
@@ -88,7 +88,7 @@ exit(retcode)
             
         with open(self.status_script, 'w') as file:
             file.write(
-'''#!/usr/bin/env python
+'''#!/usr/bin/python3
 import json
 
 retcode = 0

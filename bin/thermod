@@ -43,7 +43,6 @@ from thermod.version import __version__ as PROGRAM_VERSION
 __date__ = '2015-09-08'
 __updated__ = '2016-09-18'
 
-# TODO usare /usr/bin/python3 al posto di env in tutti gli script e script generati dai test
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
 
