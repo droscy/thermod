@@ -52,9 +52,6 @@ __updated__ = '2016-10-02'
 # oppure https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles
 # usando StyleAdapter
 
-# TODO decidere meglio quali errori devono far chiudere il demone, sia che si verifichino
-# al primo avvio, sia mentre il demone sta funzionando.
-
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = config.RET_CODE_OK
 
@@ -108,7 +105,7 @@ if args.log:
         
         except Exception as e:
             logger.error('cannot write logfile: %s', e)
-            logger.info('the daemon will start up without logfile')
+            logger.info('the daemon will start without logfile')
     
     if logfile:
         logfile.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
@@ -172,6 +169,10 @@ try:
     thermometer = ScriptThermometer(scripts['thermometer'], debug)
     timetable = TimeTable(tt_file, heating, thermometer)
 
+except ScriptError as se:
+    main_return_code = config.RET_CODE_SCRIPT_INIT_ERR
+    logger.critical('error accessing the script `%s`: %s', se.script, se)
+
 except FileNotFoundError as fnfe:
     main_return_code = config.RET_CODE_TT_NOT_FOUND
     logger.critical('cannot find timetable file `%s`', tt_file)
@@ -194,14 +195,14 @@ except ValidationError as jve:
 
 except Exception as e:
     main_return_code = config.RET_CODE_INIT_ERR
-    logger.critical('error during daemon initialization: %s', e)
+    logger.critical('error during daemon initialization: %s', e, exc_info=True)
 
 except KeyboardInterrupt:
     main_return_code = config.RET_CODE_KEYB_INTERRUPT
 
 except:
     main_return_code = config.RET_CODE_INIT_ERR
-    logger.critical('unknown error during daemon initialization, no more details')
+    logger.critical('unknown error during daemon initialization, no more details', exc_info=True)
 
 else:
     main_return_code = config.RET_CODE_OK
@@ -271,20 +272,19 @@ def thermostat_cycle():
         main_return_code = config.RET_CODE_SOCKET_PORT_ERR
     
     except Exception as e:
-        logger.critical('cannot start control socket: %s', e)
+        logger.critical('cannot start control socket: %s', e, exc_info=True)
         main_return_code = config.RET_CODE_SOCKET_START_ERR
 
     except KeyboardInterrupt:
         main_return_code = config.RET_CODE_KEYB_INTERRUPT
     
     except:
-        logger.critical('unkown error starting control socket')
+        logger.critical('unkown error starting control socket', exc_info=True)
         main_return_code = config.RET_CODE_SOCKET_START_ERR
     
     else:
         try:
-            logger.info('the heating is currently %s',
-                        (heating.is_on() and 'ON' or 'OFF'))
+            logger.info('the heating is currently %s', (heating.is_on() and 'ON' or 'OFF'))
             
         except Exception as e:
             # We report the error as a severe error but we do nothing because
@@ -297,7 +297,7 @@ def thermostat_cycle():
             shutdown(exitcode=config.RET_CODE_KEYB_INTERRUPT)
             
         except:
-            logger.critical('unknown error during first query to the heating')
+            logger.critical('unknown error during first query to the heating', exc_info=True)
             shutdown(exitcode=config.RET_CODE_RUN_HEATING_ERR)
         
         # The following variable is needed to print info messages only
@@ -367,13 +367,8 @@ def thermostat_cycle():
                         logger.debug(he.suberror)
                     
                     except Exception as e:
-                        # TODO si arriva qui per FileNotFoundError se uno script
-                        # indicato nel file di configurazione non esiste, capire
-                        # se conviene gestirlo qui oppure se va gestito alla
-                        # creazione dell'oggetto ScriptHeating o ScriptThermometer
-                        
                         # An unknown error occurred somewhere
-                        logger.exception('unknown error occurred: %s', e)
+                        logger.critical('unknown error occurred: %s', e, exc_info=True)
                         shutdown(exitcode=config.RET_CODE_RUN_OTHER_ERR)
                     
                     # A shutdown may have been requested before reaching
@@ -390,7 +385,7 @@ def thermostat_cycle():
                 shutdown(exitcode=config.RET_CODE_KEYB_INTERRUPT)
             
             except:
-                logger.critical('unknown error during normal operation')
+                logger.critical('unknown error during normal operation', exc_info=True)
                 shutdown(exitcode=config.RET_CODE_RUN_OTHER_ERR)
     
     finally:    
@@ -416,7 +411,7 @@ def thermostat_cycle():
             pass
         
         except Exception as e:
-            logger.exception('unexpected error stopping control socket: %s', e)
+            logger.error('unexpected error stopping control socket: %s', e, exc_info=True)
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
@@ -428,7 +423,7 @@ def thermostat_cycle():
             pass
         
         except:
-            logger.critical('unknown error stopping control socket')
+            logger.error('unknown error stopping control socket', exc_info=True)
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
@@ -459,8 +454,8 @@ def thermostat_cycle():
                 main_return_code = config.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
         
         except Exception as e:
-            logger.warning('error in switching off the heating during '
-                           'daemon shutdown: %s', e)
+            logger.error('error in switching off the heating during '
+                         'daemon shutdown: %s', e, exc_info=True)
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
@@ -473,7 +468,7 @@ def thermostat_cycle():
         
         except:
             logger.error('unknown error in switching off the heating during '
-                         'daemon shutdown')
+                         'daemon shutdown', exc_info=True)
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.

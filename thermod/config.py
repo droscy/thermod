@@ -26,7 +26,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-10-01'
+__updated__ = '2016-10-02'
 
 
 # config module logger
@@ -61,6 +61,7 @@ RET_CODE_TT_READ_ERR = 21
 RET_CODE_TT_INVALID_SYNTAX = 22
 RET_CODE_TT_INVALID_CONTENT = 23
 RET_CODE_TT_OTHER_ERR = 24
+RET_CODE_SCRIPT_INIT_ERR = 26
 RET_CODE_INIT_ERR = 29
 RET_CODE_SOCKET_PORT_ERR = 30
 RET_CODE_SOCKET_START_ERR = 31
@@ -339,6 +340,22 @@ class ScriptError(RuntimeError):
     def __init__(self, error=None, script=None):
         super().__init__(error)
         self.script = script
+
+
+def check_script(program):
+    """Check the existence and executability of `program`.
+    
+    In case of error a `ScriptError` exception is raised.
+    
+    @param program the full path to the script to be checked
+    @exception ScriptError if the script cannot be found or executed
+    """
+    
+    if not os.path.isfile(program):
+        raise ScriptError('file not found', program)
+    
+    if not os.access(program, os.X_OK):
+        raise ScriptError('script not executable', program)
 
 
 def is_valid_temperature(temperature):

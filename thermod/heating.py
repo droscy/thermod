@@ -27,7 +27,7 @@ import subprocess
 from copy import deepcopy
 from datetime import datetime
 #from json.decoder import JSONDecodeError
-from .config import ScriptError
+from .config import ScriptError, check_script
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -36,7 +36,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-06-29'
+__updated__ = '2016-10-02'
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +174,8 @@ class ScriptHeating(BaseHeating):
         
         If the scripts must be executed with '--debug' option appended, set the
         `debug` parameter to `True`.
+        
+        @exception ScriptError if any of the provided scripts cannot be found or executed
         """
         
         logger.debug('initializing {}'.format(self.__class__.__name__))
@@ -216,6 +218,10 @@ class ScriptHeating(BaseHeating):
             self._switch_off_script.append(ScriptHeating.DEBUG_OPTION)
             self._status_script.append(ScriptHeating.DEBUG_OPTION)
         
+        check_script(self._switch_on_script[0])
+        check_script(self._switch_off_script[0])
+        check_script(self._status_script[0])
+        
         logger.debug('{} initialized with scripts ON=`{}`, OFF=`{}` and JSON_STATUS=`{}`'
                      .format(self.__class__.__name__,
                              self._switch_on_script[0],
@@ -255,6 +261,12 @@ class ScriptHeating(BaseHeating):
             
             raise ScriptHeatingError((err or suberr), suberr, self._switch_on_script[0])
         
+        except FileNotFoundError as fnfe:
+            raise ScriptHeatingError('cannot find script', str(fnfe), self._switch_on_script[0])
+        
+        except PermissionError as pe:
+            raise ScriptHeatingError('cannot execute script', str(pe), self._switch_on_script[0])
+        
         self._is_on = True
         logger.debug('heating switched on')
     
@@ -281,6 +293,12 @@ class ScriptHeating(BaseHeating):
                 logger.debug('switch-off: {}'.format(err))
             
             raise ScriptHeatingError((err or suberr), suberr, self._switch_off_script[0])
+        
+        except FileNotFoundError as fnfe:
+            raise ScriptHeatingError('cannot find script', str(fnfe), self._switch_off_script[0])
+        
+        except PermissionError as pe:
+            raise ScriptHeatingError('cannot execute script', str(pe), self._switch_off_script[0])
         
         self._is_on = False
         self._switch_off_time = datetime.now()
@@ -316,6 +334,12 @@ class ScriptHeating(BaseHeating):
                 logger.debug('status: {}'.format(err))
             
             raise ScriptHeatingError((err or suberr), suberr, self._status_script[0])
+        
+        except FileNotFoundError as fnfe:
+            raise ScriptHeatingError('cannot find script', str(fnfe), self._status_script[0])
+        
+        except PermissionError as pe:
+            raise ScriptHeatingError('cannot execute script', str(pe), self._status_script[0])
         
         except JSONDecodeError as jde:  # error in json.loads()
             logger.debug('the script output is not in JSON format')

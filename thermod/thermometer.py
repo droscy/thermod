@@ -26,7 +26,7 @@ import logging
 import subprocess
 from copy import deepcopy
 #from json.decoder import JSONDecodeError
-from .config import ScriptError
+from .config import ScriptError, check_script
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -35,7 +35,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2016-03-17'
+__updated__ = '2016-10-02'
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +172,19 @@ class ScriptThermometer(BaseThermometer):
     JSON_ERROR = 'error'
     
     def __init__(self, script, debug=False, scale=BaseThermometer.DEGREE_CELSIUS):
+        """Initialiaze a script-based thermometer.
+        
+        The first parameter must be a string containing the full paths to
+        the script with options (like `/usr/local/bin/get-temp -j --opt`) or an
+        array with the script to be executed followed by the options
+        (like `['/usr/local/bin/get-temp', '-j', '--opt']`).
+        
+        If the script must be executed with '--debug' option appended, set the
+        `debug` parameter to `True`.
+        
+        @exception ScriptError if the provided script cannot be found or executed
+        """
+        
         super().__init__(scale)
         
         if isinstance(script, list):
@@ -183,6 +196,8 @@ class ScriptThermometer(BaseThermometer):
         
         if debug:
             self._script.append(ScriptThermometer.DEBUG_OPTION)
+        
+        check_script(self._script[0])
         
         logger.debug('%s initialized with script: `%s`',
                      self.__class__.__name__,
@@ -227,6 +242,12 @@ class ScriptThermometer(BaseThermometer):
                 logger.debug(err)
             
             raise ScriptThermometerError((err or suberr), suberr, self._script[0])
+        
+        except FileNotFoundError as fnfe:
+            raise ScriptThermometerError('cannot find script', str(fnfe), self._script[0])
+        
+        except PermissionError as pe:
+            raise ScriptThermometerError('cannot execute script', str(pe), self._script[0])
         
         except JSONDecodeError as jde:  # error in json.loads()
             logger.debug('the script output is not in JSON format')
