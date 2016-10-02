@@ -5,16 +5,9 @@ Wants=network.target
 After=syslog.service network.target
 
 [Service]
-Type=forking
+Type=simple
 User=thermod
-Group=nogroup
-PIDFile=/run/thermod/thermod.pid
-# run ExecStartPre with root permissions
-PermissionsStartOnly=true
-ExecStartPre=-/bin/mkdir -p /run/thermod
-ExecStartPre=/bin/chown thermod:nogroup /run/thermod
-# run ExecStart with custom user and group permissions
-ExecStart=/usr/bin/thermod --pid /run/thermod/thermod.pid
+ExecStart=/usr/bin/thermod --systemd
 ExecReload=/bin/kill -HUP $MAINPID
 KillSignal=SIGTERM
 

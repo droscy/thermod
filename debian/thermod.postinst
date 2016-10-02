@@ -33,10 +33,6 @@ case "$1" in
     ;;
 esac
 
-# TODO c'è un errore lintian di init.d-script-not-included-in-package
-# perché il debhelper sotto aggiunge anche comandi per lo script in init.d
-# che però non esiste per questo pacchetto.
-
 #DEBHELPER#
 
 exit 0

@@ -41,26 +41,32 @@ from thermod.config import JsonValueError, ScriptError
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2016-09-18'
+__updated__ = '2016-10-02'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
+# TODO creare manpage per questo file
+# TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
 
 # TODO rivedere i messaggi di log, decidere se usare %-formatting
 # oppure https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles
 # usando StyleAdapter
 
+# TODO decidere meglio quali errori devono far chiudere il demone, sia che si verifichino
+# al primo avvio, sia mentre il demone sta funzionando.
+
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = config.RET_CODE_OK
 
 # parsing input arguments
-parser = argparse.ArgumentParser(description='thermod daemon')
+parser = argparse.ArgumentParser(description='Thermod: programmable thermostat daemon for smart-heating automation')
 parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(PROGRAM_VERSION))
 parser.add_argument('-C', '--config', action='store', default=None, help='read configuration from CONFIG file (full path)')
 parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground')
-parser.add_argument('-L', '--log', action='store', default=None, help='write messages to LOG file (full path)')
-parser.add_argument('-P', '--pid', action='store', default='/run/thermod/thermod.pid', help='where to create PID file (full path)')
+parser.add_argument('-L', '--log', action='store', default=None, help='write log messages to LOG file (full path)')
+parser.add_argument('-P', '--pid', action='store', default='/run/thermod/thermod.pid', help='where to create PID file if required (full path)')
+parser.add_argument('--systemd', action='store_true', help='use only if started by systemd')
 args = parser.parse_args()
 
 # setting up logging system
@@ -70,7 +76,7 @@ logger.setLevel(logging.INFO)
 if args.debug:
     logger.setLevel(logging.DEBUG)
 
-if args.foreground:
+if args.foreground and not args.systemd:
     console = logging.StreamHandler(sys.stdout)
     console.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
                                            datefmt=config.logger_fmt_time,
@@ -361,6 +367,11 @@ def thermostat_cycle():
                         logger.debug(he.suberror)
                     
                     except Exception as e:
+                        # TODO si arriva qui per FileNotFoundError se uno script
+                        # indicato nel file di configurazione non esiste, capire
+                        # se conviene gestirlo qui oppure se va gestito alla
+                        # creazione dell'oggetto ScriptHeating o ScriptThermometer
+                        
                         # An unknown error occurred somewhere
                         logger.exception('unknown error occurred: %s', e)
                         shutdown(exitcode=config.RET_CODE_RUN_OTHER_ERR)
@@ -473,8 +484,8 @@ def thermostat_cycle():
 
 
 # main
-if args.foreground:
-    logger.debug('starting daemon in foreground')
+if args.foreground or args.systemd:
+    logger.debug('starting daemon in %s', (args.systemd and 'background by systemd' or 'foreground'))
     
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGHUP, reload_timetable)

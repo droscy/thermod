@@ -2,7 +2,7 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.0.0-beta4 \
+Thermod v1.0.0-beta5 \
 Copyright (C) 2016 Simone Rossetto <simros85@gmail.com> \
 GNU General Public License v3
 
@@ -26,9 +26,10 @@ GNU General Public License v3
 *Thermod* requires [Python3](https://www.python.org/) (at least version 3.4)
 and the following packages:
 
- - [python-daemon](https://pypi.python.org/pypi/python-daemon) (>=2.0)
- - [jsonschema](https://pypi.python.org/pypi/jsonschema)
+ - [python-daemon](https://pypi.python.org/pypi/python-daemon) (>=2.0.5)
+ - [jsonschema](https://pypi.python.org/pypi/jsonschema) (>=2.3.0)
  - [requests](http://docs.python-requests.org/) (>=2.4.3)
+ - [nose](http://nose.readthedocs.io/) (>=1.3.4)
 
 
 ### Installation
@@ -45,10 +46,12 @@ then copy the source file `etc/thermod.conf` in one of the following paths:
  - `${HOME}/thermod/thermod.conf` (where `${HOME}` is the *home* folder of
    the user running the daemon)
 
-and adjust it to meet your requirements, in particular set the paths of:
+and adjust it to meet your requirements, in particular set:
 
- - `timetable` file
- - `scripts` for heating and thermometer
+ - `timetable` path to timetable file
+ - `scripts` path to executables to control heating and thermometer
+ - `email` mail server settings
+ - `email/rcpt` list of recipients for alert e-mails
 
 
 ## Starting/Stopping the daemon

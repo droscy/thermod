@@ -26,7 +26,7 @@ import logging
 import configparser
 
 __date__ = '2015-09-13'
-__updated__ = '2016-09-11'
+__updated__ = '2016-10-01'
 
 
 # config module logger
@@ -50,7 +50,7 @@ logger_fmt_style = '{'
 
 # return codes
 RET_CODE_OK = 0
-RET_CODE_DAEMON_DISABLED = 3
+RET_CODE_DAEMON_DISABLED = 6
 RET_CODE_PID_FILE_ERROR = 4
 RET_CODE_CFG_FILE_MISSING = 10
 RET_CODE_CFG_FILE_SYNTAX_ERR = 11

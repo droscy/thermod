@@ -20,9 +20,9 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 __date__ = '2016-03-27'
-__updated__ = '2016-08-24'
+__updated__ = '2016-10-01'
 
-__version__ = '1.0.0b4'
+__version__ = '1.0.0b5'
 """The main version of the whole Thermod daemon."""
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
