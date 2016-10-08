@@ -41,12 +41,13 @@ from thermod.config import JsonValueError, ScriptError
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2016-10-02'
+__updated__ = '2016-10-08'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
 # TODO creare manpage per questo file
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
+# TODO l'aggiornamento del pacchetto Debian sovrascrive il timetable.json
 
 # TODO rivedere i messaggi di log, decidere se usare %-formatting
 # oppure https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles

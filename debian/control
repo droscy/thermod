@@ -45,7 +45,12 @@ Description: Programmable thermostat daemon (documentation)
 Package: thermod-web
 Section: web
 Architecture: all
-Depends: ${misc:Depends}
+Depends:
+ libapache2-mod-php5 (>=5.6),
+ php5-curl (>=5.6),
+ libjs-jquery-ui (>=1.10.0),
+ libjs-jquery (>=1.7.2),
+ ${misc:Depends}
 Recommends: ${misc:Recommends}
 Description: Programmable thermostat daemon (web application)
  Web management application to interact with Thermod daemon.

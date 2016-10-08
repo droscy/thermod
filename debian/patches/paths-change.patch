@@ -14,8 +14,8 @@
 +# string after having completed their job. See /usr/share/doc/thermod/samples
 +# folder for some sample scripts.
  thermometer = /etc/thermod/get-temperature
- switchon = /etc/thermod/switch-heating --on -j -s
- switchoff = /etc/thermod/switch-heating --off -j -s
+ switchon = /etc/thermod/switch-heating --on -j -s --noinfo
+ switchoff = /etc/thermod/switch-heating --off -j -s --noinfo
 --- a/web/index.php
 +++ b/web/index.php
 @@ -19,7 +19,7 @@

@@ -34,9 +34,9 @@ from serial import Serial, SerialException
 from thermod import config, ScriptHeating
 
 
-__version__ = '1.0.0b7'
+__version__ = '1.0.0b8'
 __date__ = '2015-10-02'
-__updated__ = '2016-09-18'
+__updated__ = '2016-10-08'
 
 
 # Control commands
@@ -195,8 +195,9 @@ def main(argv=None):
     
     parser.add_argument('-d', '--device', metavar='DEV', action='store', default='/dev/ttyUSB0', help='serial device of TTL relay (default /dev/ttyUSB0)')
     parser.add_argument('-j', '--json', action='store_true', help='output result in JSON format for Thermod daemon')
-    parser.add_argument('-s', '--syslog', action='store_true', help='log messages to syslog')
-    parser.add_argument('-D', '--debug', action='store_true', help='print debug messages too')
+    parser.add_argument('-s', '--syslog', action='store_true', help='write log messages to syslog')
+    parser.add_argument('-D', '--debug', action='store_true', help='log debug messages too')
+    parser.add_argument('-I', '--noinfo', action='store_true', help='log only warnings and errors (no info messages)')
     parser.add_argument('-v', '--version', action='version', version=prog_version_msg)
     
     args = parser.parse_args()
@@ -209,6 +210,8 @@ def main(argv=None):
     
     if args.debug:
         logger.setLevel(logging.DEBUG)
+    elif args.noinfo:
+        logger.setLevel(logging.WARNING)
     else:
         logger.setLevel(logging.INFO)
     

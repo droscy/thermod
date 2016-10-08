@@ -7,6 +7,9 @@ After=syslog.service network.target
 [Service]
 Type=simple
 User=thermod
+PermissionsStartOnly=true
+ExecStartPre=-/bin/mkdir -p /run/thermod
+ExecStartPre=/bin/chown thermod /run/thermod
 ExecStart=/usr/bin/thermod --systemd
 ExecReload=/bin/kill -HUP $MAINPID
 KillSignal=SIGTERM
