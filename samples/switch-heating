@@ -34,9 +34,9 @@ from serial import Serial, SerialException
 from thermod import config, ScriptHeating
 
 
-__version__ = '1.0.0b8'
+__version__ = '1.0.0b9'
 __date__ = '2015-10-02'
-__updated__ = '2016-10-08'
+__updated__ = '2016-10-14'
 
 
 # Control commands
@@ -197,7 +197,7 @@ def main(argv=None):
     parser.add_argument('-j', '--json', action='store_true', help='output result in JSON format for Thermod daemon')
     parser.add_argument('-s', '--syslog', action='store_true', help='write log messages to syslog')
     parser.add_argument('-D', '--debug', action='store_true', help='log debug messages too')
-    parser.add_argument('-I', '--noinfo', action='store_true', help='log only warnings and errors (no info messages)')
+    parser.add_argument('-q', '--quiet', action='store_true', help='log only warnings and errors (no info messages)')
     parser.add_argument('-v', '--version', action='version', version=prog_version_msg)
     
     args = parser.parse_args()
@@ -210,7 +210,7 @@ def main(argv=None):
     
     if args.debug:
         logger.setLevel(logging.DEBUG)
-    elif args.noinfo:
+    elif args.quiet:
         logger.setLevel(logging.WARNING)
     else:
         logger.setLevel(logging.INFO)

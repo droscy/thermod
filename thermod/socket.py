@@ -46,8 +46,8 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2016-09-18'
-__version__ = '1.1'
+__updated__ = '2016-10-14'
+__version__ = '1.2'
 
 logger = logging.getLogger((__name__ == '__main__' and config.logger_base_name) or __name__)
 
@@ -67,6 +67,7 @@ req_heating_target_temp = 'target'
 
 req_path_settings = ('settings', 'set')
 req_path_heating = ('heating', 'heat')
+req_path_version = ('version', 'ver')
 req_path_teapot = ('elena', 'tea')
 
 rsp_error = 'error'
@@ -265,6 +266,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     message = None
                 
             data = self._send_header(code, message, response, last_updt)
+        
+        elif pathlist[0] in req_path_version:
+            logger.debug('{} sending back Thermod version'.format(self.client_address))
+            data = self._send_header(200,data=json.dumps({'version': PROGRAM_VERSION}))
         
         elif pathlist[0] in req_path_teapot:
             logger.info('{} I\'m a teapot'.format(self.client_address))

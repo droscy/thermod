@@ -112,7 +112,7 @@
 			// retrieve heating status from daemon and refresh header web page
 			function get_heating_status_and_refresh()
 			{
-				$.get('status.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
+				$.get('info.php', {'info':'heating', 'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
 				{
 					if(!('error' in data))
 					{
@@ -364,6 +364,14 @@
 						$("#dialog").dialog('open');
 					}
 				},'json');
+
+				$.get('info.php', {'info':'version', 'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
+				{
+					if(!('error' in data))
+					{
+						$('#version').html('v' + data['version']);
+					}
+				},'json');
 			});
 
 			$(document).ajaxStart(start_loading).ajaxStop(stop_loading);
@@ -525,7 +533,7 @@
 		</div>
 		
 		<div id="copyright">
-			<p>Thermod Web Manager v1.0.0</p>
+			<p>Thermod (Web Manager) <span id="version"></span></p>
 			<p>Copyright &copy; 2016<?=(date('Y')>2016?'-'.date('Y'):'');?> Simone Rossetto</p>
 			<p>GNU General Public License v3.0</p>
 		</div>

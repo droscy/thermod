@@ -20,13 +20,16 @@
 
 $HOST = (isset($_GET['host']) ? htmlentities($_GET['host']) : 'localhost');
 $PORT = (isset($_GET['port']) ? htmlentities($_GET['port']) : '4344');
+$INFO = (isset($_GET['info']) ? htmlentities($_GET['info']) : null);
 
 $status = null;
 $socket_http_code = null;
 
-if(function_exists('curl_version'))
+if(!$INFO)
+	$status = json_encode(array('error' => 'no information requested from daemon'));
+else if(function_exists('curl_version'))
 {
-	$curl = curl_init("http://{$HOST}:{$PORT}/heating");
+	$curl = curl_init("http://{$HOST}:{$PORT}/{$INFO}");
 	curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 	$status = curl_exec($curl);
 	$socket_http_code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
