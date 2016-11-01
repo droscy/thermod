@@ -23,6 +23,7 @@ import os
 import sys
 import copy
 import json
+import time
 import locale
 import unittest
 import tempfile
@@ -39,7 +40,7 @@ else:
     JSONDecodeError = ValueError
 
 
-__updated__ = '2016-06-02'
+__updated__ = '2016-11-01'
 
 
 def fill_timetable(timetable):
@@ -660,6 +661,27 @@ class TestTimeTable(unittest.TestCase):
         # the heating remains off
         self.timetable.update(day,hour,quarter,tconf.json_tmax_str)
         self.assertFalse(self.timetable.should_the_heating_be_on(21))
+    
+    
+    def test_timetable_10(self):
+        fill_timetable(self.timetable)
+        
+        now = datetime.now()
+        day = now.strftime('%w')
+        hour = tconf.json_format_hour(now.hour)
+        quarter = int(now.minute // 15)
+        
+        self.timetable.status = tconf.json_status_auto
+        self.timetable.update(day,hour,quarter,tconf.json_tmax_str)
+        self.timetable.grace_time = 2
+        self.timetable.heating.switch_on()
+        
+        # the heating is on
+        self.assertTrue(self.timetable.should_the_heating_be_on(21.1))
+        
+        # sleeps 3 seconds to exceed the grace time, the heating is then off
+        time.sleep(3)
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.1))
     
     
     def test_target_temperature(self):

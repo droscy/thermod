@@ -46,8 +46,8 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2016-08-27'
-__version__ = '1.2'
+__updated__ = '2016-11-01'
+__version__ = '1.3'
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +157,17 @@ class TimeTable(object):
         to current timestamp of last settings change.
         """
         
+        self._last_tgt_temp_reached_timestamp = datetime(9999,12,31).timestamp()
+        """Timestamp of target temperature last reaching.
+        
+        Whenever the target temperature is reached, this value is updated with
+        the current timestamp. When the current temperature falls below the
+        target temperature, this value is reset to float infinity.
+        
+        It is used in the `should_the_heating_be_on(room_temperature)`
+        method to respect the grace time.
+        """
+        
         self.filepath = filepath
         """Full path to a JSON timetable configuration file."""
         
@@ -215,6 +226,7 @@ class TimeTable(object):
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
+        new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
         
         new.filepath = self.filepath
         
@@ -239,6 +251,7 @@ class TimeTable(object):
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
+        new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
         
         new.filepath = self.filepath
         
@@ -493,6 +506,11 @@ class TimeTable(object):
     def last_update_timestamp(self):
         """Return the timestamp of last settings update."""
         return self._last_update_timestamp
+    
+    
+    def last_tgt_temp_reached_timestamp(self):
+        """Return the timestamp when the target temperature was last reached."""
+        return self._last_tgt_temp_reached_timestamp
     
     
     @property
@@ -922,14 +940,14 @@ class TimeTable(object):
         return target
     
     
-    def should_the_heating_be_on(self, room_temperature=None, target_time=None):
+    def should_the_heating_be_on(self, room_temperature=None):
         """Check if the heating, now, should be on.
         
         If the provided temperature is `None` the thermometer interface is
-        queried to retrive the current temperature. If the provided time is
-        `None` the current time is used.
+        queried to retrive the current temperature.
         
-        This method doesn't update any of the internal variables.
+        This method updates only the internal variable `self._last_tgt_temp_reached_timestamp`
+        if appropriate conditions are met.
         
         @return an instance of thermod.timetable.ShouldBeOn with a boolean value
             of `True` if the heating should be on, `False` otherwise
@@ -953,11 +971,8 @@ class TimeTable(object):
             
             if room_temperature is None:
                 room_temperature = self._thermometer.temperature
-        
-            if target_time is None:
-                target_time = datetime.now()
-            elif not isinstance(target_time, datetime):
-                raise TypeError('target_time requires a datetime object')
+            
+            target_time = datetime.now()
             
             target = None
             current = self.degrees(room_temperature)
@@ -978,19 +993,22 @@ class TimeTable(object):
                 offts = self._heating.switch_off_time().timestamp()
                 grace = self._grace_time
                 
-                logger.debug('is_on: {}, switch_off_time: {}, grace_time: {}'
-                             .format(ison, datetime.fromtimestamp(offts), grace))
+                if current >= target and nowts < self._last_tgt_temp_reached_timestamp:
+                    # first time the target temp is reached, update timestamp
+                    self._last_tgt_temp_reached_timestamp = nowts
+                elif current < target:
+                    self._last_tgt_temp_reached_timestamp = datetime(9999,12,31).timestamp()
                 
-                # TODO il grace-time deve funzionare anche al contrario: quando
-                # è acceso da più di grace-time e la temperatura è tra target e
-                # target+diff allora si spegne, vuol dire che la caldaia non riesce
-                # a far salire ulteriormente la temperatura. Si deve però trovare
-                # un modo per salvarsi il primo orario in cui la temperatura
-                # ha raggiunto target!!
+                tgtts = self._last_tgt_temp_reached_timestamp
+                
+                logger.debug('is_on: {}, switch_off_time: {}, tgt_temperature_time: {}, grace_time: {}'
+                             .format(ison, datetime.fromtimestamp(offts), datetime.fromtimestamp(tgtts), grace))
+                
                 should_be_on = (
-                    (current <= (target - diff))
+                    ((current <= (target - diff))
                     or ((current < target) and ((nowts - offts) > grace))
                     or ((current < (target + diff)) and ison))
+                        and not (current >= target and (nowts - tgtts) > grace))
         
         logger.debug('the heating should be {}'
                      .format(should_be_on and 'ON' or 'OFF'))
