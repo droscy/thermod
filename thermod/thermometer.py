@@ -26,6 +26,8 @@ import logging
 import subprocess
 from copy import deepcopy
 #from json.decoder import JSONDecodeError
+from threading import Event
+from collections import deque
 from .config import ScriptError, check_script
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
@@ -148,6 +150,76 @@ class FakeThermometer(BaseThermometer):
             return t
         else:
             return celsius2fahrenheit(t)
+
+
+# TODO inserire documentazione su come creare questa board con TMP36 e su
+# come viene misurata la temperatura facendo la media di più valori.
+class PiAnalogZeroThermometer(BaseThermometer):
+    """Read temperature from a Raspberry Pi AnalogZero board.
+    
+    @see http://rasp.io/analogzero/
+    """
+    
+    def __init__(self, channel):
+        super().__init__(BaseThermometer.DEGREE_CELSIUS)
+        
+        try:
+            logger.debug('importing gpiozero module')
+            gpiozero = __import__('gpiozero')
+        except ImportError as ie:
+            raise ThermometerError('cannot import module gpiozero', str(ie))
+        
+        self._vref = ((3.32/(3.32+7.5))*3.3*1000)
+        self._adc = gpiozero.MCP3008(channel=channel)
+        
+        # Allocate the queue for the last 30 temperatures to be averaged. The
+        # value `30` covers a period of 3 minutes because the sleep time between
+        # two mesures is 6 seconds: 6*30 = 180 seconds = 3 minutes.
+        maxlen = 30
+        self._temperatures = deque([self.realtime_temperature for t in range(maxlen)], maxlen)
+        
+        self._stop = Event()
+        Thread(target=self._update_temperatures).start()
+    
+    def __del__(self):
+        # TODO verificare se questa cosa funziona
+        try:
+            stop = getattr(self, '_stop')
+            stop.set()
+        except AttributeError:
+            pass
+    
+    @property
+    def realtime_temperature(self):
+        """The current temperature as measured by physical thermometer."""
+        return (((self._adc.value * self._vref) - 500) / 10)
+    
+    def _update_temperatures(self):
+        """Start a cycle to update the list of last temperatures.
+        
+        This method should be run in a separate thread in order to maintain
+        the list `self._temperatures` always updated with the last measured
+        temperatures.
+        """
+        
+        logger.debug('starting temperature updating cycle')
+        
+        while not self._stop.wait(6):
+            self._temperatures.append(self.realtime_temperature)
+    
+    @property
+    def temperature(self):
+        """Return the average of the last measured temperatures.
+        
+        The average is the way to reduce fluctuation in measurment. Precisely
+        the least 5 and the greatest 5 temperatures are not excluded, even this
+        trick is to stabilize the returned value.
+        """
+        
+        skip = 5
+        temp = list(self._temperatures)
+        temp.sort()
+        return sum(temp[skip:len(temp)-skip]) / (len(temp)-2*skip)
 
 
 class ScriptThermometer(BaseThermometer):
