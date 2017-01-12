@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Thermod daemon.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -27,6 +27,7 @@ import argparse
 import signal
 import tempfile
 import lockfile
+import importlib
 
 from daemon import DaemonContext, pidfile
 from logging.handlers import SysLogHandler, SMTPHandler
@@ -41,7 +42,7 @@ from thermod.config import JsonValueError, ScriptError
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2016-11-01'
+__updated__ = '2017-01-09'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -165,8 +166,23 @@ if debug:
 try:
     logger.debug('creating base objects')
     
+    if scripts['thermometer'][0:2] == 'Pi':
+        # The user choose to use an internal class for Raspberry Pi thermometer
+        # instead of an external script.
+        
+        _params = scripts['thermometer'].split(',')
+        _pi_thermo_mod = importlib.import_module('thermod.thermometer')
+        _pi_thermo_cls = getattr(_pi_thermo_mod, _params[0])
+        
+        try:
+            thermometer = _pi_thermo_cls(_params[1:])
+        except IndexError:
+            thermometer = _pi_thermo_cls()
+    
+    else:
+        thermometer = ScriptThermometer(scripts['thermometer'], debug)
+    
     heating = ScriptHeating(scripts['on'], scripts['off'], scripts['status'], debug)
-    thermometer = ScriptThermometer(scripts['thermometer'], debug)
     timetable = TimeTable(tt_file, heating, thermometer)
 
 except ScriptError as se:
@@ -192,6 +208,10 @@ except ValueError as ve:
 except ValidationError as jve:
     main_return_code = config.RET_CODE_TT_INVALID_CONTENT
     logger.critical('invalid element %s in timetable file: %s', list(jve.path), jve.message)
+
+except AttributeError as ae:
+    main_return_code = config.RET_CODE_PI_INIT_ERR
+    logger.critical('cannot import class `%s` to initialize the thermometer', _params[0])
 
 except Exception as e:
     main_return_code = config.RET_CODE_INIT_ERR
@@ -394,6 +414,8 @@ def thermostat_cycle():
         try:
             with timetable.lock:
                 socket.stop()
+                timetable.heating().release_resources()
+                timetable.thermometer().release_resources()
                 socket.join(10)
         
         except NameError:

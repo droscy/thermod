@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Interface to the real heating.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -36,7 +36,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2016-10-02'
+__updated__ = '2017-01-09'
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +135,16 @@ class BaseHeating(object):
         """
         
         return self._switch_off_time
+    
+    def release_resources(self):
+        """This method can be implemented in subclasses.
+        
+        Should be used to release possibly acquired hardware resources because
+        it is executed during daemon shutdown. This default implementation
+        does nothing.
+        """
+        
+        pass
 
 
 class ScriptHeating(BaseHeating):

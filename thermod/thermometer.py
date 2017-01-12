@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Interface to the thermometer.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -26,7 +26,7 @@ import logging
 import subprocess
 from copy import deepcopy
 #from json.decoder import JSONDecodeError
-from threading import Event
+from threading import Thread, Event
 from collections import deque
 from .config import ScriptError, check_script
 
@@ -37,7 +37,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2016-10-02'
+__updated__ = '2017-01-09'
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,10 @@ class BaseThermometer(object):
     """Basic implementation of a thermometer.
     
     The property `temperature` must be implemented in subclasses and must
-    return the current temperature as a float number.
+    return the current temperature as a float number. Also `release_resources()`
+    method must be implemented in subclasses, it is executed during daemon
+    shutdown in order to release acquired hardware resources (the default
+    implementation does nothing).
     
     During instantiation a degree scale must be specified, in order to
     correctly handle conversion methods: `to_celsius()` and `to_fahrenheit()`.
@@ -125,6 +128,16 @@ class BaseThermometer(object):
         """
         raise NotImplementedError()
     
+    def release_resources(self):
+        """This method can be implemented in subclasses.
+        
+        Should be used to release possibly acquired hardware resources because
+        it is executed during daemon shutdown. This default implementation
+        does nothing.
+        """
+        
+        pass
+    
     def to_celsius(self):
         """Return the current temperature in Celsius degrees."""
         if self._scale == BaseThermometer.DEGREE_CELSIUS:
@@ -155,12 +168,12 @@ class FakeThermometer(BaseThermometer):
 # TODO inserire documentazione su come creare questa board con TMP36 e su
 # come viene misurata la temperatura facendo la media di più valori.
 class PiAnalogZeroThermometer(BaseThermometer):
-    """Read temperature from a Raspberry Pi AnalogZero board.
+    """Read temperature from a Raspberry Pi AnalogZero board in celsius degree.
     
     @see http://rasp.io/analogzero/
     """
     
-    def __init__(self, channel):
+    def __init__(self, channel, *args):
         super().__init__(BaseThermometer.DEGREE_CELSIUS)
         
         try:
@@ -174,20 +187,14 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         # Allocate the queue for the last 30 temperatures to be averaged. The
         # value `30` covers a period of 3 minutes because the sleep time between
-        # two mesures is 6 seconds: 6*30 = 180 seconds = 3 minutes.
+        # two measures is 6 seconds: 6*30 = 180 seconds = 3 minutes.
         maxlen = 30
         self._temperatures = deque([self.realtime_temperature for t in range(maxlen)], maxlen)
         
+        # start averaging thread
         self._stop = Event()
-        Thread(target=self._update_temperatures).start()
-    
-    def __del__(self):
-        # TODO verificare se questa cosa funziona
-        try:
-            stop = getattr(self, '_stop')
-            stop.set()
-        except AttributeError:
-            pass
+        self._averaging_thread = Thread(target=self._update_temperatures, daemon=True)
+        self._averaging_thread.start()
     
     @property
     def realtime_temperature(self):
@@ -212,7 +219,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
         """Return the average of the last measured temperatures.
         
         The average is the way to reduce fluctuation in measurment. Precisely
-        the least 5 and the greatest 5 temperatures are not excluded, even this
+        the least 5 and the greatest 5 temperatures are excluded, even this
         trick is to stabilize the returned value.
         """
         
@@ -220,6 +227,11 @@ class PiAnalogZeroThermometer(BaseThermometer):
         temp = list(self._temperatures)
         temp.sort()
         return sum(temp[skip:len(temp)-skip]) / (len(temp)-2*skip)
+    
+    def release_resources(self):
+        """Stop the temperature-averaging running thread."""
+        self._stop.set()
+        self._averaging_thread.join(6)
 
 
 class ScriptThermometer(BaseThermometer):
