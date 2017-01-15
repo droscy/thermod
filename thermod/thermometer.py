@@ -37,7 +37,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2017-01-09'
+__updated__ = '2017-01-15'
 
 logger = logging.getLogger(__name__)
 
@@ -170,11 +170,26 @@ class FakeThermometer(BaseThermometer):
 class PiAnalogZeroThermometer(BaseThermometer):
     """Read temperature from a Raspberry Pi AnalogZero board in celsius degree.
     
+    If a single channel is provided during object creation, it's value is used
+    as temperature, if more than one channel is provided, the current
+    temperature is computed averaging the values of all channels.
+    
     @see http://rasp.io/analogzero/
     """
     
-    def __init__(self, channel, *args):
+    def __init__(self, *channels):
+        """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
+        
+        @param channels the list of channels to read value from
+        
+        @exception ValueError if no channel provided
+        @exception ImportError if the module `gpiozero' cannot be imported
+        """
+        
         super().__init__(BaseThermometer.DEGREE_CELSIUS)
+        
+        if len(channels) == 0:
+            raise ValueError('missing A/D channel for PiAnalogZero thermometer')
         
         try:
             logger.debug('importing gpiozero module')
@@ -183,7 +198,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
             raise ThermometerError('cannot import module gpiozero', str(ie))
         
         self._vref = ((3.32/(3.32+7.5))*3.3*1000)
-        self._adc = gpiozero.MCP3008(channel=channel)
+        self._adc = [gpiozero.MCP3008(channel=c) for c in channels]
         
         # Allocate the queue for the last 30 temperatures to be averaged. The
         # value `30` covers a period of 3 minutes because the sleep time between
@@ -198,8 +213,14 @@ class PiAnalogZeroThermometer(BaseThermometer):
     
     @property
     def realtime_temperature(self):
-        """The current temperature as measured by physical thermometer."""
-        return (((self._adc.value * self._vref) - 500) / 10)
+        """The current temperature as measured by physical thermometer.
+        
+        If more than one channel is provided during `PiAnalogZeroThermometer`
+        object creation, the returned temperature is the average value computed
+        on all channels.
+        """
+        
+        return sum([(((adc.value * self._vref) - 500) / 10) for adc in self._adc]) / len(self._adc)
     
     def _update_temperatures(self):
         """Start a cycle to update the list of last temperatures.
@@ -229,7 +250,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
         return sum(temp[skip:len(temp)-skip]) / (len(temp)-2*skip)
     
     def release_resources(self):
-        """Stop the temperature-averaging running thread."""
+        """Stop the temperature-averaging thread."""
         self._stop.set()
         self._averaging_thread.join(6)
 
