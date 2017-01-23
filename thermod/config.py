@@ -25,8 +25,10 @@ import calendar
 import logging
 import configparser
 
+from collections import namedtuple
+
 __date__ = '2015-09-13'
-__updated__ = '2017-01-09'
+__updated__ = '2017-01-22'
 
 
 # config module logger
@@ -80,6 +82,7 @@ SOCKET_DEFAULT_HOST = 'localhost'
 SOCKET_DEFAULT_PORT = 4344
 
 # main config files and parsers
+Settings = namedtuple('Settings', 'enabled, debug, tt_file, interval, scripts, thermometer, host, port, email, error_code')
 config_file = 'thermod.conf'
 main_config_files = (config_file,
                      os.path.join(os.path.expanduser('~/.thermod'), config_file),
@@ -178,10 +181,23 @@ def parse_main_settings(cfg):
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
         
-        scripts = {'thermometer': cfg.get('scripts', 'thermometer'),
+        _thermo = cfg.get('scripts', 'thermometer')
+        scripts = {'thermometer': _thermo,
                    'on': cfg.get('scripts', 'switchon'),
                    'off': cfg.get('scripts', 'switchoff'),
                    'status': cfg.get('scripts', 'status')}
+        
+        if _thermo == 'PiAnalogZero':
+            # The user choose to use an internal class for Raspberry Pi
+            # thermometer instead of an external script.
+            thermometer = {'channels': [int(c) for c in cfg.get('PiAnalogZero', 'channels', fallback='').split(',')],
+                           'multiplier': cfg.getfloat('PiAnalogZero', 'multiplier', fallback=1.0),
+                           'shift': cfg.getfloat('PiAnalogZero', 'shift', fallback=0.0)}
+        
+        # An `elif` can be added with additional Raspberry Pi thermometers class
+        # once they will be created.
+        else:
+            thermometer = None
         
         host = cfg.get('socket', 'host', fallback=SOCKET_DEFAULT_HOST)
         port = cfg.getint('socket', 'port', fallback=SOCKET_DEFAULT_PORT)
@@ -215,7 +231,7 @@ def parse_main_settings(cfg):
         logger.critical('unknown error in configuration file: %s', cpe)
     
     except ValueError as ve:
-        # raised by getboolean() and getint() methods
+        # raised by getboolean(), getfloat(), getint() and int() methods
         error_code = RET_CODE_CFG_FILE_INVALID
         logger.critical('invalid configuration: {}'.format(ve))
     
@@ -238,7 +254,7 @@ def parse_main_settings(cfg):
         error_code = RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return (enabled, debug, tt_file, interval, scripts, host, port, email, error_code)
+    return Settings(enabled, debug, tt_file, interval, scripts, thermometer, host, port, email, error_code)
 
 
 # thermod name convention (from json file)

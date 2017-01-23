@@ -1,23 +1,7 @@
---- a/etc/thermod.conf
-+++ b/etc/thermod.conf
-@@ -7,12 +7,13 @@
- [global]
- enabled = false
- debug = false
--timetable = /etc/thermod/timetable.json
-+timetable = /var/lib/thermod/timetable.json
- interval = 30
- 
- [scripts]
- # These variables must be full path to executable scripts that return a JSON
--# string after having completed their job. See samples folder for some examples.
-+# string after having completed their job. See /usr/share/doc/thermod/samples
-+# folder for some sample scripts.
- thermometer = /etc/thermod/get-temperature
- switchon = /etc/thermod/switch-heating --on -j -s -q
- switchoff = /etc/thermod/switch-heating --off -j -s -q
---- a/web/index.php
-+++ b/web/index.php
+Index: thermod/web/index.php
+===================================================================
+--- thermod.orig/web/index.php
++++ thermod/web/index.php
 @@ -19,7 +19,7 @@
   */
  
@@ -27,3 +11,17 @@
  	$HOST = 'localhost';
  	$PORT = '4344';
  ?>
+Index: thermod/etc/thermod.conf
+===================================================================
+--- thermod.orig/etc/thermod.conf
++++ thermod/etc/thermod.conf
+@@ -12,7 +12,8 @@ interval = 30
+ 
+ [scripts]
+ # These options must be full path to executable scripts that return a JSON
+-# string after having completed their job. See samples folder for some examples.
++# string after having completed their job. See /usr/share/doc/thermod/samples
++# folder for some sample scripts.
+ switchon = /etc/thermod/switch-heating --on -j -s -q
+ switchoff = /etc/thermod/switch-heating --off -j -s -q
+ status = /etc/thermod/switch-heating --status -j -s -q

@@ -37,7 +37,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2017-01-15'
+__updated__ = '2017-01-23'
 
 logger = logging.getLogger(__name__)
 
@@ -177,28 +177,37 @@ class PiAnalogZeroThermometer(BaseThermometer):
     @see http://rasp.io/analogzero/
     """
     
-    def __init__(self, *channels):
+    def __init__(self, channels, multiplier=1, shift=0, scale=BaseThermometer.DEGREE_CELSIUS):
         """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
         
         @param channels the list of channels to read value from
+        @param multiplier the multiplier to calibrate the raw temperature from board
+        @param shift the shift value to calibrate the raw temperature from board
         
-        @exception ValueError if no channel provided
-        @exception ImportError if the module `gpiozero' cannot be imported
+        @exception ValueError if no channels provided or channels out of range [0,7]
+        @exception ThermometerError if the module `gpiozero' cannot be imported
         """
         
-        super().__init__(BaseThermometer.DEGREE_CELSIUS)
+        super().__init__(scale)
         
         if len(channels) == 0:
-            raise ValueError('missing A/D channel for PiAnalogZero thermometer')
+            raise ValueError('missing input channel for PiAnalogZero thermometer')
+        
+        for c in channels:
+            if c > 7:
+                raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
         
         try:
             logger.debug('importing gpiozero module')
             gpiozero = __import__('gpiozero')
         except ImportError as ie:
-            raise ThermometerError('cannot import module gpiozero', str(ie))
+            raise ThermometerError('cannot import module `gpiozero`', str(ie))
         
         self._vref = ((3.32/(3.32+7.5))*3.3*1000)
         self._adc = [gpiozero.MCP3008(channel=c) for c in channels]
+        
+        self._multiplier = float(multiplier)
+        self._shift = float(shift)
         
         # Allocate the queue for the last 30 temperatures to be averaged. The
         # value `30` covers a period of 3 minutes because the sleep time between
@@ -211,19 +220,28 @@ class PiAnalogZeroThermometer(BaseThermometer):
         self._averaging_thread = Thread(target=self._update_temperatures, daemon=True)
         self._averaging_thread.start()
     
+    def __repr__(self, *args, **kwargs):
+        return '{module}.{cls}({chnnels!r}, {multiplier!r}, {shift!r}, {scale!r})'.format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    channels=[adc.channel for adc in self._adc],
+                    multiplier=self._multiplier,
+                    shift=self._shift,
+                    scale=self._scale)
+    
     @property
     def realtime_temperature(self):
         """The current temperature as measured by physical thermometer.
         
-        If more than one channel is provided during `PiAnalogZeroThermometer`
-        object creation, the returned temperature is the average value computed
-        on all channels.
+        If more than one channel is provided during object creation, the
+        returned temperature is the average value computed on all channels.
         """
         
-        return sum([(((adc.value * self._vref) - 500) / 10) for adc in self._adc]) / len(self._adc)
+        temp = sum([(((adc.value * self._vref) - 500) / 10) for adc in self._adc]) / len(self._adc)
+        return ((self._multiplier * temp) + self._shift)
     
     def _update_temperatures(self):
-        """Start a cycle to update the list of last temperatures.
+        """Start a cycle to update the list of last measured temperatures.
         
         This method should be run in a separate thread in order to maintain
         the list `self._temperatures` always updated with the last measured
@@ -245,9 +263,10 @@ class PiAnalogZeroThermometer(BaseThermometer):
         """
         
         skip = 5
-        temp = list(self._temperatures)
-        temp.sort()
-        return sum(temp[skip:len(temp)-skip]) / (len(temp)-2*skip)
+        temp1 = list(self._temperatures)
+        temp1.sort()
+        temp2 = temp1[skip:(len(temp1)-skip)]
+        return sum(temp2) / len(temp2)
     
     def release_resources(self):
         """Stop the temperature-averaging thread."""

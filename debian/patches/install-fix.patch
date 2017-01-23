@@ -1,6 +1,8 @@
---- a/setup.py
-+++ b/setup.py
-@@ -36,12 +36,12 @@
+Index: thermod/setup.py
+===================================================================
+--- thermod.orig/setup.py
++++ thermod/setup.py
+@@ -36,12 +36,12 @@ setup(name='thermod',
        url='TODO',
        license = 'GPL-3.0+',
        packages=['thermod'],

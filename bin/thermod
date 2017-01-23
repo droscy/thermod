@@ -34,7 +34,7 @@ from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
 
 from thermod import config
-from thermod.thermometer import ScriptThermometer, ThermometerError
+from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
 from thermod.heating import ScriptHeating, HeatingError
 from thermod.timetable import TimeTable
 from thermod.socket import ControlThread
@@ -42,7 +42,7 @@ from thermod.config import JsonValueError, ScriptError
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-01-09'
+__updated__ = '2017-01-23'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -124,8 +124,8 @@ if main_return_code != config.RET_CODE_OK:
 
 
 # parsing main settings
-(enabled, debug, tt_file, interval, scripts, host, port, email, main_return_code) = config.parse_main_settings(cfg)
-debug = debug or args.debug
+settings = config.parse_main_settings(cfg)
+debug = settings.debug or args.debug
 
 if main_return_code != config.RET_CODE_OK:
     logger.info('closing daemon with return code {}'.format(main_return_code))
@@ -133,7 +133,7 @@ if main_return_code != config.RET_CODE_OK:
 
 
 # if executed in foreground we ignore the 'enabled' setting in config file
-enabled = enabled or args.foreground
+enabled = settings.enabled or args.foreground
 
 # if the daemon is disabled we exit immediately
 if not enabled:
@@ -142,12 +142,12 @@ if not enabled:
 
 
 # if mail server is present in configuration file, a new SMTPHandler is created
-if email['server']:
-    maillog = SMTPHandler(email['server'],
-                          email['sender'],
-                          email['recipients'],
-                          email['subject'],
-                          email['credentials'])
+if settings.email['server']:
+    maillog = SMTPHandler(settings.email['server'],
+                          settings.email['sender'],
+                          settings.email['recipients'],
+                          settings.email['subject'],
+                          settings.email['credentials'])
     
     maillog.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg_maillog,
                                            datefmt=config.logger_fmt_datetime,
@@ -166,24 +166,24 @@ if debug:
 try:
     logger.debug('creating base objects')
     
-    if scripts['thermometer'][0:2] == 'Pi':
+    heating = ScriptHeating(settings.scripts['on'],
+                            settings.scripts['off'],
+                            settings.scripts['status'],
+                            debug)
+    
+    if settings.scripts['thermometer'] == 'PiAnalogZero':
         # The user choose to use an internal class for Raspberry Pi thermometer
         # instead of an external script.
-        
-        _params = scripts['thermometer'].split(',')
-        _pi_thermo_mod = importlib.import_module('thermod.thermometer')
-        _pi_thermo_cls = getattr(_pi_thermo_mod, _params[0])
-        
-        try:
-            thermometer = _pi_thermo_cls(_params[1:])
-        except IndexError:
-            thermometer = _pi_thermo_cls()
+        thermometer = PiAnalogZeroThermometer(settings.thermometer['channels'],
+                                              settings.thermometer['multiplier'],
+                                              settings.thermometer['shift'])
     
+    # An `elif` can be added with additional Raspberry Pi thermometers class
+    # once they will be created.
     else:
-        thermometer = ScriptThermometer(scripts['thermometer'], debug)
+        thermometer = ScriptThermometer(settings.scripts['thermometer'], debug)
     
-    heating = ScriptHeating(scripts['on'], scripts['off'], scripts['status'], debug)
-    timetable = TimeTable(tt_file, heating, thermometer)
+    timetable = TimeTable(settings.tt_file, heating, thermometer)
 
 except ScriptError as se:
     main_return_code = config.RET_CODE_SCRIPT_INIT_ERR
@@ -191,15 +191,15 @@ except ScriptError as se:
 
 except FileNotFoundError as fnfe:
     main_return_code = config.RET_CODE_TT_NOT_FOUND
-    logger.critical('cannot find timetable file `%s`', tt_file)
+    logger.critical('cannot find timetable file `%s`', settings.tt_file)
 
 except PermissionError as pe:
     main_return_code = config.RET_CODE_TT_READ_ERR
-    logger.critical('cannot read timetable file `%s`', tt_file)
+    logger.critical('cannot read timetable file `%s`', settings.tt_file)
 
 except OSError as oe:
     main_return_code = config.RET_CODE_TT_OTHER_ERR
-    logger.critical('error accessing timetable file `%s`: %s', tt_file, oe)
+    logger.critical('error accessing timetable file `%s`: %s', settings.tt_file, oe)
 
 except ValueError as ve:
     main_return_code = config.RET_CODE_TT_INVALID_SYNTAX
@@ -209,9 +209,9 @@ except ValidationError as jve:
     main_return_code = config.RET_CODE_TT_INVALID_CONTENT
     logger.critical('invalid element %s in timetable file: %s', list(jve.path), jve.message)
 
-except AttributeError as ae:
+except ThermometerError as te:
     main_return_code = config.RET_CODE_PI_INIT_ERR
-    logger.critical('cannot import class `%s` to initialize the thermometer', _params[0])
+    logger.critical('cannot access Raspberry Pi: %s', te)
 
 except Exception as e:
     main_return_code = config.RET_CODE_INIT_ERR
@@ -283,7 +283,7 @@ def thermostat_cycle():
     
     try:
         # starting control socket
-        socket = ControlThread(timetable, host, port)
+        socket = ControlThread(timetable, settings.host, settings.port)
         socket.start()
     
     except OSError as oe:
@@ -399,7 +399,7 @@ def thermostat_cycle():
                         # The 'wait' method returns False on timeout, thus we
                         # negate it to have cycle_timeout equal True when a
                         # timeout has occurred.
-                        cycle_timeout = not timetable.lock.wait(interval)
+                        cycle_timeout = not timetable.lock.wait(settings.interval)
             
             except KeyboardInterrupt:
                 shutdown(exitcode=config.RET_CODE_KEYB_INTERRUPT)
