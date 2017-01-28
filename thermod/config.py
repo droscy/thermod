@@ -20,15 +20,17 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import os
+import sys
 import math
 import calendar
 import logging
 import configparser
 
 from collections import namedtuple
+from datetime import datetime
 
 __date__ = '2015-09-13'
-__updated__ = '2017-01-22'
+__updated__ = '2017-01-28'
 
 
 # config module logger
@@ -80,6 +82,15 @@ RET_CODE_KEYB_INTERRUPT = 130
 # socket default address and port
 SOCKET_DEFAULT_HOST = 'localhost'
 SOCKET_DEFAULT_PORT = 4344
+
+# timestamp max value for current platform
+try:
+    _tmv = datetime(9999,12,31).timestamp()
+except OverflowError:
+    _tmv = sys.maxsize
+finally:
+    TIMESTAMP_MAX_VALUE = _tmv
+    """Max value for a POSIX timestamp in current platform."""
 
 # main config files and parsers
 Settings = namedtuple('Settings', 'enabled, debug, tt_file, interval, scripts, thermometer, host, port, email, error_code')

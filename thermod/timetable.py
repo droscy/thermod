@@ -46,7 +46,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2016-11-01'
+__updated__ = '2017-01-28'
 __version__ = '1.3'
 
 logger = logging.getLogger(__name__)
@@ -157,12 +157,12 @@ class TimeTable(object):
         to current timestamp of last settings change.
         """
         
-        self._last_tgt_temp_reached_timestamp = datetime(9999,12,31).timestamp()
+        self._last_tgt_temp_reached_timestamp = config.TIMESTAMP_MAX_VALUE
         """Timestamp of target temperature last reaching.
         
         Whenever the target temperature is reached, this value is updated with
         the current timestamp. When the current temperature falls below the
-        target temperature, this value is reset to float infinity.
+        target temperature, this value is reset to `config.TIMESTAMP_MAX_VALUE`.
         
         It is used in the `should_the_heating_be_on(room_temperature)`
         method to respect the grace time.
@@ -509,7 +509,7 @@ class TimeTable(object):
     
     
     def last_tgt_temp_reached_timestamp(self):
-        """Return the timestamp when the target temperature was last reached."""
+        """Return the POSIX timestamp when the target temperature was last reached."""
         return self._last_tgt_temp_reached_timestamp
     
     
@@ -997,7 +997,7 @@ class TimeTable(object):
                     # first time the target temp is reached, update timestamp
                     self._last_tgt_temp_reached_timestamp = nowts
                 elif current < target:
-                    self._last_tgt_temp_reached_timestamp = datetime(9999,12,31).timestamp()
+                    self._last_tgt_temp_reached_timestamp = config.TIMESTAMP_MAX_VALUE
                 
                 tgtts = self._last_tgt_temp_reached_timestamp
                 
