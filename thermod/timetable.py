@@ -46,7 +46,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2017-01-28'
+__updated__ = '2017-01-29'
 __version__ = '1.3'
 
 logger = logging.getLogger(__name__)
@@ -286,7 +286,7 @@ class TimeTable(object):
         return deepcopy(settings)
     
     
-    @transactional(exclude=['_lock'])
+    @transactional(exclude=['_lock', '_heating', '_thermometer'])
     def __setstate__(self, state):
         """Set new internal state.
         
@@ -736,7 +736,10 @@ class TimeTable(object):
             if not isinstance(heating, BaseHeating):
                 logger.debug('the heating must be a subclass of BaseHeating')
                 raise TypeError('the heating must be a subclass of BaseHeating')
-        
+            
+            if self._heating is not None:
+                self._heating.release_resources()
+            
             self._heating = heating
             logger.debug('new heating set')
     
@@ -763,12 +766,15 @@ class TimeTable(object):
             if not isinstance(thermometer, BaseThermometer):
                 logger.debug('the thermometer must be a subclass of BaseThermometer')
                 raise TypeError('the thermometer must be a subclass of BaseThermometer')
-        
+            
+            if self._thermometer is not None:
+                self._thermometer.release_resources()
+            
             self._thermometer = thermometer
             logger.debug('new thermometer set')
     
     
-    @transactional(exclude=['_lock'])
+    @transactional(exclude=['_lock', '_heating', '_thermometer'])
     def update(self, day, hour, quarter, temperature):
         """Update the target temperature in internal timetable."""
         # TODO scrivere documentazione
@@ -818,7 +824,7 @@ class TimeTable(object):
                      'temperature "{}"'.format(_day, _hour, _quarter, _temp))
     
     
-    @transactional(exclude=['_lock'])
+    @transactional(exclude=['_lock', '_heating', '_thermometer'])
     def update_days(self, json_data):
         """Update timetable for one or more days.
         

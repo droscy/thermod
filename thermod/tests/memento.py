@@ -30,13 +30,13 @@ from thermod import TimeTable, config
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2016-06-02'
+__updated__ = '2017-01-29'
 
 
 class MementoTable(TimeTable):
     """Support class for testing memento on thermod.timetable.TimeTable."""
     
-    @transactional(exclude=['_lock'])
+    @transactional(exclude=['_lock', '_heating', '_thermometer'])
     def __setstate__(self, state):
         """New method without control on errors."""
         
