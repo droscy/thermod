@@ -12,6 +12,7 @@ Build-Depends:
  python3-setuptools,
  python3-jsonschema (>=2.3.0),
  python3-daemon (>=2.0.5),
+ python3-lockfile (>=0.12.2),
  python3-requests (>=2.4.3),
  python3-nose (>=1.3.4),
  doxygen,
@@ -58,7 +59,7 @@ Description: Programmable thermostat daemon (web application)
 Package: munin-plugins-thermod
 Section: net
 Architecture: all
-Depends: munin-node, python3 (>=3.4), ${misc:Depends}
+Depends: munin-node | munin-node-c, ${python3:Depends}, ${misc:Depends}
 Suggests: thermod (=${binary:Version})
 Description: Programmable thermostat daemon (Munin plugin)
  Munin plugin to plot status information retrieved from Thermod daemon.

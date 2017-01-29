@@ -27,7 +27,6 @@ import argparse
 import signal
 import tempfile
 import lockfile
-import importlib
 
 from daemon import DaemonContext, pidfile
 from logging.handlers import SysLogHandler, SMTPHandler
@@ -42,7 +41,7 @@ from thermod.config import JsonValueError, ScriptError
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-01-23'
+__updated__ = '2017-01-29'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -414,8 +413,8 @@ def thermostat_cycle():
         try:
             with timetable.lock:
                 socket.stop()
-                timetable.heating().release_resources()
-                timetable.thermometer().release_resources()
+                timetable.heating.release_resources()
+                timetable.thermometer.release_resources()
                 socket.join(10)
         
         except NameError:

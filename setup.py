@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Setup script for Thermod daemon.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -39,7 +39,7 @@ setup(name='thermod',
       scripts=['bin/thermod'],
       install_requires=['python-daemon >= 2.0.5',
                         'jsonschema >= 2.3.0',
-                        'requests >= 2.4.3'],
+                        'lockfile >= 0.12.2'],
       test_suite='nose.collector',
       tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'],
 )
