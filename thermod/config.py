@@ -30,7 +30,7 @@ from collections import namedtuple
 from datetime import datetime
 
 __date__ = '2015-09-13'
-__updated__ = '2017-01-28'
+__updated__ = '2017-02-05'
 
 
 # config module logger
@@ -93,7 +93,7 @@ finally:
     """Max value for a POSIX timestamp in current platform."""
 
 # main config files and parsers
-Settings = namedtuple('Settings', 'enabled, debug, tt_file, interval, scripts, thermometer, host, port, email, error_code')
+Settings = namedtuple('Settings', 'enabled, debug, tt_file, interval, scripts, heating, thermometer, host, port, email, error_code')
 config_file = 'thermod.conf'
 main_config_files = (config_file,
                      os.path.join(os.path.expanduser('~/.thermod'), config_file),
@@ -192,13 +192,28 @@ def parse_main_settings(cfg):
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
         
-        _thermo = cfg.get('scripts', 'thermometer')
-        scripts = {'thermometer': _thermo,
+        scripts = {'thermometer': cfg.get('scripts', 'thermometer'),
                    'on': cfg.get('scripts', 'switchon'),
                    'off': cfg.get('scripts', 'switchoff'),
                    'status': cfg.get('scripts', 'status')}
         
-        if _thermo == 'PiAnalogZero':
+        if scripts['on'] == scripts['off'] == scripts['status'] == 'PiRelayPins':
+            # The user choose to use the internal class for Raspberry Pi
+            try:
+                logger.debug('importing RPi.GPIO module in config section')
+                GPIO = __import__('RPi.GPIO', fromlist=('GPIO'))
+            except RuntimeError:
+                raise ImportError('probably superuser privileges are missing')
+            
+            heating = {'pins': [int(p) for p in cfg.get('PiRelayPins', 'pins', fallback='').split(',')],
+                       'level': (GPIO.HIGH if cfg.get('PiRelayPins', 'switch_on_level', fallback='h').casefold() == 'h' else GPIO.LOW)}
+        
+        # An `elif` can be added with additional Raspberry Pi heating class
+        # once they will be created.
+        else:
+            heating = None
+        
+        if scripts['thermometer'] == 'PiAnalogZero':
             # The user choose to use an internal class for Raspberry Pi
             # thermometer instead of an external script.
             thermometer = {'channels': [int(c) for c in cfg.get('PiAnalogZero', 'channels', fallback='').split(',')],
@@ -250,6 +265,10 @@ def parse_main_settings(cfg):
         error_code = RET_CODE_CFG_FILE_INVALID
         logger.critical('invalid configuration: {}'.format(oe))
     
+    except ImportError as ie:
+        error_code = RET_CODE_PI_INIT_ERR
+        logger.critical('cannot import `RPi.GPIO` module: %s', ie)
+    
     except Exception as e:
         error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
         logger.critical('unknown error in configuration file: {}'.format(e))
@@ -265,7 +284,7 @@ def parse_main_settings(cfg):
         error_code = RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return Settings(enabled, debug, tt_file, interval, scripts, thermometer, host, port, email, error_code)
+    return Settings(enabled, debug, tt_file, interval, scripts, heating, thermometer, host, port, email, error_code)
 
 
 # thermod name convention (from json file)

@@ -34,14 +34,14 @@ from jsonschema import ValidationError
 
 from thermod import config
 from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
-from thermod.heating import ScriptHeating, HeatingError
+from thermod.heating import ScriptHeating, HeatingError, PiRelayPinsHeating
 from thermod.timetable import TimeTable
 from thermod.socket import ControlThread
 from thermod.config import JsonValueError, ScriptError
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-01-29'
+__updated__ = '2017-02-05'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -165,10 +165,17 @@ if debug:
 try:
     logger.debug('creating base objects')
     
-    heating = ScriptHeating(settings.scripts['on'],
-                            settings.scripts['off'],
-                            settings.scripts['status'],
-                            debug)
+    if settings.scripts['on'] == 'PiRelayPins':  # checking only 'on' script is enough
+        heating = PiRelayPinsHeating(settings.heating['pins'],
+                                     settings.heating['level'])
+    
+    # An `elif` can be added with additional Raspberry Pi heating class
+    # once they will be created.
+    else:
+        heating = ScriptHeating(settings.scripts['on'],
+                                settings.scripts['off'],
+                                settings.scripts['status'],
+                                debug)
     
     if settings.scripts['thermometer'] == 'PiAnalogZero':
         # The user choose to use an internal class for Raspberry Pi thermometer
@@ -208,9 +215,9 @@ except ValidationError as jve:
     main_return_code = config.RET_CODE_TT_INVALID_CONTENT
     logger.critical('invalid element %s in timetable file: %s', list(jve.path), jve.message)
 
-except ThermometerError as te:
+except (HeatingError, ThermometerError) as pie:
     main_return_code = config.RET_CODE_PI_INIT_ERR
-    logger.critical('cannot access Raspberry Pi: %s', te)
+    logger.critical('cannot access Raspberry Pi: %s', pie)
 
 except Exception as e:
     main_return_code = config.RET_CODE_INIT_ERR

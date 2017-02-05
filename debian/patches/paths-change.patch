@@ -11,13 +11,20 @@
  ?>
 --- a/etc/thermod.conf
 +++ b/etc/thermod.conf
-@@ -12,7 +12,8 @@
+@@ -12,11 +12,11 @@
  
  [scripts]
- # These options must be full path to executable scripts that return a JSON
--# string after having completed their job. See samples folder for some examples.
-+# string after having completed their job. See /usr/share/doc/thermod/samples
-+# folder for some sample scripts.
+ # The following options can be full path to scripts (that return a JSON string
+-# like examples script in `samples` folder) or the value 'PiRelayPins' if you
+-# want to use one (or more) relay connected to Raspberry Pi GPIO pins. If you
+-# choose to use Raspberry the value 'PiRelayPins' must be set in all three
+-# options and the section PiRelayPins below must be adjusted to meet your
+-# Raspberry Pi setup.
++# like examples script in /usr/share/doc/thermod/samples folder) or the value
++# 'PiRelayPins' if you want to use one (or more) relay connected to Raspberry Pi
++# GPIO pins. If you choose to use Raspberry the value 'PiRelayPins' must be set
++# in all three options and the section PiRelayPins below must be adjusted to meet
++# your Raspberry Pi setup.
  switchon = /etc/thermod/switch-heating --on -j -s -q
  switchoff = /etc/thermod/switch-heating --off -j -s -q
  status = /etc/thermod/switch-heating --status -j -s -q
