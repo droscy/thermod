@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Init of `thermod` package.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -20,10 +20,12 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from thermod.config import JsonValueError, ScriptError
-from thermod.heating import BaseHeating, ScriptHeating, HeatingError, ScriptHeatingError
+from thermod.heating import BaseHeating, PiPinsRelayHeating, HeatingError
+from thermod.heating import ScriptHeating, ScriptHeatingError
 from thermod.socket import ControlThread, ControlServer, ControlRequestHandler
 from thermod.timetable import TimeTable, ShouldBeOn
-from thermod.thermometer import BaseThermometer, ScriptThermometer, ThermometerError, ScriptThermometerError
+from thermod.thermometer import BaseThermometer, PiAnalogZeroThermometer, ThermometerError
+from thermod.thermometer import ScriptThermometer, ScriptThermometerError
 
 # No import of memento module because it is not specific to Thermod daemon,
 # it is here only for convenience. If someone wants to use its functionality

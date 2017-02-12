@@ -30,7 +30,7 @@ from collections import namedtuple
 from datetime import datetime
 
 __date__ = '2015-09-13'
-__updated__ = '2017-02-05'
+__updated__ = '2017-02-12'
 
 
 # config module logger
@@ -197,7 +197,7 @@ def parse_main_settings(cfg):
                    'off': cfg.get('scripts', 'switchoff'),
                    'status': cfg.get('scripts', 'status')}
         
-        if scripts['on'] == scripts['off'] == scripts['status'] == 'PiRelayPins':
+        if scripts['on'] == scripts['off'] == scripts['status'] == 'PiPinsRelay':
             # The user choose to use the internal class for Raspberry Pi
             try:
                 logger.debug('importing RPi.GPIO module in config section')
@@ -205,8 +205,8 @@ def parse_main_settings(cfg):
             except RuntimeError:
                 raise ImportError('probably superuser privileges are missing')
             
-            heating = {'pins': [int(p) for p in cfg.get('PiRelayPins', 'pins', fallback='').split(',')],
-                       'level': (GPIO.HIGH if cfg.get('PiRelayPins', 'switch_on_level', fallback='h').casefold() == 'h' else GPIO.LOW)}
+            heating = {'pins': [int(p) for p in cfg.get('PiPinsRelay', 'pins', fallback='').split(',')],
+                       'level': (GPIO.HIGH if cfg.get('PiPinsRelay', 'switch_on_level', fallback='h').casefold() == 'h' else GPIO.LOW)}
         
         # An `elif` can be added with additional Raspberry Pi heating class
         # once they will be created.

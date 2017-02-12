@@ -11,3 +11,4 @@ build/
 MANIFEST
 venv/
 README.htm*
+web/src/

@@ -34,14 +34,14 @@ from jsonschema import ValidationError
 
 from thermod import config
 from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
-from thermod.heating import ScriptHeating, HeatingError, PiRelayPinsHeating
+from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
 from thermod.timetable import TimeTable
 from thermod.socket import ControlThread
 from thermod.config import JsonValueError, ScriptError
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-02-05'
+__updated__ = '2017-02-12'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -165,8 +165,8 @@ if debug:
 try:
     logger.debug('creating base objects')
     
-    if settings.scripts['on'] == 'PiRelayPins':  # checking only 'on' script is enough
-        heating = PiRelayPinsHeating(settings.heating['pins'],
+    if settings.scripts['on'] == 'PiPinsRelay':  # checking only 'on' script is enough
+        heating = PiPinsRelayHeating(settings.heating['pins'],
                                      settings.heating['level'])
     
     # An `elif` can be added with additional Raspberry Pi heating class

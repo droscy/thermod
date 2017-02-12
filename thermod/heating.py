@@ -36,7 +36,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2017-02-05'
+__updated__ = '2017-02-12'
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ class BaseHeating(object):
         pass
 
 
-class PiRelayPinsHeating(BaseHeating):
+class PiPinsRelayHeating(BaseHeating):
     """Use relays connected to GPIO pins to switch on/off the heating."""
     
     def __init__(self, pins, switch_on_level):
