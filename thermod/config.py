@@ -30,7 +30,7 @@ from collections import namedtuple
 from datetime import datetime
 
 __date__ = '2015-09-13'
-__updated__ = '2017-02-12'
+__updated__ = '2017-02-13'
 
 
 # config module logger
@@ -76,6 +76,7 @@ RET_CODE_RUN_INVALID_VALUE = 51
 RET_CODE_RUN_HEATING_ERR = 52
 RET_CODE_RUN_OTHER_ERR = 59
 RET_CODE_SHUTDOWN_SWITCHOFF_ERR = 60
+RET_CODE_SHUTDOWN_RELEASE_RES_ERR = 65
 RET_CODE_SHUTDOWN_OTHER_ERR = 69
 RET_CODE_KEYB_INTERRUPT = 130
 

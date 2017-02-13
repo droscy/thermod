@@ -36,7 +36,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2017-02-12'
+__updated__ = '2017-02-13'
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +194,7 @@ class PiPinsRelayHeating(BaseHeating):
             self._on = self.GPIO.LOW
             self._off = self.GPIO.HIGH
         
-        logger.debug('initializing GPIO pins {}', self._pins)
+        logger.debug('initializing GPIO pins {}'.format(self._pins))
         self.GPIO.setmode(self.GPIO.BCM)
         self.GPIO.setup(self._pins, self.GPIO.OUT)
         self.GPIO.output(self._pins, self._off)
@@ -219,6 +219,7 @@ class PiPinsRelayHeating(BaseHeating):
     
     def release_resources(self):
         """Cleanup used GPIO pins."""
+        logger.debug('releasing used GPIO pins')
         self.GPIO.cleanup()
 
 

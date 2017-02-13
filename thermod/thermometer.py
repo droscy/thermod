@@ -37,7 +37,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2017-01-23'
+__updated__ = '2017-02-13'
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +270,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
     
     def release_resources(self):
         """Stop the temperature-averaging thread."""
+        logger.debug('stopping temperature updating cycle')
         self._stop.set()
         self._averaging_thread.join(6)
 

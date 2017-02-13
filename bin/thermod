@@ -41,7 +41,7 @@ from thermod.config import JsonValueError, ScriptError
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-02-12'
+__updated__ = '2017-02-13'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -420,8 +420,6 @@ def thermostat_cycle():
         try:
             with timetable.lock:
                 socket.stop()
-                timetable.heating.release_resources()
-                timetable.thermometer.release_resources()
                 socket.join(10)
         
         except NameError:
@@ -497,6 +495,31 @@ def thermostat_cycle():
         except:
             logger.error('unknown error in switching off the heating during '
                          'daemon shutdown', exc_info=True)
+            
+            # We set a new exit code only if this is the first error
+            # otherwise we leave the original error exit code.
+            if main_return_code == config.RET_CODE_OK:
+                main_return_code = config.RET_CODE_SHUTDOWN_OTHER_ERR
+        
+        try:
+            logger.debug('releasing acquired resources by heating and thermometer')
+            timetable.heating.release_resources()
+            timetable.thermometer.release_resources()
+        
+        except Exception as e:
+            logger.error('error releasing resources during daemon shutdown: %s', e, exc_info=True)
+            
+            # We set a new exit code only if this is the first error
+            # otherwise we leave the original error exit code.
+            if main_return_code == config.RET_CODE_OK:
+                main_return_code = config.RET_CODE_SHUTDOWN_RELEASE_RES_ERR
+        
+        except KeyboardInterrupt:
+            # We are already shutting down, no other operations required
+            pass
+        
+        except:
+            logger.error('unknown error releasing resources during daemon shutdown', exc_info=True)
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
