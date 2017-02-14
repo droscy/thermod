@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Control socket to manage Thermod from external applications.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -46,8 +46,8 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2016-10-14'
-__version__ = '1.2'
+__updated__ = '2017-02-14'
+__version__ = '1.3'
 
 logger = logging.getLogger((__name__ == '__main__' and config.logger_base_name) or __name__)
 
@@ -384,7 +384,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 # errors during saving to filesystem or in case of errors
                 # updating more than one single setting.
                 restore_old_settings = memento(self.server.timetable,
-                                               exclude=['_lock'])
+                                               exclude=['_lock', '_heating', '_thermometer'])
                 
                 # updating all settings
                 if req_settings_all in postvars:
