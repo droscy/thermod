@@ -32,9 +32,9 @@ from daemon import DaemonContext, pidfile
 from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
 
-from thermod import config
-from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
-from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
+from thermod import config, rpi
+from thermod.thermometer import ScriptThermometer, ThermometerError
+from thermod.heating import ScriptHeating, HeatingError
 from thermod.timetable import TimeTable
 from thermod.socket import ControlThread
 from thermod.config import JsonValueError, ScriptError
@@ -62,7 +62,7 @@ parser.add_argument('-C', '--config', action='store', default=None, help='read c
 parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground')
 parser.add_argument('-L', '--log', action='store', default=None, help='write log messages to LOG file (full path)')
-parser.add_argument('-P', '--pid', action='store', default='/run/thermod/thermod.pid', help='where to create PID file if required (full path)')
+parser.add_argument('-P', '--pid', action='store', default='/run/thermod.pid', help='where to create PID file if required (full path)')
 parser.add_argument('--systemd', action='store_true', help='use only if started by systemd')
 args = parser.parse_args()
 
@@ -166,8 +166,8 @@ try:
     logger.debug('creating base objects')
     
     if settings.scripts['on'] == 'PiPinsRelay':  # checking only 'on' script is enough
-        heating = PiPinsRelayHeating(settings.heating['pins'],
-                                     settings.heating['level'])
+        heating = rpi.PiPinsRelayHeating(settings.heating['pins'],
+                                         (rpi.HIGH if settings.heating['level']=='h' else rpi.LOW))
     
     # An `elif` can be added with additional Raspberry Pi heating class
     # once they will be created.
@@ -180,9 +180,9 @@ try:
     if settings.scripts['thermometer'] == 'PiAnalogZero':
         # The user choose to use an internal class for Raspberry Pi thermometer
         # instead of an external script.
-        thermometer = PiAnalogZeroThermometer(settings.thermometer['channels'],
-                                              settings.thermometer['multiplier'],
-                                              settings.thermometer['shift'])
+        thermometer = rpi.PiAnalogZeroThermometer(settings.thermometer['channels'],
+                                                  settings.thermometer['multiplier'],
+                                                  settings.thermometer['shift'])
     
     # An `elif` can be added with additional Raspberry Pi thermometers class
     # once they will be created.
@@ -495,31 +495,6 @@ def thermostat_cycle():
         except:
             logger.error('unknown error in switching off the heating during '
                          'daemon shutdown', exc_info=True)
-            
-            # We set a new exit code only if this is the first error
-            # otherwise we leave the original error exit code.
-            if main_return_code == config.RET_CODE_OK:
-                main_return_code = config.RET_CODE_SHUTDOWN_OTHER_ERR
-        
-        try:
-            logger.debug('releasing acquired resources by heating and thermometer')
-            timetable.heating.release_resources()
-            timetable.thermometer.release_resources()
-        
-        except Exception as e:
-            logger.error('error releasing resources during daemon shutdown: %s', e, exc_info=True)
-            
-            # We set a new exit code only if this is the first error
-            # otherwise we leave the original error exit code.
-            if main_return_code == config.RET_CODE_OK:
-                main_return_code = config.RET_CODE_SHUTDOWN_RELEASE_RES_ERR
-        
-        except KeyboardInterrupt:
-            # We are already shutting down, no other operations required
-            pass
-        
-        except:
-            logger.error('unknown error releasing resources during daemon shutdown', exc_info=True)
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.

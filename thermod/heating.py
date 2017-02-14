@@ -24,6 +24,7 @@ import json
 import shlex
 import logging
 import subprocess
+
 from copy import deepcopy
 from datetime import datetime
 #from json.decoder import JSONDecodeError
@@ -36,7 +37,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2017-02-13'
+__updated__ = '2017-02-14'
 
 logger = logging.getLogger(__name__)
 
@@ -137,90 +138,6 @@ class BaseHeating(object):
         """
         
         return self._switch_off_time
-    
-    def release_resources(self):
-        """This method can be implemented in subclasses.
-        
-        Should be used to release possibly acquired hardware resources because
-        it is executed during daemon shutdown. This default implementation
-        does nothing.
-        """
-        
-        pass
-
-
-class PiPinsRelayHeating(BaseHeating):
-    """Use relays connected to GPIO pins to switch on/off the heating."""
-    
-    def __init__(self, pins, switch_on_level):
-        """Init GPIO `pins` connected to relays.
-        
-        @param pins single pin or list of BCM GPIO pins to use
-        @param switch_on_level GPIO trigger level to swith on the heating
-        
-        @exception ValueError if no pins provided or pin number out of range [0,27]
-        @exception HeatingError if the module `RPi.GPIO' cannot be loaded
-        """
-        
-        super().__init__()
-        
-        try:
-            self._pins = [int(p) for p in pins]
-        except TypeError:
-            # only a single pin is provided
-            self._pins = [int(pins)]
-        
-        if len(self._pins) == 0:
-            raise ValueError('missing pins connected to relay')
-        
-        for p in self._pins:
-            if p not in range(28):
-                raise ValueError('pin number must be in range 0-27, {} given'.format(p))
-        
-        try:
-            logger.debug('importing RPi.GPIO module')
-            self.GPIO = __import__('RPi.GPIO', fromlist=('GPIO'))
-        except ImportError as ie:
-            raise HeatingError('cannot import module `RPi.GPIO`', str(ie))
-        except RuntimeError as re:
-            raise HeatingError('error importing RPi.GPIO module, probably because superuser privileges are missing', str(re))
-        
-        if switch_on_level == self.GPIO.HIGH:
-            logger.debug('setting HIGH level to switch on the heating')
-            self._on = self.GPIO.HIGH
-            self._off = self.GPIO.LOW
-        else:
-            logger.debug('setting LOW level to switch on the heating')
-            self._on = self.GPIO.LOW
-            self._off = self.GPIO.HIGH
-        
-        logger.debug('initializing GPIO pins {}'.format(self._pins))
-        self.GPIO.setmode(self.GPIO.BCM)
-        self.GPIO.setup(self._pins, self.GPIO.OUT)
-        self.GPIO.output(self._pins, self._off)
-    
-    def switch_on(self):
-        """Switch on the heating setting right level to GPIO pins."""
-        self.GPIO.output(self._pins, self._on)
-    
-    def switch_off(self):
-        """Switch off the heating setting right level to GPIO pins."""
-        self.GPIO.output(self._pins, self._off)
-        self._switch_off_time = datetime.now()
-    
-    def is_on(self):
-        """Return `True` if the heating is currently on, `False` otherwise.
-        
-        Actually returns `True` if the first used pin has a level equal
-        to `self._on` value. Other pins, if used, are ignored.
-        """
-        
-        return (self.GPIO.input(self._pins[0]) == self._on)
-    
-    def release_resources(self):
-        """Cleanup used GPIO pins."""
-        logger.debug('releasing used GPIO pins')
-        self.GPIO.cleanup()
 
 
 class ScriptHeating(BaseHeating):

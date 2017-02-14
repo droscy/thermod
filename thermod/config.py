@@ -30,7 +30,7 @@ from collections import namedtuple
 from datetime import datetime
 
 __date__ = '2015-09-13'
-__updated__ = '2017-02-13'
+__updated__ = '2017-02-14'
 
 
 # config module logger
@@ -76,7 +76,6 @@ RET_CODE_RUN_INVALID_VALUE = 51
 RET_CODE_RUN_HEATING_ERR = 52
 RET_CODE_RUN_OTHER_ERR = 59
 RET_CODE_SHUTDOWN_SWITCHOFF_ERR = 60
-RET_CODE_SHUTDOWN_RELEASE_RES_ERR = 65
 RET_CODE_SHUTDOWN_OTHER_ERR = 69
 RET_CODE_KEYB_INTERRUPT = 130
 
@@ -200,14 +199,13 @@ def parse_main_settings(cfg):
         
         if scripts['on'] == scripts['off'] == scripts['status'] == 'PiPinsRelay':
             # The user choose to use the internal class for Raspberry Pi
-            try:
-                logger.debug('importing RPi.GPIO module in config section')
-                GPIO = __import__('RPi.GPIO', fromlist=('GPIO'))
-            except RuntimeError:
-                raise ImportError('probably superuser privileges are missing')
+            
+            _level = cfg.get('PiPinsRelay', 'switch_on_level', fallback='high').casefold()
+            if _level not in ('high', 'low'):
+                raise ValueError('switch on level must be `high` or `low`, `{}` provided'.format(_level))
             
             heating = {'pins': [int(p) for p in cfg.get('PiPinsRelay', 'pins', fallback='').split(',')],
-                       'level': (GPIO.HIGH if cfg.get('PiPinsRelay', 'switch_on_level', fallback='h').casefold() == 'h' else GPIO.LOW)}
+                       'level': _level[0]}
         
         # An `elif` can be added with additional Raspberry Pi heating class
         # once they will be created.
@@ -259,16 +257,13 @@ def parse_main_settings(cfg):
     
     except ValueError as ve:
         # raised by getboolean(), getfloat(), getint() and int() methods
+        # and if switch on level is not valid
         error_code = RET_CODE_CFG_FILE_INVALID
         logger.critical('invalid configuration: {}'.format(ve))
     
     except OverflowError as oe:
         error_code = RET_CODE_CFG_FILE_INVALID
         logger.critical('invalid configuration: {}'.format(oe))
-    
-    except ImportError as ie:
-        error_code = RET_CODE_PI_INIT_ERR
-        logger.critical('cannot import `RPi.GPIO` module: %s', ie)
     
     except Exception as e:
         error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR

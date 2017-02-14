@@ -20,12 +20,11 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from thermod.config import JsonValueError, ScriptError
-from thermod.heating import BaseHeating, PiPinsRelayHeating, HeatingError
-from thermod.heating import ScriptHeating, ScriptHeatingError
+from thermod.heating import BaseHeating, ScriptHeating, HeatingError, ScriptHeatingError
+from thermod.rpi import PiPinsRelayHeating, PiAnalogZeroThermometer
 from thermod.socket import ControlThread, ControlServer, ControlRequestHandler
 from thermod.timetable import TimeTable, ShouldBeOn
-from thermod.thermometer import BaseThermometer, PiAnalogZeroThermometer, ThermometerError
-from thermod.thermometer import ScriptThermometer, ScriptThermometerError
+from thermod.thermometer import BaseThermometer, ScriptThermometer, ThermometerError, ScriptThermometerError
 
 # No import of memento module because it is not specific to Thermod daemon,
 # it is here only for convenience. If someone wants to use its functionality

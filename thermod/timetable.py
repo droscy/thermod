@@ -26,6 +26,7 @@ import jsonschema
 import os.path
 import time
 import math
+
 from copy import copy, deepcopy
 from threading import Condition
 from datetime import datetime
@@ -46,8 +47,8 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2017-01-29'
-__version__ = '1.3'
+__updated__ = '2017-02-14'
+__version__ = '1.4'
 
 logger = logging.getLogger(__name__)
 
@@ -737,9 +738,6 @@ class TimeTable(object):
                 logger.debug('the heating must be a subclass of BaseHeating')
                 raise TypeError('the heating must be a subclass of BaseHeating')
             
-            if self._heating is not None:
-                self._heating.release_resources()
-            
             self._heating = heating
             logger.debug('new heating set')
     
@@ -766,9 +764,6 @@ class TimeTable(object):
             if not isinstance(thermometer, BaseThermometer):
                 logger.debug('the thermometer must be a subclass of BaseThermometer')
                 raise TypeError('the thermometer must be a subclass of BaseThermometer')
-            
-            if self._thermometer is not None:
-                self._thermometer.release_resources()
             
             self._thermometer = thermometer
             logger.debug('new thermometer set')
