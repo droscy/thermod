@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from thermod.config import JsonValueError, ScriptError
+from thermod.config import JsonValueError, ScriptError, LogStyleAdapter
 from thermod.heating import BaseHeating, ScriptHeating, HeatingError, ScriptHeatingError
 from thermod.rpi import PiPinsRelayHeating, PiAnalogZeroThermometer
 from thermod.socket import ControlThread, ControlServer, ControlRequestHandler

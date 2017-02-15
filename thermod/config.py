@@ -30,11 +30,36 @@ from collections import namedtuple
 from datetime import datetime
 
 __date__ = '2015-09-13'
-__updated__ = '2017-02-14'
+__updated__ = '2017-02-15'
 
 
-# config module logger
-logger = logging.getLogger(__name__)
+# logger and its adapter
+class LogMessage(object):
+    """Format message with {}-arguments."""
+    
+    def __init__(self, fmt, args, kwargs):
+        self.fmt = fmt
+        self.args = args
+        self.kwargs = kwargs
+    
+    def __str__(self):
+        return self.fmt.format(*self.args, **self.kwargs)
+
+class LogStyleAdapter(logging.LoggerAdapter):
+    """Adapt messages using `LogMessage` class."""
+    
+    def __init__(self, logger, extra=None):
+        super(LogStyleAdapter, self).__init__(logger, extra or {})
+    
+    def log(self, level, msg, *args, **kwargs):
+        if self.isEnabledFor(level):
+            msg, kwargs = self.process(msg, kwargs)
+            self.logger._log(level, LogMessage(msg, args, kwargs), (), {})
+    
+    def addHandler(self, hdlr):
+        self.logger.addHandler(hdlr)
+
+logger = LogStyleAdapter(logging.getLogger(__name__))
 
 # logger common settings
 logger_base_name = 'thermod'
@@ -114,48 +139,48 @@ def read_config_files(config_files=None):
     
     try:
         cfg = configparser.ConfigParser()
-        logger.debug('searching main configuration in files {}'.format(config_files))
+        logger.debug('searching main configuration in files {}', config_files)
         
         _cfg_files_found = cfg.read(config_files)
         
         if _cfg_files_found:
-            logger.debug('configuration files found: {}'.format(_cfg_files_found))
+            logger.debug('configuration files found: {}', _cfg_files_found)
         else:
             # manual managment of missing configuration file
             raise FileNotFoundError()
     
     except configparser.MissingSectionHeaderError as mshe:
         error_code = RET_CODE_CFG_FILE_SYNTAX_ERR
-        logger.critical('invalid syntax in configuration file `%s`, '
+        logger.critical('invalid syntax in configuration file `{}`, '
                         'missing sections', mshe.source)
     
     except configparser.ParsingError as pe:
         error_code = RET_CODE_CFG_FILE_SYNTAX_ERR
         (_lineno, _line) = pe.errors[0]
-        logger.critical('invalid syntax in configuration file `%s` at line %d: %s',
+        logger.critical('invalid syntax in configuration file `{}` at line {:d}: {}',
                         pe.source, _lineno, _line)
     
     except configparser.DuplicateSectionError as dse:
         error_code = RET_CODE_CFG_FILE_INVALID
-        logger.critical('duplicate section `%s` in configuration file `%s`',
+        logger.critical('duplicate section `{}` in configuration file `{}`',
                         dse.section, dse.source)
     
     except configparser.DuplicateOptionError as doe:
         error_code = RET_CODE_CFG_FILE_INVALID
-        logger.critical('duplicate option `%s` in section `%s` of configuration '
-                        'file `%s`', doe.option, doe.section, doe.source)
+        logger.critical('duplicate option `{}` in section `{}` of configuration '
+                        'file `{}`', doe.option, doe.section, doe.source)
     
     except configparser.Error as cpe:
         error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
-        logger.critical('parsing error in configuration file: `%s`', cpe)
+        logger.critical('parsing error in configuration file: `{}`', cpe)
     
     except FileNotFoundError:
         error_code = RET_CODE_CFG_FILE_MISSING
-        logger.critical('no configuration files found in %s', config_files)
+        logger.critical('no configuration files found in {}', config_files)
     
     except Exception as e:
         error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
-        logger.critical('unknown error in configuration file: `%s`', e)
+        logger.critical('unknown error in configuration file: `{}`', e)
     
     except KeyboardInterrupt:
         error_code = RET_CODE_KEYB_INTERRUPT
@@ -175,16 +200,17 @@ def parse_main_settings(cfg):
     
     @params cfg configparser.ConfigParser object to parse data from
     
-    @return a tuple with the main settings: enabled, debug, timetable JSON file,
-        check interval, scripts for thermometer and heating, socket host,
-        socket port and error code; the error code can be used as POSIX return
-        value, if no error occurred the error code is 0.
+    @return a `Settings` tuple with the main settings and an error code
+        that can be used as POSIX return value (if no error occurred the error
+        code is 0)
     
     @exception TypeError if cfg is not a configparser.ConfigParser object
     """
     
     if not isinstance(cfg, configparser.ConfigParser):
-        raise TypeError('ConfigParser object required to parse main settings')
+        raise TypeError('ConfigParser object is required to parse main settings')
+    
+    logger.debug('parsing main settings')
     
     try:
         enabled = cfg.getboolean('global', 'enabled')
@@ -243,31 +269,30 @@ def parse_main_settings(cfg):
     
     except configparser.NoSectionError as nse:
         error_code = RET_CODE_CFG_FILE_INVALID
-        logger.critical('incomplete configuration file, missing `%s` section',
-                        nse.section)
+        logger.critical('incomplete configuration file, missing `{}` section', nse.section)
     
     except configparser.NoOptionError as noe:
         error_code = RET_CODE_CFG_FILE_INVALID
-        logger.critical('incomplete configuration file, missing option `%s` '
-                        'in section `%s`', noe.option, noe.section)
+        logger.critical('incomplete configuration file, missing option `{}` '
+                        'in section `{}`', noe.option, noe.section)
     
     except configparser.Error as cpe:
         error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
-        logger.critical('unknown error in configuration file: %s', cpe)
+        logger.critical('unknown error in configuration file: {}', cpe)
     
     except ValueError as ve:
         # raised by getboolean(), getfloat(), getint() and int() methods
         # and if switch on level is not valid
         error_code = RET_CODE_CFG_FILE_INVALID
-        logger.critical('invalid configuration: {}'.format(ve))
+        logger.critical('invalid configuration: {}', ve)
     
     except OverflowError as oe:
         error_code = RET_CODE_CFG_FILE_INVALID
-        logger.critical('invalid configuration: {}'.format(oe))
+        logger.critical('invalid configuration: {}', oe)
     
     except Exception as e:
         error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
-        logger.critical('unknown error in configuration file: {}'.format(e))
+        logger.critical('unknown error in configuration file: {}', e)
     
     except KeyboardInterrupt:
         error_code = RET_CODE_KEYB_INTERRUPT

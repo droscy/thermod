@@ -27,7 +27,7 @@ import subprocess
 
 from copy import deepcopy
 #from json.decoder import JSONDecodeError
-from .config import ScriptError, check_script
+from .config import ScriptError, check_script, LogStyleAdapter
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -38,7 +38,7 @@ else:
 __date__ = '2016-02-04'
 __updated__ = '2017-02-14'
 
-logger = logging.getLogger(__name__)
+logger = LogStyleAdapter(logging.getLogger(__name__))
 
 
 def celsius2fahrenheit(value):
@@ -92,11 +92,9 @@ class BaseThermometer(object):
     def __init__(self, scale=DEGREE_CELSIUS):
         """Init the thermometer with a choosen degree scale."""
         
-        logger.debug('initializing %s with %s degrees',
+        logger.debug('initializing {} with {} degrees',
                      self.__class__.__name__,
-                     ((scale == BaseThermometer.DEGREE_CELSIUS)
-                        and 'celsius'
-                        or 'fahrenheit'))
+                     ('celsius' if scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'))
         
         self._scale = scale
     
@@ -196,11 +194,13 @@ class ScriptThermometer(BaseThermometer):
             raise TypeError('the script parameter must be string or list')
         
         if debug:
+            logger.debug('appending {} to script command', ScriptHeating.DEBUG_OPTION)
             self._script.append(ScriptThermometer.DEBUG_OPTION)
         
+        logger.debug('checking executability of provided script')
         check_script(self._script[0])
         
-        logger.debug('%s initialized with script: `%s`',
+        logger.debug('{} initialized with script: `{}`',
                      self.__class__.__name__,
                      self._script)
     
@@ -257,7 +257,7 @@ class ScriptThermometer(BaseThermometer):
                                          self._script[0])
         
         except KeyError as ke:  # error in retriving element from out dict
-            logger.debug('the output of temperature script lacks the `%s` item',
+            logger.debug('the output of temperature script lacks the `{}` item',
                          ScriptThermometer.JSON_TEMPERATURE)
             
             raise ScriptThermometerError('the temperature script has not '
@@ -265,12 +265,12 @@ class ScriptThermometer(BaseThermometer):
                                          str(ke), self._script[0])
             
         except (ValueError, TypeError) as vte:  # error converting to float
-            logger.debug('cannot convert temperature `%s` to number', tstr)
+            logger.debug('cannot convert temperature `{}` to number', tstr)
             raise ScriptThermometerError('the temperature script returned an '
                                          'invalid value', str(vte),
                                          self._script[0])
         
-        logger.debug('current temperature: %.2f', t)
+        logger.debug('current temperature: {.2f}', t)
         return t
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

@@ -28,7 +28,7 @@ import subprocess
 from copy import deepcopy
 from datetime import datetime
 #from json.decoder import JSONDecodeError
-from .config import ScriptError, check_script
+from .config import ScriptError, check_script, LogStyleAdapter
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -39,7 +39,7 @@ else:
 __date__ = '2015-12-30'
 __updated__ = '2017-02-14'
 
-logger = logging.getLogger(__name__)
+logger = LogStyleAdapter(logging.getLogger(__name__))
 
 
 class HeatingError(RuntimeError):
@@ -76,7 +76,7 @@ class BaseHeating(object):
     """
     
     def __init__(self):
-        logger.debug('initializing {}'.format(self.__class__.__name__))
+        logger.debug('initializing {}', self.__class__.__name__)
         
         self._is_on = False
         """If the heating is currently on."""
@@ -214,19 +214,21 @@ class ScriptHeating(BaseHeating):
             raise TypeError('the status parameter must be string or list')
         
         if debug:
+            logger.debug('appending {} to scripts command', ScriptHeating.DEBUG_OPTION)
             self._switch_on_script.append(ScriptHeating.DEBUG_OPTION)
             self._switch_off_script.append(ScriptHeating.DEBUG_OPTION)
             self._status_script.append(ScriptHeating.DEBUG_OPTION)
         
+        logger.debug('checking executability of provided scripts')
         check_script(self._switch_on_script[0])
         check_script(self._switch_off_script[0])
         check_script(self._status_script[0])
         
-        logger.debug('{} initialized with scripts ON=`{}`, OFF=`{}` and JSON_STATUS=`{}`'
-                     .format(self.__class__.__name__,
-                             self._switch_on_script[0],
-                             self._switch_off_script[0],
-                             self._status_script[0]))
+        logger.debug('{} initialized with scripts ON=`{}`, OFF=`{}` and STATUS=`{}`',
+                     self.__class__.__name__,
+                     self._switch_on_script[0],
+                     self._switch_off_script[0],
+                     self._status_script[0])
     
     def __repr__(self, *args, **kwargs):
         return '{module}.{cls}({on!r}, {off!r}, {status!r}, {debug!r})'.format(
@@ -257,7 +259,7 @@ class ScriptHeating(BaseHeating):
             err = None
             if ScriptHeating.JSON_ERROR in out:
                 err = out[ScriptHeating.JSON_ERROR]
-                logger.debug('switch-on: {}'.format(err))
+                logger.debug('switch-on: {}', err)
             
             raise ScriptHeatingError((err or suberr), suberr, self._switch_on_script[0])
         
@@ -290,7 +292,7 @@ class ScriptHeating(BaseHeating):
             err = None
             if ScriptHeating.JSON_ERROR in out:
                 err = out[ScriptHeating.JSON_ERROR]
-                logger.debug('switch-off: {}'.format(err))
+                logger.debug('switch-off: {}', err)
             
             raise ScriptHeatingError((err or suberr), suberr, self._switch_off_script[0])
         
@@ -302,7 +304,7 @@ class ScriptHeating(BaseHeating):
         
         self._is_on = False
         self._switch_off_time = datetime.now()
-        logger.debug('heating switched off at {}'.format(self._switch_off_time))
+        logger.debug('heating switched off at {}', self._switch_off_time)
     
     def status(self):
         """Execute the `status` script and return the current status of the heating.
@@ -331,7 +333,7 @@ class ScriptHeating(BaseHeating):
             err = None
             if ScriptHeating.JSON_ERROR in out:
                 err = out[ScriptHeating.JSON_ERROR]
-                logger.debug('status: {}'.format(err))
+                logger.debug('status: {}', err)
             
             raise ScriptHeatingError((err or suberr), suberr, self._status_script[0])
         
@@ -348,20 +350,20 @@ class ScriptHeating(BaseHeating):
                                      self._status_script[0])
         
         except KeyError as ke:  # error in retriving element from output dict
-            logger.debug('the script output lacks the `{}` item'
-                         .format(ScriptHeating.JSON_STATUS))
+            logger.debug('the script output lacks the `{}` item',
+                         ScriptHeating.JSON_STATUS)
             
             raise ScriptHeatingError('the status script has not returned the '
                                      'current heating status', str(ke),
                                      self._status_script[0])
             
         except (ValueError, TypeError) as vte:  # error converting to int
-            logger.debug('cannot convert status `{}` to integer'.format(ststr))
+            logger.debug('cannot convert status `{}` to integer', ststr)
             raise ScriptHeatingError('the status script returned an invalid '
                                      'status', str(vte), self._status_script[0])
             
-        logger.debug('the heating is currently {}'.format((status and 'ON' or 'OFF')))
-        logger.debug('last switch off time: {}'.format(self._switch_off_time))
+        logger.debug('the heating is currently {}', (status and 'ON' or 'OFF'))
+        logger.debug('last switch off time: {}', self._switch_off_time)
         
         self._is_on = bool(status)
         return status
@@ -392,19 +394,19 @@ if __name__ == '__main__':
                             'python3 scripts/switch.py --off -j',
                             'python3 scripts/switch.py --status -j')
     
-    print('JSON_STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
+    print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
     print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
     
     heating.switch_off()
-    print('JSON_STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
+    print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
     print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
     
     heating.switch_on()
-    print('JSON_STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
+    print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
     print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
     
     heating.switch_on()
-    print('JSON_STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
+    print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
     print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

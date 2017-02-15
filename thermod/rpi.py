@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Interface to the real heating.
+"""Specific classes for Raspberry Pi hardware.
 
 Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
@@ -23,13 +23,15 @@ import logging
 
 from threading import Thread, Event
 from collections import deque
+from .config import LogStyleAdapter
 from .heating import BaseHeating, HeatingError
 from .thermometer import BaseThermometer, ThermometerError
 
 __date__ = '2017-02-13'
 __updated__ = '2017-02-14'
 
-logger = logging.getLogger(__name__)
+logger = LogStyleAdapter(logging.getLogger(__name__))
+
 
 try:
     # Try importing RPi.GPIO module, if succeded spcific classes for
@@ -73,7 +75,7 @@ try:
                 self._pins = [int(pins)]
             
             if len(self._pins) == 0:
-                raise ValueError('missing pins connected to relay')
+                raise ValueError('no pins provided')
             
             for p in self._pins:
                 if p not in range(28):
@@ -88,18 +90,28 @@ try:
                 self._on = GPIO.LOW
                 self._off = GPIO.HIGH
             
-            logger.debug('initializing GPIO pins {}'.format(self._pins))
+            logger.debug('initializing GPIO pins {}', self._pins)
             GPIO.setup(self._pins, GPIO.OUT)
             GPIO.output(self._pins, self._off)
         
+        def __repr__(self, *args, **kwargs):
+            return '{module}.{cls}({pins!r}, {level!r}'.format(
+                        module=self.__module__,
+                        cls=self.__class__.__name__,
+                        pins=self._pins,
+                        level=self._on)
+        
         def switch_on(self):
             """Switch on the heating setting right level to GPIO pins."""
+            logger.debug('switching on the heating')
             GPIO.output(self._pins, self._on)
         
         def switch_off(self):
             """Switch off the heating setting right level to GPIO pins."""
+            logger.debug('switching off the heating')
             GPIO.output(self._pins, self._off)
             self._switch_off_time = datetime.now()
+            logger.debug('heating switched off at {}', self._switch_off_time)
         
         def is_on(self):
             """Return `True` if the heating is currently on, `False` otherwise.
@@ -172,7 +184,7 @@ try:
             self._averaging_thread.start()
         
         def __repr__(self, *args, **kwargs):
-            return '{module}.{cls}({chnnels!r}, {multiplier!r}, {shift!r}, {scale!r})'.format(
+            return '{module}.{cls}({channels!r}, {multiplier!r}, {shift!r}, {scale!r})'.format(
                         module=self.__module__,
                         cls=self.__class__.__name__,
                         channels=[adc.channel for adc in self._adc],
@@ -202,6 +214,7 @@ try:
             logger.debug('starting temperature updating cycle')
             
             while not self._stop.wait(6):
+                logger.debug('appending new realtime temperature')
                 self._temperatures.append(self.realtime_temperature)
         
         @property
@@ -213,11 +226,15 @@ try:
             trick is to stabilize the returned value.
             """
             
-            skip = 5
+            logger.debug('retriving current temperature')
+            
             temperatures = list(self._temperatures)
             temperatures.sort()
+            
+            skip = 5
             shortened = temperatures[skip:(len(temperatures)-skip)]
-            return sum(shortened) / len(shortened)
+            
+            return round(sum(shortened) / len(shortened), 4)  # addtition decimal are meaningless
         
         def __del__(self):
             """Stop the temperature-averaging thread."""
