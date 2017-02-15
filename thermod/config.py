@@ -34,27 +34,23 @@ __updated__ = '2017-02-15'
 
 
 # logger and its adapter
-class LogMessage(object):
+class LogStyleAdapter(logging.LoggerAdapter):
     """Format message with {}-arguments."""
     
-    def __init__(self, fmt, args, kwargs):
-        self.fmt = fmt
-        self.args = args
-        self.kwargs = kwargs
-    
-    def __str__(self):
-        return self.fmt.format(*self.args, **self.kwargs)
-
-class LogStyleAdapter(logging.LoggerAdapter):
-    """Adapt messages using `LogMessage` class."""
-    
     def __init__(self, logger, extra=None):
-        super(LogStyleAdapter, self).__init__(logger, extra or {})
+        super().__init__(logger, extra)
     
     def log(self, level, msg, *args, **kwargs):
         if self.isEnabledFor(level):
-            msg, kwargs = self.process(msg, kwargs)
-            self.logger._log(level, LogMessage(msg, args, kwargs), (), {})
+        
+            kwa = {'extra': self.extra}
+            for kw in ('exc_info', 'stack_info'):
+                try:
+                    kwa[kw] = kwargs[kw]
+                except:
+                    pass
+            
+            self.logger._log(level, msg.format(*args, **kwargs), (), **kwa)
     
     def addHandler(self, hdlr):
         self.logger.addHandler(hdlr)

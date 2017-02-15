@@ -39,6 +39,7 @@ else:
     JSONDecodeError = ValueError
 
 from . import config
+from .config import LogStyleAdapter
 from .memento import memento
 from .timetable import TimeTable
 from .heating import ScriptHeatingError
@@ -46,10 +47,10 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2017-02-14'
+__updated__ = '2017-02-15'
 __version__ = '1.3'
 
-logger = logging.getLogger((__name__ == '__main__' and config.logger_base_name) or __name__)
+logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else config.logger_base_name))
 
 
 req_settings_all = 'settings'
@@ -93,7 +94,7 @@ class ControlThread(Thread):
     
     def run(self):
         (host, port) = self.server.server_address
-        logger.info('control socket listening on {}:{}'.format(host, port))
+        logger.info('control socket listening on {}:{}', host, port)
         self.server.serve_forever()
     
     def stop(self):
@@ -114,10 +115,10 @@ class ControlServer(HTTPServer):
             raise TypeError('ControlServer requires a TimeTable object')
         
         self.timetable = timetable
-        logger.debug('ControlServer initialized on {}'.format(self.server_address))
+        logger.debug('ControlServer initialized on {}', self.server_address)
     
     def shutdown(self):
-        logger.debug('shutting down ControlServer {}'.format(self.server_address))
+        logger.debug('shutting down ControlServer {}', self.server_address)
         super().shutdown()
 
 
@@ -131,7 +132,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     def finish(self):
         """Execute the base-class `finish()` method and log a message."""
         super().finish()
-        logger.debug('{} connection closed'.format(self.client_address))
+        logger.debug('{} connection closed', self.client_address)
     
     @property
     def pathlist(self):
@@ -206,8 +207,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         is a GET and not simply a HEAD.
         """
         
-        logger.info('{} received "{} {}" request'
-                    .format(self.client_address, self.command, self.path))
+        logger.info('{} received "{} {}" request', self.client_address, self.command, self.path)
         
         code = None
         data = None
@@ -216,7 +216,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         timetable = self.server.timetable
         
         if pathlist[0] in req_path_settings:
-            logger.debug('{} sending back Thermod settings'.format(self.client_address))
+            logger.debug('{} sending back Thermod settings', self.client_address)
             
             with timetable.lock:
                 settings = timetable.settings()
@@ -225,7 +225,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             data = self._send_header(200, data=settings, last_modified=last_updt)
         
         elif pathlist[0] in req_path_heating:
-            logger.debug('{} sending back heating status'.format(self.client_address))
+            logger.debug('{} sending back heating status', self.client_address)
             
             with timetable.lock:
                 last_updt = time.time()
@@ -239,24 +239,23 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 except ScriptHeatingError as she:
                     code = 422
                     message = 'cannot query the heating'
-                    logger.warning('{} {}: {}'.format(self.client_address, message, she))
+                    logger.warning('{} {}: {}', self.client_address, message, she)
                     response = {rsp_error: message, rsp_fullmsg: str(she)}
                 
                 except ScriptThermometerError as ste:
                     code = 422
                     message = 'cannot query the thermometer'
-                    logger.warning('{} {}: {}'.format(self.client_address, message, ste))
+                    logger.warning('{} {}: {}', self.client_address, message, ste)
                     response = {rsp_error: message, rsp_fullmsg: str(ste)}
                 
                 except Exception as e:
                     # this is an unhandled exception, a critical message is printed
                     code = 500
                     logger.critical('{} The {} request produced an unhandled '
-                                    '{} exception.'.format(self.client_address,
-                                                           self.command,
-                                                           type(e).__name__))
-                        
-                    logger.exception('{} {}'.format(self.client_address, e))
+                                    '{} exception.', self.client_address,
+                                                     self.command,
+                                                     type(e).__name__,
+                                                     exc_info=True)
                     
                     message = 'cannot process the request'
                     response = {rsp_error: message, rsp_fullmsg: str(e)}
@@ -268,11 +267,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             data = self._send_header(code, message, response, last_updt)
         
         elif pathlist[0] in req_path_version:
-            logger.debug('{} sending back Thermod version'.format(self.client_address))
+            logger.debug('{} sending back Thermod version', self.client_address)
             data = self._send_header(200,data=json.dumps({'version': PROGRAM_VERSION}))
         
         elif pathlist[0] in req_path_teapot:
-            logger.info('{} I\'m a teapot'.format(self.client_address))
+            logger.info('{} I\'m a teapot', self.client_address)
             
             code = 418
             message = 'I\'m a teapot'
@@ -286,14 +285,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         else:
             code = 404
             message = 'invalid request'
-            logger.warning('{} {} "{} {}" received'
-                           .format(self.client_address, message,
-                                   self.command, self.path))
+            logger.warning('{} {} "{} {}" received', self.client_address,
+                           message, self.command, self.path)
                        
             data = self._send_header(code, message, {rsp_error: message})
         
         self.end_headers()
-        logger.debug('{} header sent'.format(self.client_address))
+        logger.debug('{} header sent', self.client_address)
         
         return data
     
@@ -311,9 +309,9 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         
         if settings:
             self.wfile.write(settings)
-            logger.debug('{} response sent'.format(self.client_address))
+            logger.debug('{} response sent', self.client_address)
         
-        logger.debug('{} closing connection'.format(self.client_address))
+        logger.debug('{} closing connection', self.client_address)
     
     def do_POST(self):
         """Manage the POST request updating timetable settings.
@@ -353,14 +351,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         @see thermod.timetable.TimeTable and its method
         """
         
-        logger.info('{} received "{} {}" request'
-                    .format(self.client_address, self.command, self.path))
+        logger.info('{} received "{} {}" request', self.client_address, self.command, self.path)
         
         code = None
         data = None
         
         if self.pathlist[0] in req_path_settings:
-            logger.debug('{} parsing received POST data'.format(self.client_address))
+            logger.debug('{} parsing received POST data', self.client_address)
             
             # code copied from http://stackoverflow.com/a/13330449
             ctype, pdict = cgi.parse_header(self.headers['Content-Type'])
@@ -376,8 +373,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             else:
                 postvars = {}
             
-            logger.debug('{} POST content-type: {}'.format(self.client_address, ctype))
-            logger.debug('{} POST variables: {}'.format(self.client_address, postvars))
+            logger.debug('{} POST content-type: {}', self.client_address, ctype)
+            logger.debug('{} POST variables: {}', self.client_address, postvars)
             
             with self.server.timetable.lock:
                 # Saving timetable state for a manual restore in case of
@@ -388,7 +385,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 
                 # updating all settings
                 if req_settings_all in postvars:
-                    logger.debug('{} updating Thermod settings'.format(self.client_address))
+                    logger.debug('{} updating Thermod settings', self.client_address)
                     
                     try:
                         self.server.timetable.load(postvars[req_settings_all])
@@ -398,7 +395,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 400
                         logger.warning('{} cannot update settings, the POST '
                                        'request contains invalid JSON syntax: '
-                                       '{}'.format(self.client_address, jde))
+                                       '{}', self.client_address, jde)
                         
                         message = 'invalid JSON syntax'
                         response = {rsp_error: message,
@@ -408,10 +405,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 400
                         logger.warning('{} cannot update settings, the POST '
                                        'request contains incomplete or invalid '
-                                       'data in JSON element {}: {}'
-                                       .format(self.client_address,
-                                               list(jsve.path),
-                                               jsve.message))
+                                       'data in JSON element {}: {}',
+                                       self.client_address,
+                                       list(jsve.path),
+                                       jsve.message)
                         
                         message = 'incomplete or invalid JSON element'
                         response = {rsp_error: message,
@@ -421,7 +418,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 400
                         logger.warning('{} cannot update settings, the POST '
                                        'request contains incomplete or invalid '
-                                       'data: {}'.format(self.client_address, ve))
+                                       'data: {}', self.client_address, ve)
                         
                         message = 'incomplete or invalid settings'
                         response = {rsp_error: message,
@@ -435,7 +432,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         
                         code = 503
                         logger.error('{} cannot save new settings to '
-                            'fileystem: {}'.format(self.client_address, ioe))
+                                     'fileystem: {}', self.client_address, ioe)
                         
                         message = 'cannot save new settings to fileystem'
                         response = {rsp_error: message,
@@ -453,10 +450,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 500
                         logger.critical('{} Cannot update settings, the POST '
                                         'request produced an unhandled {} '
-                                        'exception.'.format(self.client_address,
-                                                            type(e).__name__))
-                        
-                        logger.exception('{} {}'.format(self.client_address, e))
+                                        'exception.', self.client_address,
+                                        type(e).__name__, exc_info=True)
                         
                         message = 'cannot process the request'
                         response = {rsp_error: message,
@@ -468,7 +463,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     else:
                         code = 200
                         message = 'all settings updated'
-                        logger.info('{} {}'.format(self.client_address, message))
+                        logger.info('{} {}', self.client_address, message)
                         response = {rsp_message: message}
                     
                     finally:
@@ -476,7 +471,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
                 # updating only some days
                 elif req_settings_days in postvars:
-                    logger.debug('{} updating one or more days'.format(self.client_address))
+                    logger.debug('{} updating one or more days', self.client_address)
                     
                     try:
                         days = self.server.timetable.update_days(postvars[req_settings_days])
@@ -486,7 +481,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 400
                         logger.warning('{} cannot update any days, the POST '
                                        'request contains invalid JSON syntax: '
-                                       '{}'.format(self.client_address, jde))
+                                       '{}', self.client_address, jde)
                         
                         message = 'invalid JSON syntax'
                         response = {rsp_error: message,
@@ -496,10 +491,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 400
                         logger.warning('{} cannot update any days, the POST '
                                        'request contains incomplete or invalid '
-                                       'data in JSON element {}: {}'
-                                       .format(self.client_address,
-                                               list(jsve.path),
-                                               jsve.message))
+                                       'data in JSON element {}: {}',
+                                       self.client_address,
+                                       list(jsve.path),
+                                       jsve.message)
                         
                         message = 'incomplete or invalid JSON element'
                         response = {rsp_error: message,
@@ -509,7 +504,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 400
                         logger.warning('{} cannot update any days, the POST '
                                        'request contains incomplete or invalid '
-                                       'data: {}'.format(self.client_address, ve))
+                                       'data: {}', self.client_address, ve)
                         
                         message = 'incomplete or invalid days'
                         response = {rsp_error: message,
@@ -523,7 +518,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         
                         code = 503
                         logger.error('{} cannot save new settings to '
-                            'fileystem: {}'.format(self.client_address, ioe))
+                                     'fileystem: {}', self.client_address, ioe)
                         
                         message = 'cannot save new settings to fileystem'
                         response = {rsp_error: message,
@@ -540,14 +535,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         
                         code = 500
                         logger.critical('{} Cannot update any days, the POST '
-                                        'request produced an unhandled '
+                                        'request produced an unhandled {} '
                                         'exception; in order to diagnose what '
                                         'happened execute Thermod in debug '
-                                        'mode and resubmit the last request.'
-                                        .format(self.client_address))
-                        
-                        logger.exception('{} {}: {}'.format(self.client_address,
-                                                            type(e).__name__, e))
+                                        'mode and resubmit the last request.',
+                                        self.client_address,
+                                        type(e).__name__,
+                                        exc_info=True)
                         
                         message = 'cannot process the request'
                         response = {rsp_error: message,
@@ -558,8 +552,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     
                     else:
                         code = 200
-                        logger.info('{} updated the following days: {}'
-                                    .format(self.client_address, days))
+                        logger.info('{} updated the following days: {}',
+                                    self.client_address, days)
                         
                         message = 'days updated'
                         response = {rsp_message: '{}: {}'.format(message, days)}
@@ -569,7 +563,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
                 # updating other settings
                 elif postvars:
-                    logger.debug('{} updating one or more settings'.format(self.client_address))
+                    logger.debug('{} updating one or more settings', self.client_address)
                     
                     newvalues = {}
                     try:
@@ -593,8 +587,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                 self.server.timetable.grace_time = value
                                 newvalues[var] = self.server.timetable.grace_time
                             else:
-                                logger.debug('{} invalid field `{}` ignored'
-                                             .format(self.client_address, var))
+                                logger.debug('{} invalid field `{}` ignored',
+                                             self.client_address, var)
                         
                         # if no settings found in request body rise an error
                         if len(newvalues) == 0:
@@ -609,10 +603,10 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         # be manually restored to the old state.
                         
                         code = 400
-                        logger.warning('{} cannot update {}: {}'
-                                       .format(self.client_address,
-                                               list(jsve.path),
-                                               jsve.message))
+                        logger.warning('{} cannot update {}: {}',
+                                       self.client_address,
+                                       list(jsve.path),
+                                       jsve.message)
                         
                         message = 'cannot update settings'
                         response = {rsp_error: message,
@@ -627,8 +621,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         # be manually restored to the old state.
                         
                         code = 400
-                        logger.warning('{} cannot update {}: {}'
-                                       .format(self.client_address, var, ve))
+                        logger.warning('{} cannot update {}: {}', self.client_address, var, ve)
                         
                         message = 'cannot update settings'
                         response = {rsp_error: message,
@@ -645,7 +638,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         
                         code = 503
                         logger.error('{} cannot save new settings to '
-                            'fileystem: {}'.format(self.client_address, ioe))
+                                     'fileystem: {}', self.client_address, ioe)
                         
                         message = 'cannot save new settings to fileystem'
                         response = {rsp_error: message,
@@ -662,14 +655,13 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         
                         code = 500
                         logger.critical('{} Cannot update settings, the POST '
-                                        'request produced an unhandled '
+                                        'request produced an unhandled {} '
                                         'exception; in order to diagnose what '
                                         'happened execute Thermod in debug '
-                                        'mode and resubmit the last request.'
-                                        .format(self.client_address))
-                        
-                        logger.exception('{} {}: {}'.format(self.client_address,
-                                                            type(e).__name__, e))
+                                        'mode and resubmit the last request.',
+                                        self.client_address,
+                                        type(e).__name__,
+                                        exc_info=True)
                         
                         message = 'cannot process the request'
                         response = {rsp_error: message,
@@ -681,7 +673,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     else:
                         code = 200
                         message = 'settings updated'
-                        logger.info('{} {}: {}'.format(self.client_address, message, newvalues))
+                        logger.info('{} {}: {}', self.client_address, message, newvalues)
                         response = {rsp_message: '{}: {}'.format(message, newvalues)}
                     
                     finally:
@@ -690,7 +682,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 else:  # No restore required here because no settings updated
                     code = 400
                     logger.warning('{} cannot update settings, the POST request '
-                                   'contains no data'.format(self.client_address))
+                                   'contains no data', self.client_address)
                     
                     message = 'no settings provided'
                     data = self._send_header(code, message, {rsp_error: message})
@@ -703,37 +695,34 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         else:
             code = 404
             message = 'invalid request'
-            logger.warning('{} {} "{} {}" received'
-                           .format(self.client_address, message,
-                                   self.command, self.path))
+            logger.warning('{} {} "{} {}" received', self.client_address,
+                           message, self.command, self.path)
             
             data = self._send_header(code, message, {rsp_error: message})
         
-        logger.debug('{} sending back {} code {:d}'
-                     .format(self.client_address,
-                             ((code>=400) and 'error' or 'status'),
-                             code))
+        logger.debug('{} sending back {} code {:d}', self.client_address,
+                     ('error' if (code>=400) else 'status'), code)
         
         self.end_headers()
-        logger.debug('{} header sent'.format(self.client_address))
+        logger.debug('{} header sent', self.client_address)
         
         if data:
             self.wfile.write(data)
-            logger.debug('{} response sent'.format(self.client_address))
+            logger.debug('{} response sent', self.client_address)
         
-        logger.debug('{} closing connection'.format(self.client_address))
+        logger.debug('{} closing connection', self.client_address)
     
     def _do_other(self):
-        logger.info('{} received "{} {}" request'
-                    .format(self.client_address, self.command, self.path))
+        logger.info('{} received "{} {}" request', self.client_address,
+                    self.command, self.path)
         
         code = 501
         self._send_header(code)
-        logger.warning('{} unsupported method `{}`, sending back error code {}'
-                       .format(self.client_address, self.command, code))
+        logger.warning('{} unsupported method `{}`, sending back error code {}',
+                       self.client_address, self.command, code)
         
         self.end_headers()
-        logger.debug('{} header sent'.format(self.client_address))
+        logger.debug('{} header sent', self.client_address)
     
     def do_PUT(self):
         self._do_other()

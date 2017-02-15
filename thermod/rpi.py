@@ -21,14 +21,16 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
 
+from datetime import datetime
 from threading import Thread, Event
 from collections import deque
+
 from .config import LogStyleAdapter
 from .heating import BaseHeating, HeatingError
 from .thermometer import BaseThermometer, ThermometerError
 
 __date__ = '2017-02-13'
-__updated__ = '2017-02-14'
+__updated__ = '2017-02-15'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
