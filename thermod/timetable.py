@@ -598,15 +598,16 @@ class TimeTable(object):
     def grace_time(self, seconds):
         """Set a new grace time in *seconds*.
         
-        The input value must be a number or, to disable the grace time, the
-        string `inf` or `infinity` (case insensitive). If the input is a
-        float number it is rounded to the nearest integer value.
+        The input value must be a number or, to disable the grace time, one
+        of the following values: `None` or the strings 'inf', 'infinity' or
+        'nan' (case insensitive). If the input is a float number it is
+        rounded to the nearest integer value.
         """
         with self._lock:
             logger.debug('lock acquired to set a new grace time')
             
             try:
-                nvalue = float(seconds is None and '+Inf' or seconds)
+                nvalue = float(seconds if seconds is not None else '+Inf')
                 
                 if nvalue < 0:
                     raise ValueError()

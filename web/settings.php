@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+ * Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
  *
  * This file is part of Thermod.
  *
@@ -36,7 +36,9 @@ if(function_exists('curl_version'))
 		if(isset($_POST['settings']))
 		{
 			// manage grace_time null value
-			if(empty($_POST['settings']['grace_time']) || trim($_POST['settings']['grace_time']) === '')
+			if(empty($_POST['settings']['grace_time'])
+					|| trim($_POST['settings']['grace_time']) === ''
+					|| trim(strtolower($_POST['settings']['grace_time']) == 'null'))
 				$_POST['settings']['grace_time'] = null;
 			
 			// multipart/form-data
