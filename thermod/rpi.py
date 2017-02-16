@@ -30,7 +30,7 @@ from .heating import BaseHeating, HeatingError
 from .thermometer import BaseThermometer, ThermometerError
 
 __date__ = '2017-02-13'
-__updated__ = '2017-02-15'
+__updated__ = '2017-02-16'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -58,10 +58,13 @@ try:
             """Init GPIO `pins` connected to relays.
             
             @param pins single pin or list of BCM GPIO pins to use
-            @param switch_on_level GPIO trigger level to swith on the heating
+            @param switch_on_level GPIO trigger level to swith on the heating,
+                can be `RPi.GPIO.HIGH` or 'h' for high level trigger,
+                `RPi.GPIO.LOW` or 'l' for low level trigger.
             
-            @exception ValueError if no pins provided or pin number out of range [0,27]
-            @exception HeatingError if the module `RPi.GPIO' cannot be loaded
+            @exception ValueError if no pins provided or pin number out of
+                range [0,27] or switch on level is invalid.
+            @exception HeatingError if the module `RPi.GPIO' cannot be loaded.
             """
             
             super().__init__()
@@ -83,21 +86,23 @@ try:
                 if p not in range(28):
                     raise ValueError('pin number must be in range 0-27, {} given'.format(p))
             
-            if switch_on_level == GPIO.HIGH:
+            if switch_on_level in (GPIO.HIGH, 'h'):
                 logger.debug('setting HIGH level to switch on the heating')
                 self._on = GPIO.HIGH
                 self._off = GPIO.LOW
-            else:
+            elif switch_on_level in (GPIO.LOW, 'l'):
                 logger.debug('setting LOW level to switch on the heating')
                 self._on = GPIO.LOW
                 self._off = GPIO.HIGH
+            else:
+                raise ValueError('switch on level `{}` is not valid'.format(switch_on_level))
             
             logger.debug('initializing GPIO pins {}', self._pins)
             GPIO.setup(self._pins, GPIO.OUT)
             GPIO.output(self._pins, self._off)
         
         def __repr__(self, *args, **kwargs):
-            return '{module}.{cls}({pins!r}, {level!r}'.format(
+            return '{module}.{cls}({pins!r}, {level!r})'.format(
                         module=self.__module__,
                         cls=self.__class__.__name__,
                         pins=self._pins,
@@ -128,7 +133,34 @@ try:
             """Cleanup used GPIO pins."""
             # cannot use logger here, the logger could be already unloaded
             self.cleanup(self._pins)
+
+except ImportError as ie:
+    # The running system is not a Raspberry Pi or the RPi.GPIO module is not
+    # installed, in both case fake Pi* classes are defined. If an object of the
+    # following classes is created, an exception is raised.
     
+    logger.debug('module RPi.GPIO not found, probably the running system is not a Raspberry Pi')
+    
+    # fake variables
+    HIGH = 1
+    LOW = 0
+    
+    # fake classes
+    class PiPinsRelayHeating(BaseHeating):
+        def __init__(self, *args, **kwargs):
+            raise HeatingError('module RPi.GPIO not loaded')
+
+
+
+try:
+    # Try importing gpiozero module, if succeded spcific classes for
+    # Raspberry Pi are defined, otherwise fake classes are created in the
+    # `except` section below.
+    
+    # IMPORTANT: for any new classes defined here, a fake one must be defined in except section!
+    
+    logger.debug('importing gpiozero module')
+    import gpiozero
     
     # TODO inserire documentazione su come creare questa board con TMP36 e su
     # come viene misurata la temperatura facendo la media di più valori.
@@ -159,14 +191,8 @@ try:
                 raise ValueError('missing input channel for PiAnalogZero thermometer')
             
             for c in channels:
-                if c > 7:
+                if c < 0 or c > 7:
                     raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
-            
-            try:
-                logger.debug('importing gpiozero module')
-                gpiozero = __import__('gpiozero')
-            except ImportError as ie:
-                raise ThermometerError('cannot import module `gpiozero`', str(ie))
             
             self._vref = ((3.32/(3.32+7.5))*3.3*1000)
             self._adc = [gpiozero.MCP3008(channel=c) for c in channels]
@@ -208,7 +234,7 @@ try:
         def _update_temperatures(self):
             """Start a cycle to update the list of last measured temperatures.
             
-            This method should be run in a separate thread in order to maintain
+            This method should be run in a separate thread in order to keep
             the list `self._temperatures` always updated with the last measured
             temperatures.
             """
@@ -244,26 +270,15 @@ try:
             self._stop.set()
             self._averaging_thread.join(6)
 
-
 except ImportError as ie:
-    # The running system is not a Raspberry Pi or the RPi.GPIO module is not
+    # The running system is not a Raspberry Pi or the gpiozero module is not
     # installed, in both case fake Pi* classes are defined. If an object of the
     # following classes is created, an exception is raised.
     
-    logger.debug('module RPi.GPIO not found, probably the running system is not a Raspberry Pi')
-    
-    # fake variables
-    HIGH = 1
-    LOW = 0
-    
-    # fake classes
-    class PiPinsRelayHeating(BaseHeating):
-        def __init__(self, *args, **kwargs):
-            raise HeatingError('module RPi.GPIO not loaded')
+    logger.debug('module gpiozero not found, probably the running system is not a Raspberry Pi')
     
     class PiAnalogZeroThermometer(BaseThermometer):
         def __init__(self, *args, **kwargs):
-            raise ThermometerError('module RPi.GPIO not loaded')
-
+            raise ThermometerError('module gpiozero not loaded')
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
