@@ -41,7 +41,7 @@ from thermod.config import JsonValueError, ScriptError, LogStyleAdapter
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-02-13'
+__updated__ = '2017-02-17'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -161,11 +161,14 @@ if debug:
 try:
     logger.debug('creating base objects')
     
-    if settings.scripts['on'] == 'PiPinsRelay':  # checking only 'on' script is enough
+    if settings.scripts['on'] == 'PiPinsRelay':  # checking only the 'on' script
+                                                 # is enough to distinguish
+                                                 # between specific classes or
+                                                 # different scripts
         heating = rpi.PiPinsRelayHeating(settings.heating['pins'],
-                                         (rpi.HIGH if settings.heating['level']=='h' else rpi.LOW))
+                                         settings.heating['level'])
     
-    # An `elif` can be added with additional Raspberry Pi heating class
+    # An `elif` can be added with additional specific heating classes
     # once they will be created.
     else:
         heating = ScriptHeating(settings.scripts['on'],
@@ -174,13 +177,22 @@ try:
                                 debug)
     
     if settings.scripts['thermometer'] == 'PiAnalogZero':
-        # The user choose to use an internal class for Raspberry Pi thermometer
-        # instead of an external script.
-        thermometer = rpi.PiAnalogZeroThermometer(settings.thermometer['channels'],
-                                                  settings.thermometer['multiplier'],
-                                                  settings.thermometer['shift'])
+        # The PiAnalogZeroThermometer uses Thread and gpiozero.MCP3008 objects
+        # that have strange behaviours in case of python-daemon DaemonContext,
+        # they must be created/started *inside* the DaemonContext, not outside.
+        # So, in case of background launching with PiAnalogZeroThermometer, the
+        # thermometer object is created inside DaemonContext (see at the end
+        # of this file the same "if args.foreground or args.systemd").
+        if args.foreground or args.systemd:
+            thermometer = rpi.PiAnalogZeroThermometer(
+                                settings.thermometer['channels'],
+                                settings.thermometer['multiplier'],
+                                settings.thermometer['shift'])
+        else:
+            # here thermod is launched in background
+            thermometer = None
     
-    # An `elif` can be added with additional Raspberry Pi thermometers class
+    # An `elif` can be added with additional specific thermometer classes
     # once they will be created.
     else:
         thermometer = ScriptThermometer(settings.scripts['thermometer'], debug)
@@ -522,6 +534,15 @@ else:
     
     try:
         with daemon:
+            if settings.scripts['thermometer'] == 'PiAnalogZero':
+                # The PiAnalogZeroThermometer must be created inside the
+                # DaemonContext in case of background execution due to strange
+                # behaviours of Thread and gpiozero.MCP3008 objects.
+                timetable.thermometer = rpi.PiAnalogZeroThermometer(
+                                            settings.thermometer['channels'],
+                                            settings.thermometer['multiplier'],
+                                            settings.thermometer['shift'])
+            
             thermostat_cycle()
     
     except lockfile.LockFailed:

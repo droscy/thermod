@@ -30,7 +30,7 @@ from .heating import BaseHeating, HeatingError
 from .thermometer import BaseThermometer, ThermometerError
 
 __date__ = '2017-02-13'
-__updated__ = '2017-02-16'
+__updated__ = '2017-02-17'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -269,6 +269,9 @@ try:
             # cannot use logger here, the logger could be already unloaded
             self._stop.set()
             self._averaging_thread.join(6)
+            
+            for adc in self._adc:
+                adc.close()
 
 except ImportError as ie:
     # The running system is not a Raspberry Pi or the gpiozero module is not
