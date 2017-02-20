@@ -30,7 +30,7 @@ from collections import namedtuple
 from datetime import datetime
 
 __date__ = '2015-09-13'
-__updated__ = '2017-02-15'
+__updated__ = '2017-02-20'
 
 
 # logger and its adapter
@@ -114,7 +114,7 @@ finally:
     """Max value for a POSIX timestamp in current platform."""
 
 # main config files and parsers
-Settings = namedtuple('Settings', 'enabled, debug, tt_file, interval, scripts, heating, thermometer, host, port, email, error_code')
+Settings = namedtuple('Settings', 'enabled, debug, tt_file, interval, heating, thermometer, host, port, email, error_code')
 config_file = 'thermod.conf'
 main_config_files = (config_file,
                      os.path.join(os.path.expanduser('~/.thermod'), config_file),
@@ -214,37 +214,47 @@ def parse_main_settings(cfg):
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
         
-        scripts = {'thermometer': cfg.get('scripts', 'thermometer'),
-                   'on': cfg.get('scripts', 'switchon'),
-                   'off': cfg.get('scripts', 'switchoff'),
-                   'status': cfg.get('scripts', 'status')}
+        heating = {'manager': cfg.get('heating', 'heating')}
+        if heating['manager'] == 'scripts':
+            heating['on'] = cfg.get('heating/scripts', 'switchon')
+            heating['off'] = cfg.get('heating/scripts', 'switchoff')
+            heating['status'] = cfg.get('heating/scripts', 'status')
         
-        if scripts['on'] == scripts['off'] == scripts['status'] == 'PiPinsRelay':
+        elif heating['manager'] == 'PiPinsRelay':
             # The user choose to use the internal class for Raspberry Pi
+            # heating instead of external scripts.
             
-            _level = cfg.get('PiPinsRelay', 'switch_on_level', fallback='high').casefold()
+            _level = cfg.get('heating/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
             if _level not in ('high', 'low'):
-                raise ValueError('switch on level must be `high` or `low`, `{}` provided'.format(_level))
+                raise ValueError('the switch_on_level must be `high` or `low`, '
+                                 '`{}` provided'.format(_level))
             
-            heating = {'pins': [int(p) for p in cfg.get('PiPinsRelay', 'pins', fallback='').split(',')],
-                       'level': _level[0]}
+            heating['pins'] = [int(p) for p in cfg.get('heating/PiPinsRelay', 'pins', fallback='').split(',')]
+            heating['level'] = _level[0]  # only the first letter of _level is used
         
-        # An `elif` can be added with additional Raspberry Pi heating class
+        # An `elif` can be added with additional specific heating classes
         # once they will be created.
         else:
-            heating = None
+            raise ValueError('invalid value `{}` for heating manager'.format(heating['manager']))
         
-        if scripts['thermometer'] == 'PiAnalogZero':
-            # The user choose to use an internal class for Raspberry Pi
+        thermometer = {'script': cfg.get('thermometer', 'thermometer')}
+        if thermometer['script'][0] == '/':
+            # If the first char is a / it denotes the beginning of a filesystem
+            # path, so the value is acceptable and no additional parameters
+            # are required.
+            pass
+        
+        elif thermometer['script'] == 'PiAnalogZero':
+            # The user choose to use the internal class for Raspberry Pi
             # thermometer instead of an external script.
-            thermometer = {'channels': [int(c) for c in cfg.get('PiAnalogZero', 'channels', fallback='').split(',')],
-                           'multiplier': cfg.getfloat('PiAnalogZero', 'multiplier', fallback=1.0),
-                           'shift': cfg.getfloat('PiAnalogZero', 'shift', fallback=0.0)}
+            thermometer['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
+            thermometer['multiplier'] = cfg.getfloat('thermometer/PiAnalogZero', 'multiplier', fallback=1.0)
+            thermometer['shift'] = cfg.getfloat('thermometer/PiAnalogZero', 'shift', fallback=0.0)
         
-        # An `elif` can be added with additional Raspberry Pi thermometers class
+        # An `elif` can be added with additional specific thermometer classes
         # once they will be created.
         else:
-            thermometer = None
+            raise ValueError('invalid value `{}` for thermometer'.format(thermometer['script']))
         
         host = cfg.get('socket', 'host', fallback=SOCKET_DEFAULT_HOST)
         port = cfg.getint('socket', 'port', fallback=SOCKET_DEFAULT_PORT)
@@ -277,8 +287,8 @@ def parse_main_settings(cfg):
         logger.critical('unknown error in configuration file: {}', cpe)
     
     except ValueError as ve:
-        # raised by getboolean(), getfloat(), getint() and int() methods
-        # and if switch on level is not valid
+        # Raised by getboolean(), getfloat(), getint() and int() methods
+        # and if heating, switch_on_level or thermometer are not valid.
         error_code = RET_CODE_CFG_FILE_INVALID
         logger.critical('invalid configuration: {}', ve)
     
@@ -301,7 +311,7 @@ def parse_main_settings(cfg):
         error_code = RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return Settings(enabled, debug, tt_file, interval, scripts, heating, thermometer, host, port, email, error_code)
+    return Settings(enabled, debug, tt_file, interval, heating, thermometer, host, port, email, error_code)
 
 
 # thermod name convention (from json file)
