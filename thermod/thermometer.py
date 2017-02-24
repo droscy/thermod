@@ -27,6 +27,8 @@ import subprocess
 
 from copy import deepcopy
 #from json.decoder import JSONDecodeError
+from threading import Thread, Event
+from collections import deque
 from .config import ScriptError, check_script, LogStyleAdapter
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
@@ -36,7 +38,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2017-02-14'
+__updated__ = '2017-02-24'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -272,5 +274,145 @@ class ScriptThermometer(BaseThermometer):
         
         logger.debug('current temperature: {.2f}', t)
         return t
+
+
+try:
+    # Try importing gpiozero module, if succeded spcific classes for
+    # Raspberry Pi are defined, otherwise fake classes are created in the
+    # `except` section below.
+    
+    # IMPORTANT: for any new classes defined here, a fake one must be defined in except section!
+    
+    logger.debug('importing gpiozero module')
+    import gpiozero
+    
+    # TODO inserire documentazione su come creare questa board con TMP36 e su
+    # come viene misurata la temperatura facendo la media di più valori.
+    class PiAnalogZeroThermometer(BaseThermometer):
+        """Read temperature from a Raspberry Pi AnalogZero board in celsius degree.
+        
+        If a single channel is provided during object creation, it's value is used
+        as temperature, if more than one channel is provided, the current
+        temperature is computed averaging the values of all channels.
+        
+        @see http://rasp.io/analogzero/
+        """
+        
+        def __init__(self, channels, multiplier=1, shift=0, scale=BaseThermometer.DEGREE_CELSIUS):
+            """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
+            
+            @param channels the list of channels to read value from
+            @param multiplier the multiplier to calibrate the raw temperature from board
+            @param shift the shift value to calibrate the raw temperature from board
+            
+            @exception ValueError if no channels provided or channels out of range [0,7]
+            @exception ThermometerError if the module `gpiozero' cannot be imported
+            """
+            
+            super().__init__(scale)
+            
+            if len(channels) == 0:
+                raise ValueError('missing input channel for PiAnalogZero thermometer')
+            
+            for c in channels:
+                if c < 0 or c > 7:
+                    raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
+            
+            self._vref = ((3.32/(3.32+7.5))*3.3*1000)
+            self._adc = [gpiozero.MCP3008(channel=c) for c in channels]
+            
+            self._multiplier = float(multiplier)
+            self._shift = float(shift)
+            
+            # Allocate the queue for the last 30 temperatures to be averaged. The
+            # value `30` covers a period of 3 minutes because the sleep time between
+            # two measures is 6 seconds: 6*30 = 180 seconds = 3 minutes.
+            maxlen = 30
+            self._temperatures = deque([self.realtime_temperature for t in range(maxlen)], maxlen)
+            
+            # start averaging thread
+            self._stop = Event()
+            self._averaging_thread = Thread(target=self._update_temperatures, daemon=True)
+            self._averaging_thread.start()
+        
+        def __repr__(self, *args, **kwargs):
+            return '{module}.{cls}({channels!r}, {multiplier!r}, {shift!r}, {scale!r})'.format(
+                        module=self.__module__,
+                        cls=self.__class__.__name__,
+                        channels=[adc.channel for adc in self._adc],
+                        multiplier=self._multiplier,
+                        shift=self._shift,
+                        scale=self._scale)
+        
+        def __deepcopy__(self, memodict={}):
+            """Return a deep copy of this PiAnalogZeroThermometer."""
+            return self.__class__([adc.channel for adc in self._adc],
+                                  self._multiplier,
+                                  self._shift,
+                                  self._scale)
+        
+        @property
+        def realtime_temperature(self):
+            """The current temperature as measured by physical thermometer.
+            
+            If more than one channel is provided during object creation, the
+            returned temperature is the average value computed on all channels.
+            """
+            
+            temp = sum([(((adc.value * self._vref) - 500) / 10) for adc in self._adc]) / len(self._adc)
+            return ((self._multiplier * temp) + self._shift)
+        
+        def _update_temperatures(self):
+            """Start a cycle to update the list of last measured temperatures.
+            
+            This method should be run in a separate thread in order to keep
+            the list `self._temperatures` always updated with the last measured
+            temperatures.
+            """
+            
+            logger.debug('starting temperature updating cycle')
+            
+            while not self._stop.wait(6):
+                logger.debug('appending new realtime temperature')
+                self._temperatures.append(self.realtime_temperature)
+        
+        @property
+        def temperature(self):
+            """Return the average of the last measured temperatures.
+            
+            The average is the way to reduce fluctuation in measurment. Precisely
+            the least 5 and the greatest 5 temperatures are excluded, even this
+            trick is to stabilize the returned value.
+            """
+            
+            logger.debug('retriving current temperature')
+            
+            temperatures = list(self._temperatures)
+            temperatures.sort()
+            
+            skip = 5
+            shortened = temperatures[skip:(len(temperatures)-skip)]
+            
+            return round(sum(shortened) / len(shortened), 4)  # addtition decimal are meaningless
+        
+        def __del__(self):
+            """Stop the temperature-averaging thread."""
+            # cannot use logger here, the logger could be already unloaded
+            self._stop.set()
+            self._averaging_thread.join(6)
+            
+            for adc in self._adc:
+                adc.close()
+
+except ImportError as ie:
+    # The running system is not a Raspberry Pi or the gpiozero module is not
+    # installed, in both case fake Pi* classes are defined. If an object of the
+    # following classes is created, an exception is raised.
+    
+    logger.debug('module gpiozero not found, probably the running system is not a Raspberry Pi')
+    
+    class PiAnalogZeroThermometer(BaseThermometer):
+        def __init__(self, *args, **kwargs):
+            raise ThermometerError('module gpiozero not loaded')
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
