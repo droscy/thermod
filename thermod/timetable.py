@@ -47,7 +47,7 @@ from .thermometer import BaseThermometer, FakeThermometer
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 
 __date__ = '2015-09-09'
-__updated__ = '2017-02-15'
+__updated__ = '2017-02-24'
 __version__ = '1.4'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -118,7 +118,7 @@ class TimeTable(object):
         self._grace_time = float('+Inf')  # disabled by default
 
         self._lock = Condition()
-        """Provide single-thread access to methods of this class."""
+        """Provide single-thread concurrent access to methods of this class."""
         
         if isinstance(heating, BaseHeating):
             self._heating = heating
@@ -245,7 +245,7 @@ class TimeTable(object):
         new._differential = self._differential
         new._grace_time = self._grace_time
     
-        new._lock = deepcopy(self._lock)
+        #new._lock = Condition()  # not needed a new _lock is in __init__ method
         
         new._heating = deepcopy(self._heating)
         new._thermometer = deepcopy(self._thermometer)
@@ -540,7 +540,7 @@ class TimeTable(object):
             self._status = status.lower()
             
             # Note: cannot call _validate() method after simple update (like
-            # this method, like tmax, t0, etc because those methods can be
+            # this method, like tmax, t0, etc) because those updates can be
             # used even to populate an empty TimeTable that is invalid till
             # a full population
             self._has_been_validated = False
@@ -820,17 +820,21 @@ class TimeTable(object):
                      'temperature "{}"', _day, _hour, _quarter, _temp)
     
     
-    @transactional(exclude=['_lock', '_heating', '_thermometer'])
+    # no need for @transactional because __setstate__ is @transactionl
     def update_days(self, json_data):
         """Update timetable for one or more days.
         
         The provided `json_data` must be a part of the whole JSON settings in
         `thermod.config.json_schema` containing all the informations for the
         days under update.
+        
+        @return the list of updated days
+        @exception thermod.config.JsonValueError if `json_data` is not valid
+        @see TimeTable.__setstate__() for possible exceptions
+            raised during storing of new settings
         """
         
         # TODO fare in modo che accetti sia JSON sia un dictonary con le info del giorno da aggiornare
-        # TODO capire come mai pur essendo transactional è rimasta una gestione manuale per old_state
         
         logger.debug('updating timetable days')
         
@@ -845,8 +849,7 @@ class TimeTable(object):
         with self._lock:
             logger.debug('lock acquired to update the following days {}', list(data.keys()))
             
-            old_state = self.__getstate__()
-            new_state = deepcopy(old_state)
+            new_state = self.__getstate__()
             
             logger.debug('updating data for each provided day')
             for day, timetable in data.items():
@@ -860,7 +863,6 @@ class TimeTable(object):
                 logger.debug('cannot update timetable, reverting to old '
                              'settings, the provided JSON data is invalid: {}',
                              json_data)
-                self.__setstate__(old_state)
                 raise
         
         return days
@@ -957,6 +959,8 @@ class TimeTable(object):
         @exception jsonschema.ValidationError if internal settings are invalid
         @exception thermod.thermometer.ThermometerError if an error happens
             while querying the therometer
+        @exception thermod.thermometer.HeatingError if an error happens
+            while querying the heating
         @exception thermod.config.JsonValueError if the provided room
             temperature is not a valid temperature
         """
