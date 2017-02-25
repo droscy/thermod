@@ -47,7 +47,7 @@ from .thermometer import ScriptThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2017-02-15'
+__updated__ = '2017-02-25'
 __version__ = '1.3'
 
 logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else config.logger_base_name))
@@ -690,7 +690,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 # if some settings of timetable have been updated, we'll notify
                 # this changes in order to recheck current temperature
                 if code in (200, 503):
-                    self.server.timetable.lock.notify()
+                    self.server.timetable.lock.notify_all()
         
         else:
             code = 404

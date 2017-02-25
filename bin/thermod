@@ -41,12 +41,19 @@ from thermod.config import JsonValueError, ScriptError, LogStyleAdapter
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-02-24'
+__updated__ = '2017-02-25'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
+# TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
 # TODO creare manpage per questo file
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
+# TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
+# TODO rivedere uso del grace-time
+
+# TODO decidere se creare una classe Status da passare a Timetable per gestire
+# lo stato corrent in maniera visuale su Raspberry Pi, oppure se creare un
+# nuovo PiTimetable che deriva da Timetable e utilizza anche l'hardware del Pi.
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = config.RET_CODE_OK
@@ -265,7 +272,7 @@ def shutdown(signum=None, frame=None, exitcode=config.RET_CODE_OK):
     logger.info('shutdown requested')
     with timetable.lock:
         enabled = False
-        timetable.lock.notify()
+        timetable.lock.notify_all()
     
     # setting the global return code
     main_return_code = exitcode
@@ -276,7 +283,7 @@ def reload_timetable(signum=None, frame=None):
     with timetable.lock:
         try:
             timetable.reload()
-            timetable.lock.notify()
+            timetable.lock.notify_all()
         
         except OSError as oe:
             logger.warning('cannot reload timetable file `{}`, old settings '

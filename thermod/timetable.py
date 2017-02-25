@@ -43,11 +43,8 @@ from .heating import BaseHeating
 from .memento import transactional
 from .thermometer import BaseThermometer, FakeThermometer
 
-# TODO passare a Doxygen dato che lo conosco meglio (doxypy oppure doxypypy)
-# TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
-
 __date__ = '2015-09-09'
-__updated__ = '2017-02-24'
+__updated__ = '2017-02-25'
 __version__ = '1.4'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -942,6 +939,23 @@ class TimeTable(object):
         return target
     
     
+    # TODO spostare questo metodo fuori da TimeTable, direttamente nel binario
+    # di thermod, in questo modo si dovrebbero disaccoppiare TimeTable,
+    # BaseThermometer e BaseHeating.
+    #
+    # Si deve però controllare:
+    #   - validità del TimeTable da ciclo di Thermod
+    #   - impatti sul ControlSocket, che quindi deve essere aggiornato
+    #
+    # Si può quindi definire una lista di Monitor che vengono aggiornati ad
+    # ogni ciclo di controllo (che si verifica anche quando viene cambiata
+    # un'impostazione o da socket o da reload) oppure un thread a parte
+    # che vai in wait all'infinito sul lock finché il lock non viene notificato.
+    #
+    # Da notare che la notifica del lock non necessariamente deve essere fatta
+    # manualmente da ogni oggetto che modifica il TimeTable, ma si può creare
+    # un decoratore che esegue "self._lock.notify()" ogni volta che quel
+    # metodo finisce correttamente.
     def should_the_heating_be_on(self, room_temperature=None):
         """Check if the heating, now, should be on.
         
