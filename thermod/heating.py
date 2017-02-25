@@ -37,7 +37,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2017-02-24'
+__updated__ = '2017-02-25'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -187,9 +187,10 @@ class ScriptHeating(BaseHeating):
         """The last status of the heating.
         
         The pourpose of this attribute is to avoid too many hardware requests
-        to the heating. Whenever `switch_on()`, `switch_off()` or `status()`
-        methods are executed this value changes to reflect the new current
-        status, while the `is_on()` method simply returns this value.
+        to the heating. Whenever `switch_on()`, `switch_off()` or
+        `force_status_update()` methods are executed this value changes to
+        reflect the new current status, while the `is_on()` and `status()`
+        method simply returns this value.
         """
         
         if isinstance(switchon, list):
@@ -306,11 +307,8 @@ class ScriptHeating(BaseHeating):
         self._switch_off_time = datetime.now()
         logger.debug('heating switched off at {}', self._switch_off_time)
     
-    def status(self):
-        """Execute the `status` script and return the current status of the heating.
-        
-        The returned value is an integer: 1 for ON and 0 for OFF.
-        """
+    def force_status_update(self):
+        """Execute the `status` script and update internal status."""
         
         logger.debug('retriving current status of the heating')
         
@@ -366,7 +364,6 @@ class ScriptHeating(BaseHeating):
         logger.debug('last switch off time: {}', self._switch_off_time)
         
         self._is_on = bool(status)
-        return status
     
     def is_on(self):
         """Return `True` if the heating is ON, `False` otherwise.
@@ -375,15 +372,15 @@ class ScriptHeating(BaseHeating):
         invocation) and simply returns the last seen status. External
         classes/applications can call this method frequently without producing
         performance issues on the machine. The first invocation is likely
-        to execute the status() method if no status has ever been read from
-        the hardware.
+        to execute the `force_status_update()` method if no status has ever
+        been read from the hardware.
         
         To retrive the real current status as reported by the hardware
-        consider executing the `status()` method.
+        consider executing the `force_status_update()` method.
         """
         
         if self._is_on is None:
-            self.status()
+            self.force_status_update()
         
         return self._is_on
 
