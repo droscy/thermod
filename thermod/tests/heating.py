@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test suite for `thermod.heating` module.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -25,7 +25,7 @@ import tempfile
 import unittest
 from thermod.heating import ScriptHeating, HeatingError
 
-__updated__ = '2016-02-10'
+__updated__ = '2017-03-01'
 
 
 class TestHeating(unittest.TestCase):
@@ -137,31 +137,35 @@ exit(retcode)
             pass
     
     def test_heating(self):
-        self.assertEqual(self.heating.status(), 0)
+        self.assertEqual(self.heating.status, 0)
         self.assertEqual(self.heating.is_on(), False)
         
         self.heating.switch_on()
-        self.assertEqual(self.heating.status(), 1)
+        self.assertEqual(self.heating.status, 1)
         self.assertEqual(self.heating.is_on(), True)
         
         self.heating.switch_on()
         self.assertEqual(self.heating.is_on(), True)
         
         self.heating.switch_off()
-        self.assertEqual(self.heating.status(), 0)
+        self.assertEqual(self.heating.status, 0)
         self.assertEqual(self.heating.is_on(), False)
     
     def test_errors(self):
         os.remove(self.status_data)
-        self.assertRaises(HeatingError, self.heating.status)
+        
+        with self.assertRaises(HeatingError):
+            self.heating.status
         
         self.heating.switch_on()
-        self.assertEqual(self.heating.status(), 1)
+        self.assertEqual(self.heating.status, 1)
         
         os.chmod(self.status_data,0o400)
-        self.assertRaises(HeatingError, self.heating.switch_off)
+        with self.assertRaises(HeatingError):
+            self.heating.switch_off()
+        
         self.assertEqual(self.heating.is_on(), True)
-        self.assertEqual(self.heating.status(), 1)
+        self.assertEqual(self.heating.status, 1)
         os.chmod(self.status_data,0o600)
 
 

@@ -211,7 +211,7 @@ try:
         # already checked inside config.parse_main_settings() function.
         raise RuntimeError('invalid thermometer configuration')
     
-    timetable = TimeTable(settings.tt_file, heating, thermometer)
+    timetable = TimeTable(settings.tt_file)
 
 except ScriptError as se:
     main_return_code = config.RET_CODE_SCRIPT_INIT_ERR
@@ -238,6 +238,7 @@ except ValidationError as jve:
     logger.critical('invalid element {} in timetable file: {}', list(jve.path), jve.message)
 
 except (HeatingError, ThermometerError) as pie:
+    # TODO cambiare messaggio di log, non è detto che si sia su un Pi
     main_return_code = config.RET_CODE_PI_INIT_ERR
     logger.critical('cannot access Raspberry Pi: {}', pie)
 
@@ -303,7 +304,7 @@ def reload_timetable(signum=None, frame=None):
                            'remain unchanged: {}', e)
 
 
-def thermostat_cycle():
+def thermostat_cycle(timetable, heating, thermometer):
     """The main cycle of temperature checking.
     
     Periodically checks the temperature and switch on/off the heating
@@ -315,7 +316,7 @@ def thermostat_cycle():
     
     try:
         # starting control socket
-        socket = ControlThread(timetable, settings.host, settings.port)
+        socket = ControlThread(timetable, heating, thermometer, settings.host, settings.port)
         socket.start()
     
     except OSError as oe:
@@ -362,7 +363,11 @@ def thermostat_cycle():
             try:
                 with timetable.lock:
                     try:
-                        should_be_on = timetable.should_the_heating_be_on()
+                        should_be_on = timetable.should_the_heating_be_on(
+                                            thermometer.temperature,
+                                            heating.status,
+                                            heating.switch_off_time)
+                        
                         _msg = ('status: {!r}, '
                                 'current: {:.1f}, '
                                 'target: {:.1f}').format(
@@ -418,11 +423,6 @@ def thermostat_cycle():
                         logger.error('error from heating: {}', he)
                         logger.debug(he.suberror)
                     
-                    except Exception as e:
-                        # An unknown error occurred somewhere
-                        logger.critical('unknown error occurred: {}', e, exc_info=True)
-                        shutdown(exitcode=config.RET_CODE_RUN_OTHER_ERR)
-                    
                     # A shutdown may have been requested before reaching
                     # this point and in such situation we don't have to
                     # wait for a notify, simply go on and exit the cycle.
@@ -432,6 +432,12 @@ def thermostat_cycle():
                         # negate it to have cycle_timeout equal True when a
                         # timeout has occurred.
                         cycle_timeout = not timetable.lock.wait(settings.interval)
+            
+            
+            except Exception as e:
+                # An unknown error occurred somewhere
+                logger.critical('unknown error occurred: {}', e, exc_info=True)
+                shutdown(exitcode=config.RET_CODE_RUN_OTHER_ERR)
             
             except KeyboardInterrupt:
                 shutdown(exitcode=config.RET_CODE_KEYB_INTERRUPT)
@@ -537,7 +543,7 @@ if args.foreground or args.systemd:
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGHUP, reload_timetable)
     
-    thermostat_cycle()
+    thermostat_cycle(timetable, heating, thermometer)
 
 else:
     logger.debug('starting daemon in background')
@@ -552,16 +558,16 @@ else:
     
     try:
         with daemon:
-            if settings.scripts['thermometer'] == 'PiAnalogZero':
+            if settings.thermometer['script'] == 'PiAnalogZero':
                 # The PiAnalogZeroThermometer must be created inside the
                 # DaemonContext in case of background execution due to strange
                 # behaviours of Thread and gpiozero.MCP3008 objects.
-                timetable.thermometer = PiAnalogZeroThermometer(
-                                            settings.thermometer['channels'],
-                                            settings.thermometer['multiplier'],
-                                            settings.thermometer['shift'])
+                thermometer = PiAnalogZeroThermometer(
+                                    settings.thermometer['channels'],
+                                    settings.thermometer['multiplier'],
+                                    settings.thermometer['shift'])
             
-            thermostat_cycle()
+            thermostat_cycle(timetable, heating, thermometer)
     
     except lockfile.LockFailed:
         logger.critical('cannot create PID file {}', daemon.pidfile.path)

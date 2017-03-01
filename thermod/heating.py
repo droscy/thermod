@@ -37,7 +37,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2017-02-25'
+__updated__ = '2017-02-28'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -112,6 +112,7 @@ class BaseHeating(object):
         self._is_on = False
         self._switch_off_time = datetime.now()
     
+    @property
     def status(self):
         """Return the status of the heating as an integer: 1=ON, 0=OFF.
         
@@ -130,6 +131,7 @@ class BaseHeating(object):
         
         return self._is_on
     
+    @property
     def switch_off_time(self):
         """Return the last time the heating has been switched off.
         

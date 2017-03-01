@@ -44,8 +44,8 @@ from .memento import transactional
 from .thermometer import BaseThermometer, FakeThermometer
 
 __date__ = '2015-09-09'
-__updated__ = '2017-02-25'
-__version__ = '1.4'
+__updated__ = '2017-03-01'
+__version__ = '1.5'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -83,7 +83,7 @@ class ShouldBeOn(int):
 class TimeTable(object):
     """Represent the timetable to control the heating."""
     
-    def __init__(self, filepath=None, heating=None, thermometer=None):
+    def __init__(self, filepath=None):
         """Init the timetable.
         
         The timetable can be initialized empty, if every paramether is `None`,
@@ -117,26 +117,6 @@ class TimeTable(object):
         self._lock = Condition()
         """Provide single-thread concurrent access to methods of this class."""
         
-        if isinstance(heating, BaseHeating):
-            self._heating = heating
-            """Interface to the real heating."""
-        elif not heating:
-            # fake heating with basic functionality
-            self._heating = BaseHeating()
-        else:
-            logger.debug('the heating must be a subclass of BaseHeating')
-            raise TypeError('the heating must be a subclass of BaseHeating')
-        
-        if isinstance(thermometer, BaseThermometer):
-            self._thermometer = thermometer
-            """Interface to the real thermometer."""
-        elif not thermometer:
-            # fake thermometer with basic functionality
-            self._thermometer = FakeThermometer()
-        else:
-            logger.debug('the thermometer must be a subclass of BaseThermometer')
-            raise TypeError('the thermometer must be a subclass of BaseThermometer')
-        
         self._has_been_validated = False
         """Used to speedup validation.
         
@@ -162,7 +142,7 @@ class TimeTable(object):
         the current timestamp. When the current temperature falls below the
         target temperature, this value is reset to `config.TIMESTAMP_MAX_VALUE`.
         
-        It is used in the `should_the_heating_be_on(room_temperature)`
+        It is used in the `TimeTable.should_the_heating_be_on()`
         method to respect the grace time.
         """
         
@@ -174,12 +154,10 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return '{module}.{cls}({filepath!r}, {heating!r}, {thermo!r})'.format(
+        return '{module}.{cls}({filepath!r})'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
-                    filepath=self.filepath,
-                    heating=self._heating,
-                    thermo=self._thermometer)
+                    filepath=self.filepath)
     
     
     def __eq__(self, other):
@@ -219,9 +197,6 @@ class TimeTable(object):
     
         new._lock = copy(self._lock)
         
-        new._heating = copy(self._heating)
-        new._thermometer = copy(self._thermometer)
-        
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
         new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
@@ -243,9 +218,6 @@ class TimeTable(object):
         new._grace_time = self._grace_time
     
         #new._lock = Condition()  # not needed a new _lock is in __init__ method
-        
-        new._heating = deepcopy(self._heating)
-        new._thermometer = deepcopy(self._thermometer)
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
@@ -284,7 +256,7 @@ class TimeTable(object):
         return deepcopy(settings)
     
     
-    @transactional(exclude=['_lock', '_heating', '_thermometer'])
+    @transactional(exclude=['_lock'])
     def __setstate__(self, state):
         """Set new internal state.
         
@@ -714,60 +686,7 @@ class TimeTable(object):
             logger.debug('new tmax temperature set: {}', nvalue)
     
     
-    @property
-    def heating(self):
-        """Return the current heating interface."""
-        with self._lock:
-            logger.debug('lock acquired to get current heating interface')
-            return self._heating
-    
-    
-    @heating.setter
-    def heating(self, heating):
-        """Set a new heating interface.
-        
-        The `heating` must be a subclass of `thermod.heating.BaseHeating` class.
-        """
-        
-        with self._lock:
-            logger.debug('lock acquired to set new heating interface')
-            
-            if not isinstance(heating, BaseHeating):
-                logger.debug('the heating must be a subclass of BaseHeating')
-                raise TypeError('the heating must be a subclass of BaseHeating')
-            
-            self._heating = heating
-            logger.debug('new heating set')
-    
-    
-    @property
-    def thermometer(self):
-        """Return the current thermometer interface."""
-        with self._lock:
-            logger.debug('lock acquired to get current thermometer interface')
-            return self._thermometer
-    
-    
-    @thermometer.setter
-    def thermometer(self, thermometer):
-        """Set a new thermometer interface.
-        
-        The `thermometer` must be a subclass of
-        `thermod.thermometer.BaseThermometer` class.
-        """
-        
-        with self._lock:
-            logger.debug('lock acquired to set new thermometer interface')
-            
-            if not isinstance(thermometer, BaseThermometer):
-                logger.debug('the thermometer must be a subclass of BaseThermometer')
-                raise TypeError('the thermometer must be a subclass of BaseThermometer')
-            
-            self._thermometer = thermometer
-            logger.debug('new thermometer set')
-    
-    
-    @transactional(exclude=['_lock', '_heating', '_thermometer'])
+    @transactional(exclude=['_lock'])
     def update(self, day, hour, quarter, temperature):
         """Update the target temperature in internal timetable."""
         # TODO scrivere documentazione
@@ -956,14 +875,16 @@ class TimeTable(object):
     # manualmente da ogni oggetto che modifica il TimeTable, ma si può creare
     # un decoratore che esegue "self._lock.notify()" ogni volta che quel
     # metodo finisce correttamente.
-    def should_the_heating_be_on(self, room_temperature=None):
+    def should_the_heating_be_on(self, current_temperature, heating_status, heating_switch_off_time):
         """Check if the heating, now, should be on.
-        
-        If the provided temperature is `None` the thermometer interface is
-        queried to retrive the current temperature.
         
         This method updates only the internal variable `self._last_tgt_temp_reached_timestamp`
         if appropriate conditions are met.
+        
+        @param current_temperature the current temperature of the room
+        @param heating_status current status of the heating
+        @param heating_switch_off_time the switch off time of the heating (must
+            be a `datetime` object)
         
         @return an instance of thermod.timetable.ShouldBeOn with a boolean value
             of `True` if the heating should be on, `False` otherwise
@@ -987,15 +908,12 @@ class TimeTable(object):
         with self._lock:
             logger.debug('lock acquired to check the should-be status')
             
-            if room_temperature is None:
-                room_temperature = self._thermometer.temperature
-            
             target_time = datetime.now()
             
             target = None
-            current = self.degrees(room_temperature)
+            current = self.degrees(current_temperature)
             diff = self.degrees(self._differential)
-            logger.debug('status: {}, room_temperature: {}, differential: {}',
+            logger.debug('status: {}, current_temperature: {}, differential: {}',
                          self._status, current, diff)
             
             if self._status == config.json_status_on:  # always on
@@ -1006,9 +924,9 @@ class TimeTable(object):
             
             else:  # checking against current temperature and timetable
                 target = self.target_temperature(target_time)
-                ison = self._heating.is_on()
+                ison = bool(heating_status)
                 nowts = target_time.timestamp()
-                offts = self._heating.switch_off_time().timestamp()
+                offts = heating_switch_off_time.timestamp()
                 grace = self._grace_time
                 
                 if current >= target and nowts < self._last_tgt_temp_reached_timestamp:
@@ -1019,7 +937,7 @@ class TimeTable(object):
                 
                 tgtts = self._last_tgt_temp_reached_timestamp
                 
-                logger.debug('is_on: {}, switch_off_time: {}, tgt_temperature_time: {}, grace_time: {}',
+                logger.debug('heating_on: {}, switch_off_time: {}, tgt_temperature_time: {}, grace_time: {}',
                              ison, datetime.fromtimestamp(offts), datetime.fromtimestamp(tgtts), grace)
                 
                 should_be_on = (

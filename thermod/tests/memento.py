@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test suite for `thermod.memento` module.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -26,17 +26,17 @@ import unittest
 import threading
 import jsonschema
 
-from thermod import TimeTable, config
+from thermod import TimeTable, config, BaseHeating
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-01-29'
+__updated__ = '2017-03-01'
 
 
 class MementoTable(TimeTable):
     """Support class for testing memento on thermod.timetable.TimeTable."""
     
-    @transactional(exclude=['_lock', '_heating', '_thermometer'])
+    @transactional(exclude=['_lock'])
     def __setstate__(self, state):
         """New method without control on errors."""
         
@@ -76,6 +76,8 @@ class TestMemento(unittest.TestCase):
         
         self.mttable = MementoTable()
         fill_timetable(self.mttable)
+        
+        self.heating = BaseHeating()
 
     def tearDown(self):
         pass
@@ -191,7 +193,7 @@ class TestMemento(unittest.TestCase):
         self.mttable.status = config.json_status_tmax
         
         # initial status, the heating should be on
-        self.assertTrue(self.mttable.should_the_heating_be_on(20))
+        self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
         
         # creating updating thread
         thread = threading.Thread(target=self.thread_change_status)
@@ -202,7 +204,7 @@ class TestMemento(unittest.TestCase):
         # still acquired.
         with self.mttable.lock:
             thread.start()
-            self.assertTrue(self.mttable.should_the_heating_be_on(20))
+            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
             
             sett = self.mttable.__getstate__()
             sett[config.json_differential] = 'INVALID'
@@ -212,23 +214,23 @@ class TestMemento(unittest.TestCase):
                 self.mttable.__setstate__(sett)
             
             self.assertTrue(self.mttable.lock._is_owned())  # still owned
-            self.assertTrue(self.mttable.should_the_heating_be_on(20))  # old settings still valid
+            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))  # old settings still valid
             
             thread.join(3)  # deadlock, so should exit for timeout
             self.assertTrue(thread.is_alive())  # exit join() for timeout
-            self.assertTrue(self.mttable.should_the_heating_be_on(20))  # old settings still valid
+            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))  # old settings still valid
         
         # the assert becomes False after the execution of the thread
         thread.join(30)  # no deadlock, timeout only to be sure
         self.assertFalse(thread.is_alive())  # exit join() for lock releasing
-        self.assertFalse(self.mttable.should_the_heating_be_on(20))  # new settings of thread
+        self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))  # new settings of thread
     
     def thread_change_status(self):
-        self.assertTrue(self.mttable.should_the_heating_be_on(20))
+        self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
         
         with self.mttable.lock:
             self.mttable.status = config.json_status_off
-            self.assertFalse(self.mttable.should_the_heating_be_on(20))
+            self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
 
       
 if __name__ == "__main__":

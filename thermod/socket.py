@@ -42,13 +42,13 @@ from . import config
 from .config import LogStyleAdapter
 from .memento import memento
 from .timetable import TimeTable
-from .heating import ScriptHeatingError
-from .thermometer import ScriptThermometerError
+from .heating import BaseHeating, HeatingError
+from .thermometer import BaseThermometer, ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2017-02-25'
-__version__ = '1.3'
+__updated__ = '2017-03-01'
+__version__ = '1.4'
 
 logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else config.logger_base_name))
 
@@ -79,10 +79,10 @@ rsp_fullmsg = 'explain'
 class ControlThread(Thread):
     """Start a HTTP server ready to receive commands."""
     
-    def __init__(self, timetable, host, port):
+    def __init__(self, timetable, heating, thermometer, host, port):
         logger.debug('initializing ControlThread')
         super().__init__(name='ThermodControlThread')
-        self.server = ControlServer(timetable, (host, port), ControlRequestHandler)
+        self.server = ControlServer(timetable, heating, thermometer, (host, port), ControlRequestHandler)
     
     def __repr__(self):
         return '{module}.{cls}({timetable!r}, {host!r}, {port:d})'.format(
@@ -107,14 +107,23 @@ class ControlThread(Thread):
 class ControlServer(HTTPServer):
     """Receive HTTP connections and dispatch a reequest handler."""
     
-    def __init__(self, timetable, server_address, RequestHandlerClass):
+    def __init__(self, timetable, heating, thermometer, server_address, RequestHandlerClass):
         logger.debug('initializing ControlServer')
         super().__init__(server_address, RequestHandlerClass)
         
         if not isinstance(timetable, TimeTable):
             raise TypeError('ControlServer requires a TimeTable object')
+            
+        if not isinstance(heating, BaseHeating):
+            raise TypeError('ControlServer requires a BaseHeating object')
+            
+        if not isinstance(thermometer, BaseThermometer):
+            raise TypeError('ControlServer requires a BaseThermometer object')
         
         self.timetable = timetable
+        self.heating = heating
+        self.thermometer = thermometer
+        
         logger.debug('ControlServer initialized on {}', self.server_address)
     
     def shutdown(self):
@@ -212,8 +221,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         code = None
         data = None
         
+        # renamed just to have shorter name
         pathlist = self.pathlist
         timetable = self.server.timetable
+        heating = self.server.heating
+        thermometer = self.server.thermometer
         
         if pathlist[0] in req_path_settings:
             logger.debug('{} sending back Thermod settings', self.client_address)
@@ -232,21 +244,21 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 targett = timetable.target_temperature()
                 
                 try:
-                    response = {req_heating_status: timetable.heating.status(),
-                                req_heating_temperature: timetable.thermometer.temperature,
+                    response = {req_heating_status: heating.status,
+                                req_heating_temperature: thermometer.temperature,
                                 req_heating_target_temp: (targett if math.isfinite(targett) else None)}
                 
-                except ScriptHeatingError as she:
+                except HeatingError as he:
                     code = 422
                     message = 'cannot query the heating'
-                    logger.warning('{} {}: {}', self.client_address, message, she)
-                    response = {rsp_error: message, rsp_fullmsg: str(she)}
+                    logger.warning('{} {}: {}', self.client_address, message, he)
+                    response = {rsp_error: message, rsp_fullmsg: str(he)}
                 
-                except ScriptThermometerError as ste:
+                except ThermometerError as ste:
                     code = 422
                     message = 'cannot query the thermometer'
-                    logger.warning('{} {}: {}', self.client_address, message, ste)
-                    response = {rsp_error: message, rsp_fullmsg: str(ste)}
+                    logger.warning('{} {}: {}', self.client_address, message, te)
+                    response = {rsp_error: message, rsp_fullmsg: str(te)}
                 
                 except Exception as e:
                     # this is an unhandled exception, a critical message is printed

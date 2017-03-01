@@ -38,7 +38,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2017-02-24'
+__updated__ = '2017-02-25'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -196,7 +196,7 @@ class ScriptThermometer(BaseThermometer):
             raise TypeError('the script parameter must be string or list')
         
         if debug:
-            logger.debug('appending {} to script command', ScriptHeating.DEBUG_OPTION)
+            logger.debug('appending {} to script command', ScriptThermometer.DEBUG_OPTION)
             self._script.append(ScriptThermometer.DEBUG_OPTION)
         
         logger.debug('checking executability of provided script')

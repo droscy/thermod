@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test suite for `thermod.socket` module.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -28,10 +28,11 @@ import unittest
 import requests
 
 import thermod.socket as socket
-from thermod import TimeTable, ControlThread, config
+from thermod import TimeTable, BaseHeating, ControlThread, config
+from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2016-06-02'
+__updated__ = '2017-03-01'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/heating'
 
@@ -46,7 +47,12 @@ class TestSocket(unittest.TestCase):
         self.timetable.filepath = os.path.join(tempfile.gettempdir(), 'timetable.json')
         self.timetable.save()
         
+        self.heating = BaseHeating()
+        self.thermometer = FakeThermometer()
+        
         self.control_socket = ControlThread(self.timetable,
+                                            self.heating,
+                                            self.thermometer,
                                             config.SOCKET_DEFAULT_HOST,
                                             config.SOCKET_DEFAULT_PORT)
         self.control_socket.start()
@@ -88,8 +94,8 @@ class TestSocket(unittest.TestCase):
         r.close()
         
         # check returned heating informations
-        self.assertEqual(heating[socket.req_heating_status], self.timetable.heating.status())
-        self.assertAlmostEqual(heating[socket.req_heating_temperature], self.timetable.thermometer.temperature, delta=0.1)
+        self.assertEqual(heating[socket.req_heating_status], self.heating.status)
+        self.assertAlmostEqual(heating[socket.req_heating_temperature], self.thermometer.temperature, delta=0.1)
         self.assertEqual(heating[socket.req_heating_target_temp], self.timetable.target_temperature())
     
     
