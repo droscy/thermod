@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Utilities, functions and constants for Thermod daemon.
+"""Utilities and common functions for Thermod daemon.
 
 Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
@@ -20,20 +20,18 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import os
-import sys
 import math
 import calendar
 import logging
 import configparser
 
 from collections import namedtuple
-from datetime import datetime
+from . import const
 
 __date__ = '2015-09-13'
-__updated__ = '2017-02-20'
+__updated__ = '2017-03-02'
 
 
-# logger and its adapter
 class LogStyleAdapter(logging.LoggerAdapter):
     """Format message with {}-arguments."""
     
@@ -57,69 +55,9 @@ class LogStyleAdapter(logging.LoggerAdapter):
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
-# logger common settings
-logger_base_name = 'thermod'
-logger_fmt_msg = '{asctime},{msecs:03.0f} {name:19s} {levelname:8s} {message}'
-logger_fmt_msg_syslog = '{name}[{process:d}]: {levelname} {message}'
-logger_fmt_msg_maillog = '''\
-Thermod daemon reported the following {levelname} alert:
 
-{message}
-
-Module: {name}
-Date and time: {asctime}
-'''
-logger_fmt_time = '%H:%M:%S'
-logger_fmt_datetime = '%Y-%m-%d %H:%M:%S'
-logger_fmt_style = '{'
-
-# return codes
-RET_CODE_OK = 0
-RET_CODE_DAEMON_DISABLED = 6
-RET_CODE_PID_FILE_ERROR = 4
-RET_CODE_CFG_FILE_MISSING = 10
-RET_CODE_CFG_FILE_SYNTAX_ERR = 11
-RET_CODE_CFG_FILE_INVALID = 12
-RET_CODE_CFG_FILE_UNKNOWN_ERR = 13
-RET_CODE_TT_NOT_FOUND = 20
-RET_CODE_TT_READ_ERR = 21
-RET_CODE_TT_INVALID_SYNTAX = 22
-RET_CODE_TT_INVALID_CONTENT = 23
-RET_CODE_TT_OTHER_ERR = 24
-RET_CODE_PI_INIT_ERR = 25
-RET_CODE_SCRIPT_INIT_ERR = 26
-RET_CODE_INIT_ERR = 29
-RET_CODE_SOCKET_PORT_ERR = 30
-RET_CODE_SOCKET_START_ERR = 31
-RET_CODE_SOCKET_STOP_ERR = 32
-RET_CODE_RUN_INVALID_STATE = 50
-RET_CODE_RUN_INVALID_VALUE = 51
-RET_CODE_RUN_HEATING_ERR = 52
-RET_CODE_RUN_OTHER_ERR = 59
-RET_CODE_SHUTDOWN_SWITCHOFF_ERR = 60
-RET_CODE_SHUTDOWN_OTHER_ERR = 69
-RET_CODE_KEYB_INTERRUPT = 130
-
-# socket default address and port
-SOCKET_DEFAULT_HOST = 'localhost'
-SOCKET_DEFAULT_PORT = 4344
-
-# timestamp max value for current platform
-try:
-    _tmv = datetime(9999,12,31).timestamp()
-except OverflowError:
-    _tmv = sys.maxsize
-finally:
-    TIMESTAMP_MAX_VALUE = _tmv
-    """Max value for a POSIX timestamp in current platform."""
-
-# main config files and parsers
 Settings = namedtuple('Settings', 'enabled, debug, tt_file, interval, heating, thermometer, host, port, email, error_code')
-config_file = 'thermod.conf'
-main_config_files = (config_file,
-                     os.path.join(os.path.expanduser('~/.thermod'), config_file),
-                     os.path.join('/usr/local/etc/thermod', config_file),
-                     os.path.join('/etc/thermod', config_file))
+"""Tuple used to transfer settings from config file to main daemon."""
 
 def read_config_files(config_files=None):
     """Search and read main configuration files.
@@ -131,7 +69,7 @@ def read_config_files(config_files=None):
     """
     
     if config_files is None:
-        config_files = main_config_files
+        config_files = const.MAIN_CONFIG_FILES
     
     try:
         cfg = configparser.ConfigParser()
@@ -146,47 +84,47 @@ def read_config_files(config_files=None):
             raise FileNotFoundError()
     
     except configparser.MissingSectionHeaderError as mshe:
-        error_code = RET_CODE_CFG_FILE_SYNTAX_ERR
+        error_code = const.RET_CODE_CFG_FILE_SYNTAX_ERR
         logger.critical('invalid syntax in configuration file `{}`, '
                         'missing sections', mshe.source)
     
     except configparser.ParsingError as pe:
-        error_code = RET_CODE_CFG_FILE_SYNTAX_ERR
+        error_code = const.RET_CODE_CFG_FILE_SYNTAX_ERR
         (_lineno, _line) = pe.errors[0]
         logger.critical('invalid syntax in configuration file `{}` at line {:d}: {}',
                         pe.source, _lineno, _line)
     
     except configparser.DuplicateSectionError as dse:
-        error_code = RET_CODE_CFG_FILE_INVALID
+        error_code = const.RET_CODE_CFG_FILE_INVALID
         logger.critical('duplicate section `{}` in configuration file `{}`',
                         dse.section, dse.source)
     
     except configparser.DuplicateOptionError as doe:
-        error_code = RET_CODE_CFG_FILE_INVALID
+        error_code = const.RET_CODE_CFG_FILE_INVALID
         logger.critical('duplicate option `{}` in section `{}` of configuration '
                         'file `{}`', doe.option, doe.section, doe.source)
     
     except configparser.Error as cpe:
-        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        error_code = const.RET_CODE_CFG_FILE_UNKNOWN_ERR
         logger.critical('parsing error in configuration file: `{}`', cpe)
     
     except FileNotFoundError:
-        error_code = RET_CODE_CFG_FILE_MISSING
+        error_code = const.RET_CODE_CFG_FILE_MISSING
         logger.critical('no configuration files found in {}', config_files)
     
     except Exception as e:
-        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        error_code = const.RET_CODE_CFG_FILE_UNKNOWN_ERR
         logger.critical('unknown error in configuration file: `{}`', e)
     
     except KeyboardInterrupt:
-        error_code = RET_CODE_KEYB_INTERRUPT
+        error_code = const.RET_CODE_KEYB_INTERRUPT
     
     except:
-        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        error_code = const.RET_CODE_CFG_FILE_UNKNOWN_ERR
         logger.critical('unknown error in configuration file, no more details')
     
     else:
-        error_code = RET_CODE_OK
+        error_code = const.RET_CODE_OK
         logger.debug('main configuration files read')
     
     return (cfg, error_code)
@@ -256,8 +194,8 @@ def parse_main_settings(cfg):
         else:
             raise ValueError('invalid value `{}` for thermometer'.format(thermometer['script']))
         
-        host = cfg.get('socket', 'host', fallback=SOCKET_DEFAULT_HOST)
-        port = cfg.getint('socket', 'port', fallback=SOCKET_DEFAULT_PORT)
+        host = cfg.get('socket', 'host', fallback=const.SOCKET_DEFAULT_HOST)
+        port = cfg.getint('socket', 'port', fallback=const.SOCKET_DEFAULT_PORT)
             
         if (port < 0) or (port > 65535):
             # checking port here because the ControlThread is created after starting
@@ -274,125 +212,44 @@ def parse_main_settings(cfg):
                  'credentials': ((euser or epwd) and (euser, epwd) or None)}
     
     except configparser.NoSectionError as nse:
-        error_code = RET_CODE_CFG_FILE_INVALID
+        error_code = const.RET_CODE_CFG_FILE_INVALID
         logger.critical('incomplete configuration file, missing `{}` section', nse.section)
     
     except configparser.NoOptionError as noe:
-        error_code = RET_CODE_CFG_FILE_INVALID
+        error_code = const.RET_CODE_CFG_FILE_INVALID
         logger.critical('incomplete configuration file, missing option `{}` '
                         'in section `{}`', noe.option, noe.section)
     
     except configparser.Error as cpe:
-        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        error_code = const.RET_CODE_CFG_FILE_UNKNOWN_ERR
         logger.critical('unknown error in configuration file: {}', cpe)
     
     except ValueError as ve:
         # Raised by getboolean(), getfloat(), getint() and int() methods
         # and if heating, switch_on_level or thermometer are not valid.
-        error_code = RET_CODE_CFG_FILE_INVALID
+        error_code = const.RET_CODE_CFG_FILE_INVALID
         logger.critical('invalid configuration: {}', ve)
     
     except OverflowError as oe:
-        error_code = RET_CODE_CFG_FILE_INVALID
+        error_code = const.RET_CODE_CFG_FILE_INVALID
         logger.critical('invalid configuration: {}', oe)
     
     except Exception as e:
-        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        error_code = const.RET_CODE_CFG_FILE_UNKNOWN_ERR
         logger.critical('unknown error in configuration file: {}', e)
     
     except KeyboardInterrupt:
-        error_code = RET_CODE_KEYB_INTERRUPT
+        error_code = const.RET_CODE_KEYB_INTERRUPT
     
     except:
-        error_code = RET_CODE_CFG_FILE_UNKNOWN_ERR
+        error_code = const.RET_CODE_CFG_FILE_UNKNOWN_ERR
         logger.critical('unknown error in configuration file, no more details')
     
     else:
-        error_code = RET_CODE_OK
+        error_code = const.RET_CODE_OK
         logger.debug('main settings parsed')
     
     return Settings(enabled, debug, tt_file, interval, heating, thermometer, host, port, email, error_code)
-
-
-# thermod name convention (from json file)
-json_status = 'status'
-json_temperatures = 'temperatures'
-json_timetable = 'timetable'
-json_differential = 'differential'
-json_grace_time = 'grace_time'
-json_all_settings = (json_status, json_temperatures, json_timetable,
-                     json_differential, json_grace_time)
-
-json_t0_str = 't0'
-json_tmin_str = 'tmin'
-json_tmax_str = 'tmax'
-json_all_temperatures = (json_t0_str, json_tmin_str, json_tmax_str)
-
-json_status_on = 'on'
-json_status_off = 'off'
-json_status_auto = 'auto'
-json_status_t0 = json_t0_str
-json_status_tmin = json_tmin_str
-json_status_tmax = json_tmax_str
-json_all_statuses = (json_status_on, json_status_off, json_status_auto,
-                     json_status_t0, json_status_tmin, json_status_tmax)
-
-# the keys of the following dict are the same number returned by %w of
-# strftime(), while the names are used to avoid errors with different locales
-json_days_name_map = {1: 'monday',    '1': 'monday',
-                      2: 'tuesday',   '2': 'tuesday',
-                      3: 'wednesday', '3': 'wednesday',
-                      4: 'thursday',  '4': 'thursday',
-                      5: 'friday',    '5': 'friday',
-                      6: 'saturday',  '6': 'saturday',
-                      0: 'sunday',    '0': 'sunday'}
-
-# full schema of JSON config file
-json_schema = {
-    '$schema': 'http://json-schema.org/draft-04/schema#',
-    'title': 'Timetable',
-    'description': 'Timetable file for Thermod daemon',
-    'type': 'object',
-    'properties': {
-        'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
-        'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
-        'grace_time': {'type': ['number', 'null'], 'minimum': 0},
-        'temperatures': {
-            'type': 'object',
-            'properties': {
-                't0': {'type': 'number'},
-                'tmin': {'type': 'number'},
-                'tmax': {'type': 'number'}},
-            'required': ['t0', 'tmin', 'tmax'],
-            'additionalProperties': False},
-        'timetable': {
-            'type': 'object',
-            'properties': {
-                'monday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
-                'tuesday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
-                'wednesday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
-                'thursday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
-                'friday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
-                'saturday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
-                'sunday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]}},
-            'required': ['monday', 'tuesday', 'wednesday', 'thursday',
-                         'friday', 'saturday', 'sunday'],
-            'additionalProperties': False}},
-    'required': ['status', 'temperatures', 'timetable'],
-    'additionalProperties': False,
-    'definitions': {
-        'day': {
-            'patternProperties': {
-                'h([01][0-9]|2[0-3])': {
-                    'type': 'array',
-                    'items': {'anyOf': [{'type': 'number'},
-                                        {'type': 'string', 'pattern': '[-+]?[0-9]*\.?[0-9]+'},
-                                        {'enum': ['t0', 'tmin', 'tmax']}]}}},
-            'required': ['h00', 'h01', 'h02', 'h03', 'h04', 'h05', 'h06', 'h07', 'h08', 'h09',
-                         'h10', 'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'h19',
-                         'h20', 'h21', 'h22', 'h23'],
-            'additionalProperties': False}}
-}
 
 
 class JsonValueError(ValueError):
@@ -433,7 +290,7 @@ def check_script(program):
 
 
 def is_valid_temperature(temperature):
-    """Return True if the provided temperature is valid.
+    """Return `True` if the provided temperature is valid.
     
     A temperature is considered valid if it is a number or one of the
     following string values: 't0', 'tmin', 'tmax'. The positive/negative
@@ -442,7 +299,7 @@ def is_valid_temperature(temperature):
     
     result = None
 
-    if temperature in json_all_temperatures:
+    if temperature in const.JSON_ALL_TEMPERATURES:
         result = True
     else:
         try:
@@ -463,10 +320,10 @@ def temperature_to_float(temperature):
     any other simple formatting. The input value must be a number except
     positive/negative infinity and NaN.
     
-    @raise ValueError: if the provided temperature cannot be converted to float.
+    @raise ValueError if the provided temperature cannot be converted to float.
     """
     
-    if not is_valid_temperature(temperature) or temperature in json_all_temperatures:
+    if not is_valid_temperature(temperature) or temperature in const.JSON_ALL_TEMPERATURES:
         raise ValueError('the provided temperature is not valid `{}`, '
                          'it must be a number'.format(temperature))
     
@@ -483,7 +340,7 @@ def json_format_temperature(temperature):
     result = None
 
     if is_valid_temperature(temperature):
-        if temperature in json_all_temperatures:
+        if temperature in const.JSON_ALL_TEMPERATURES:
             result = temperature
         else:
             # rounding returned value in order to avoid to many rapid changes
@@ -497,7 +354,7 @@ def json_format_temperature(temperature):
                              'it must be a number or one of the following '
                              'values: {}'.format(
                                     temperature,
-                                    ', '.join(json_all_temperatures)))
+                                    ', '.join(const.JSON_ALL_TEMPERATURES)))
 
     return result
 
@@ -529,11 +386,11 @@ def json_get_day_name(day):
     result = None
     
     try:
-        if day in json_days_name_map.keys():
-            result = json_days_name_map[day]
+        if day in const.JSON_DAYS_NAME_MAP.keys():
+            result = const.JSON_DAYS_NAME_MAP[day]
         elif isinstance(day, int) and int(day) in range(8):
-            result = json_days_name_map[int(day) % 7]
-        elif str(day).lower() in set(json_days_name_map.values()):
+            result = const.JSON_DAYS_NAME_MAP[int(day) % 7]
+        elif str(day).lower() in set(const.JSON_DAYS_NAME_MAP.values()):
             result = str(day).lower()
         else:
             day_name = [name.lower() for name in list(calendar.day_name)]
@@ -541,10 +398,10 @@ def json_get_day_name(day):
             
             if str(day).lower() in day_name:
                 idx =  (day_name.index(str(day).lower())+1) % 7
-                result = json_days_name_map[idx]
+                result = const.JSON_DAYS_NAME_MAP[idx]
             elif str(day).lower() in day_abbr:
                 idx =  (day_abbr.index(str(day).lower())+1) % 7
-                result = json_days_name_map[idx]
+                result = const.JSON_DAYS_NAME_MAP[idx]
             else:
                 raise Exception
     

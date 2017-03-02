@@ -38,7 +38,7 @@ if sys.version[0:3] >= '3.5':
 else:
     JSONDecodeError = ValueError
 
-from . import utils
+from . import utils, const
 from .utils import LogStyleAdapter
 from .memento import memento
 from .timetable import TimeTable
@@ -50,17 +50,17 @@ __date__ = '2015-11-05'
 __updated__ = '2017-03-01'
 __version__ = '1.4'
 
-logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else utils.logger_base_name))
+logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else const.LOGGER_BASE_NAME))
 
 
 req_settings_all = 'settings'
 req_settings_days = 'days'
-req_settings_status = utils.json_status
-req_settings_t0 = utils.json_t0_str
-req_settings_tmin = utils.json_tmin_str
-req_settings_tmax = utils.json_tmax_str
-req_settings_differential = utils.json_differential
-req_settings_grace_time = utils.json_grace_time
+req_settings_status = const.JSON_STATUS
+req_settings_t0 = const.JSON_T0_STR
+req_settings_tmin = const.JSON_TMIN_STR
+req_settings_tmax = const.JSON_TMAX_STR
+req_settings_differential = const.JSON_DIFFERENTIAL
+req_settings_grace_time = const.JSON_GRACE_TIME
 
 req_heating_status = 'status'
 req_heating_temperature = 'temperature'
@@ -338,11 +338,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
             * `days` to update one or more days: must be an array of day and
               each day must me the full part of JSON settings as described in
-              thermod.utils.json_schema (see thermod.timetable.TimeTable.update_days()
+              thermod.const.JSON_SCHEMA (see thermod.timetable.TimeTable.update_days()
               for attitional informations)
             
             * `status` to update the internal status: accepted values
-              in thermod.utils.json_all_statuses
+              in thermod.const.JSON_ALL_STATUSES
             
             * `t0` to update the t0 temperature
             
@@ -755,9 +755,9 @@ if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
     
     console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(logging.Formatter(fmt=utils.logger_fmt_msg,
-                                           datefmt=utils.logger_fmt_datetime,
-                                           style=utils.logger_fmt_style))
+    console.setFormatter(logging.Formatter(fmt=const.LOGGER_FMT_MSG,
+                                           datefmt=const.LOGGER_FMT_DATETIME,
+                                           style=const.LOGGER_FMT_STYLE))
     logger.addHandler(console)
     
     file = 'timetable.json'

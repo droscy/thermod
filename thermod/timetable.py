@@ -37,7 +37,7 @@ if sys.version[0:3] >= '3.5':
 else:
     JSONDecodeError = ValueError
 
-from . import utils
+from . import utils, const
 from .utils import JsonValueError, LogStyleAdapter
 from .heating import BaseHeating
 from .memento import transactional
@@ -135,12 +135,12 @@ class TimeTable(object):
         to current timestamp of last settings change.
         """
         
-        self._last_tgt_temp_reached_timestamp = utils.TIMESTAMP_MAX_VALUE
+        self._last_tgt_temp_reached_timestamp = const.TIMESTAMP_MAX_VALUE
         """Timestamp of target temperature last reaching.
         
         Whenever the target temperature is reached, this value is updated with
         the current timestamp. When the current temperature falls below the
-        target temperature, this value is reset to `utils.TIMESTAMP_MAX_VALUE`.
+        target temperature, this value is reset to `const.TIMESTAMP_MAX_VALUE`.
         
         It is used in the `TimeTable.should_the_heating_be_on()`
         method to respect the grace time.
@@ -243,13 +243,13 @@ class TimeTable(object):
         with self._lock:
             logger.debug('lock acquired to validate timetable')
             
-            settings = {utils.json_status: self._status,
-                        utils.json_differential: self._differential,
-                        utils.json_grace_time: self._grace_time,
-                        utils.json_temperatures: self._temperatures,
-                        utils.json_timetable: self._timetable}
+            settings = {const.JSON_STATUS: self._status,
+                        const.JSON_DIFFERENTIAL: self._differential,
+                        const.JSON_GRACE_TIME: self._grace_time,
+                        const.JSON_TEMPERATURES: self._temperatures,
+                        const.JSON_TIMETABLE: self._timetable}
             
-            jsonschema.validate(settings, utils.json_schema)
+            jsonschema.validate(settings, const.JSON_SCHEMA)
             logger.debug('the timetable is valid')
         
         logger.debug('returning internal state')
@@ -281,16 +281,16 @@ class TimeTable(object):
         with self._lock:
             logger.debug('lock acquired to set new state')
             
-            self._status = state[utils.json_status]
-            self._temperatures = deepcopy(state[utils.json_temperatures])
-            self._timetable = deepcopy(state[utils.json_timetable])
+            self._status = state[const.JSON_STATUS]
+            self._temperatures = deepcopy(state[const.JSON_TEMPERATURES])
+            self._timetable = deepcopy(state[const.JSON_TIMETABLE])
             
-            if utils.json_differential in state:
-                self._differential = state[utils.json_differential]
+            if const.JSON_DIFFERENTIAL in state:
+                self._differential = state[const.JSON_DIFFERENTIAL]
             
-            if utils.json_grace_time in state:
+            if const.JSON_GRACE_TIME in state:
                 # using grace_time setter to perform additional checks
-                self.grace_time = state[utils.json_grace_time]
+                self.grace_time = state[const.JSON_GRACE_TIME]
             
             # validating new state
             try:
@@ -341,8 +341,8 @@ class TimeTable(object):
         
         state = self.__getstate__()
         
-        if not math.isfinite(state[utils.json_grace_time]):
-            state[utils.json_grace_time] = None
+        if not math.isfinite(state[const.JSON_GRACE_TIME]):
+            state[const.JSON_GRACE_TIME] = None
         
         return json.dumps(state, indent=indent, sort_keys=sort_keys, allow_nan=False)
     
@@ -355,7 +355,7 @@ class TimeTable(object):
         
         @param settings the new settings (JSON-encoded string)
         
-        @see thermod.utils.json_schema for valid JSON schema
+        @see thermod.const.JSON_SCHEMA for valid JSON schema
         @see TimeTable.__setstate__() for possible exceptions
             raised during storing of new settings
         """
@@ -432,8 +432,8 @@ class TimeTable(object):
             settings = self.__getstate__()
             
             # convert possible Infinite grace_time to None
-            if math.isinf(settings[utils.json_grace_time]):
-                settings[utils.json_grace_time] = None
+            if math.isinf(settings[const.JSON_GRACE_TIME]):
+                settings[const.JSON_GRACE_TIME] = None
             
             # if an old JSON file exist, load its content
             try:
@@ -497,13 +497,13 @@ class TimeTable(object):
         with self._lock:
             logger.debug('lock acquired to set a new status')
             
-            if status.lower() not in utils.json_all_statuses:
+            if status.lower() not in const.JSON_ALL_STATUSES:
                 logger.debug('invalid new status: {}', status)
                 raise JsonValueError(
                     'the new status `{}` is invalid, it must be one of [{}]. '
                     'Falling back to the previous one: `{}`.'.format(
                         status,
-                        ', '.join(utils.json_all_statuses),
+                        ', '.join(const.JSON_ALL_STATUSES),
                         self._status))
             
             self._status = status.lower()
@@ -601,7 +601,7 @@ class TimeTable(object):
         """Return the current value for ``t0`` temperature."""
         with self._lock:
             logger.debug('lock acquired to get current t0 temperature')
-            return self._temperatures[utils.json_t0_str]
+            return self._temperatures[const.JSON_T0_STR]
     
     
     @t0.setter
@@ -620,7 +620,7 @@ class TimeTable(object):
                     'the new value `{}` for t0 temperature '
                     'is invalid, it must be a number'.format(value))
             
-            self._temperatures[utils.json_t0_str] = nvalue
+            self._temperatures[const.JSON_T0_STR] = nvalue
             self._has_been_validated = False
             self._last_update_timestamp = time.time()
             logger.debug('new t0 temperature set: {}', nvalue)
@@ -631,7 +631,7 @@ class TimeTable(object):
         """Return the current value for ``tmin`` temperature."""
         with self._lock:
             logger.debug('lock acquired to get current tmin temperature')
-            return self._temperatures[utils.json_tmin_str]
+            return self._temperatures[const.JSON_TMIN_STR]
     
     
     @tmin.setter
@@ -650,7 +650,7 @@ class TimeTable(object):
                     'the new value `{}` for tmin temperature '
                     'is invalid, it must be a number'.format(value))
             
-            self._temperatures[utils.json_tmin_str] = nvalue
+            self._temperatures[const.JSON_TMIN_STR] = nvalue
             self._has_been_validated = False
             self._last_update_timestamp = time.time()
             logger.debug('new tmin temperature set: {}', nvalue)
@@ -661,7 +661,7 @@ class TimeTable(object):
         """Return the current value for ``tmax`` temperature."""
         with self._lock:
             logger.debug('lock acquired to get current tmax temperature')
-            return self._temperatures[utils.json_tmax_str]
+            return self._temperatures[const.JSON_TMAX_STR]
     
     
     @tmax.setter
@@ -680,7 +680,7 @@ class TimeTable(object):
                     'the new value `{}` for tmax temperature '
                     'is invalid, it must be a number'.format(value))
             
-            self._temperatures[utils.json_tmax_str] = nvalue
+            self._temperatures[const.JSON_TMAX_STR] = nvalue
             self._has_been_validated = False
             self._last_update_timestamp = time.time()
             logger.debug('new tmax temperature set: {}', nvalue)
@@ -741,7 +741,7 @@ class TimeTable(object):
         """Update timetable for one or more days.
         
         The provided `json_data` must be a part of the whole JSON settings in
-        `thermod.utils.json_schema` containing all the informations for the
+        `thermod.const.JSON_SCHEMA` containing all the informations for the
         days under update.
         
         @return the list of updated days
@@ -770,7 +770,7 @@ class TimeTable(object):
             logger.debug('updating data for each provided day')
             for day, timetable in data.items():
                 _day = utils.json_get_day_name(day)
-                new_state[utils.json_timetable][_day] = timetable
+                new_state[const.JSON_TIMETABLE][_day] = timetable
                 days.append(_day)
             
             try:
@@ -807,7 +807,7 @@ class TimeTable(object):
             
             temp = utils.json_format_temperature(temperature)
             
-            if temp in utils.json_all_temperatures:
+            if temp in const.JSON_ALL_TEMPERATURES:
                 value = self._temperatures[temp]
             else:
                 value = temp
@@ -834,18 +834,18 @@ class TimeTable(object):
         target = None
         
         with self._lock:
-            if self._status == utils.json_status_on:  # always on
+            if self._status == const.JSON_STATUS_ON:  # always on
                 target = float('+Inf')
             
-            elif self._status == utils.json_status_off:  # always off
+            elif self._status == const.JSON_STATUS_OFF:  # always off
                 target = float('-Inf')
             
-            elif self._status in utils.json_all_temperatures:
+            elif self._status in const.JSON_ALL_TEMPERATURES:
                 # target temperature is set manually
                 target = self.degrees(self._temperatures[self._status])
                 logger.debug('target_temperature: {}', target)
             
-            elif self._status == utils.json_status_auto:
+            elif self._status == const.JSON_STATUS_AUTO:
                 # target temperature is retrived from timetable
                 day = utils.json_get_day_name(target_time.strftime('%w'))
                 hour = utils.json_format_hour(target_time.hour)
@@ -916,10 +916,10 @@ class TimeTable(object):
             logger.debug('status: {}, current_temperature: {}, differential: {}',
                          self._status, current, diff)
             
-            if self._status == utils.json_status_on:  # always on
+            if self._status == const.JSON_STATUS_ON:  # always on
                 should_be_on = True
             
-            elif self._status == utils.json_status_off:  # always off
+            elif self._status == const.JSON_STATUS_OFF:  # always off
                 should_be_on = False
             
             else:  # checking against current temperature and timetable
@@ -933,7 +933,7 @@ class TimeTable(object):
                     # first time the target temp is reached, update timestamp
                     self._last_tgt_temp_reached_timestamp = nowts
                 elif current < target:
-                    self._last_tgt_temp_reached_timestamp = utils.TIMESTAMP_MAX_VALUE
+                    self._last_tgt_temp_reached_timestamp = const.TIMESTAMP_MAX_VALUE
                 
                 tgtts = self._last_tgt_temp_reached_timestamp
                 

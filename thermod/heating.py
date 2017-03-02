@@ -28,7 +28,7 @@ import subprocess
 from copy import deepcopy
 from datetime import datetime
 #from json.decoder import JSONDecodeError
-from .config import ScriptError, check_script, LogStyleAdapter
+from .utils import ScriptError, check_script, LogStyleAdapter
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
