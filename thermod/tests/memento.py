@@ -26,7 +26,7 @@ import unittest
 import threading
 import jsonschema
 
-from thermod import TimeTable, config, BaseHeating
+from thermod import TimeTable, utils, BaseHeating
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
@@ -46,15 +46,15 @@ class MementoTable(TimeTable):
         with self._lock:
             
             # storing new values
-            self._status = state[config.json_status]
-            self._temperatures = copy.deepcopy(state[config.json_temperatures])
-            self._timetable = copy.deepcopy(state[config.json_timetable])
+            self._status = state[utils.json_status]
+            self._temperatures = copy.deepcopy(state[utils.json_temperatures])
+            self._timetable = copy.deepcopy(state[utils.json_timetable])
             
-            if config.json_differential in state:
-                self._differential = state[config.json_differential]
+            if utils.json_differential in state:
+                self._differential = state[utils.json_differential]
             
-            if config.json_grace_time in state:
-                self._grace_time = float(state[config.json_grace_time])
+            if utils.json_grace_time in state:
+                self._grace_time = float(state[utils.json_grace_time])
             
             # validating
             self._has_been_validated = False
@@ -90,8 +90,8 @@ class TestMemento(unittest.TestCase):
         
         # change the status and restore
         restore = memento(tt1)
-        tt1.status = config.json_status_off
-        self.assertEqual(tt1.status, config.json_status_off)
+        tt1.status = utils.json_status_off
+        self.assertEqual(tt1.status, utils.json_status_off)
         self.assertNotEqual(tt1, tt2)  # they now differ
         restore()
         self.assertEqual(tt1, tt2)  # they are equal again
@@ -144,7 +144,7 @@ class TestMemento(unittest.TestCase):
         self.assertEqual(mt1, mt2)
         
         sett = mt1.__getstate__()
-        sett[config.json_status] = 'invalid'
+        sett[utils.json_status] = 'invalid'
         
         with self.assertRaises(jsonschema.ValidationError):
             # set an invalid state, exception raised
@@ -160,7 +160,7 @@ class TestMemento(unittest.TestCase):
         self.assertEqual(mt1, mt2)
         
         sett = mt1.__getstate__()
-        sett[config.json_temperatures][config.json_tmax_str] = 'invalid'
+        sett[utils.json_temperatures][utils.json_tmax_str] = 'invalid'
         
         with self.assertRaises(jsonschema.ValidationError):
             # set an invalid state, exception raised
@@ -177,7 +177,7 @@ class TestMemento(unittest.TestCase):
         
         with mt1.lock:
             sett = mt1.__getstate__()
-            sett[config.json_timetable] = None  # clearing timetable
+            sett[utils.json_timetable] = None  # clearing timetable
             
             with self.assertRaises(jsonschema.ValidationError):
                 # set an invalid state, exception raised
@@ -190,7 +190,7 @@ class TestMemento(unittest.TestCase):
     def test06_threading(self):
         self.timetable = None  # just to clear and avoid errors
         self.mttable.tmax = 30
-        self.mttable.status = config.json_status_tmax
+        self.mttable.status = utils.json_status_tmax
         
         # initial status, the heating should be on
         self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
@@ -207,7 +207,7 @@ class TestMemento(unittest.TestCase):
             self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
             
             sett = self.mttable.__getstate__()
-            sett[config.json_differential] = 'INVALID'
+            sett[utils.json_differential] = 'INVALID'
             
             with self.assertRaises(jsonschema.ValidationError):
                 # set an invalid state, exception raised
@@ -229,7 +229,7 @@ class TestMemento(unittest.TestCase):
         self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
         
         with self.mttable.lock:
-            self.mttable.status = config.json_status_off
+            self.mttable.status = utils.json_status_off
             self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
 
       

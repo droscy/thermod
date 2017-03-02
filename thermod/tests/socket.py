@@ -28,7 +28,7 @@ import unittest
 import requests
 
 import thermod.socket as socket
-from thermod import TimeTable, BaseHeating, ControlThread, config
+from thermod import TimeTable, BaseHeating, ControlThread, utils
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
@@ -53,8 +53,8 @@ class TestSocket(unittest.TestCase):
         self.control_socket = ControlThread(self.timetable,
                                             self.heating,
                                             self.thermometer,
-                                            config.SOCKET_DEFAULT_HOST,
-                                            config.SOCKET_DEFAULT_PORT)
+                                            utils.SOCKET_DEFAULT_HOST,
+                                            utils.SOCKET_DEFAULT_PORT)
         self.control_socket.start()
    
 
@@ -127,7 +127,7 @@ class TestSocket(unittest.TestCase):
         
         # wrong JSON data for settings
         settings = self.timetable.__getstate__()
-        settings[config.json_temperatures][config.json_tmax_str] = 'inf'
+        settings[utils.json_temperatures][utils.json_tmax_str] = 'inf'
         wrong = requests.post(__url_settings__, {socket.req_settings_all: settings})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
@@ -145,26 +145,26 @@ class TestSocket(unittest.TestCase):
     
     def test_post_right_messages(self):
         # single settings
-        p = requests.post(__url_settings__, {socket.req_settings_status: config.json_status_off})
+        p = requests.post(__url_settings__, {socket.req_settings_status: utils.json_status_off})
         self.assertEqual(p.status_code, 200)
-        self.assertEqual(self.timetable.status, config.json_status_off)
+        self.assertEqual(self.timetable.status, utils.json_status_off)
         p.close()
         
         # multiple settings
-        q = requests.post(__url_settings__, {socket.req_settings_status: config.json_status_tmax,
+        q = requests.post(__url_settings__, {socket.req_settings_status: utils.json_status_tmax,
                                     socket.req_settings_tmax: 32.3,
                                     socket.req_settings_grace_time: 'inf'})
         
         self.assertEqual(q.status_code, 200)
-        self.assertEqual(self.timetable.status, config.json_status_tmax)
+        self.assertEqual(self.timetable.status, utils.json_status_tmax)
         self.assertAlmostEqual(self.timetable.tmax, 32.3, delta=0.01)
         self.assertEqual(self.timetable.grace_time, float('inf'))
         q.close()
         
         # some days
         old_set = self.timetable.__getstate__()
-        friday = old_set[config.json_timetable][config.json_get_day_name(5)]
-        sunday = old_set[config.json_timetable][config.json_get_day_name(7)]
+        friday = old_set[utils.json_timetable][utils.json_get_day_name(5)]
+        sunday = old_set[utils.json_timetable][utils.json_get_day_name(7)]
         
         friday['h12'][0] = 44
         friday['h15'][1] = 45
@@ -173,13 +173,13 @@ class TestSocket(unittest.TestCase):
         
         r = requests.post(__url_settings__,
             {socket.req_settings_days:
-                json.dumps({config.json_get_day_name(5): friday,
-                            config.json_get_day_name(7): sunday})})
+                json.dumps({utils.json_get_day_name(5): friday,
+                            utils.json_get_day_name(7): sunday})})
         
         self.assertEqual(r.status_code, 200)
         new_set = self.timetable.__getstate__()
-        new_friday = new_set[config.json_timetable][config.json_get_day_name(5)]
-        new_sunday = new_set[config.json_timetable][config.json_get_day_name(7)]
+        new_friday = new_set[utils.json_timetable][utils.json_get_day_name(5)]
+        new_sunday = new_set[utils.json_timetable][utils.json_get_day_name(7)]
         
         self.assertEqual(new_friday['h12'][0], 44)
         self.assertEqual(new_friday['h15'][1], 45)
@@ -188,7 +188,7 @@ class TestSocket(unittest.TestCase):
         
         # all settings
         tt2 = copy.deepcopy(self.timetable)
-        tt2.status = config.json_status_tmax
+        tt2.status = utils.json_status_tmax
         tt2.grace_time = 3600
         tt2.update('thursday', 4, 1, 36.5)
         

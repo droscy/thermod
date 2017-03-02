@@ -38,8 +38,8 @@ if sys.version[0:3] >= '3.5':
 else:
     JSONDecodeError = ValueError
 
-from . import config
-from .config import LogStyleAdapter
+from . import utils
+from .utils import LogStyleAdapter
 from .memento import memento
 from .timetable import TimeTable
 from .heating import BaseHeating, HeatingError
@@ -50,17 +50,17 @@ __date__ = '2015-11-05'
 __updated__ = '2017-03-01'
 __version__ = '1.4'
 
-logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else config.logger_base_name))
+logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else utils.logger_base_name))
 
 
 req_settings_all = 'settings'
 req_settings_days = 'days'
-req_settings_status = config.json_status
-req_settings_t0 = config.json_t0_str
-req_settings_tmin = config.json_tmin_str
-req_settings_tmax = config.json_tmax_str
-req_settings_differential = config.json_differential
-req_settings_grace_time = config.json_grace_time
+req_settings_status = utils.json_status
+req_settings_t0 = utils.json_t0_str
+req_settings_tmin = utils.json_tmin_str
+req_settings_tmax = utils.json_tmax_str
+req_settings_differential = utils.json_differential
+req_settings_grace_time = utils.json_grace_time
 
 req_heating_status = 'status'
 req_heating_temperature = 'temperature'
@@ -177,7 +177,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             else:
                 if isinstance(data, str):
                     try:
-                        json.loads(data, parse_constant=config.json_reject_invalid_float)
+                        json.loads(data, parse_constant=utils.json_reject_invalid_float)
                     except:
                         raise TypeError('the provided string is not in JSON format')
                     
@@ -185,7 +185,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 
                 elif isinstance(data, bytes):
                     try:
-                        json.loads(data.decode('utf-8'), parse_constant=config.json_reject_invalid_float)
+                        json.loads(data.decode('utf-8'), parse_constant=utils.json_reject_invalid_float)
                     except:
                         raise TypeError('the provided byte-string is not in JSON format')
                     
@@ -338,11 +338,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
             * `days` to update one or more days: must be an array of day and
               each day must me the full part of JSON settings as described in
-              thermod.config.json_schema (see thermod.timetable.TimeTable.update_days()
+              thermod.utils.json_schema (see thermod.timetable.TimeTable.update_days()
               for attitional informations)
             
             * `status` to update the internal status: accepted values
-              in thermod.config.json_all_statuses
+              in thermod.utils.json_all_statuses
             
             * `t0` to update the t0 temperature
             
@@ -755,9 +755,9 @@ if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
     
     console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(logging.Formatter(fmt=config.logger_fmt_msg,
-                                           datefmt=config.logger_fmt_datetime,
-                                           style=config.logger_fmt_style))
+    console.setFormatter(logging.Formatter(fmt=utils.logger_fmt_msg,
+                                           datefmt=utils.logger_fmt_datetime,
+                                           style=utils.logger_fmt_style))
     logger.addHandler(console)
     
     file = 'timetable.json'
