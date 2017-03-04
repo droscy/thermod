@@ -28,7 +28,8 @@ import subprocess
 from copy import deepcopy
 from datetime import datetime
 #from json.decoder import JSONDecodeError
-from .utils import ScriptError, check_script, LogStyleAdapter
+from .utils import check_script
+from .common import ScriptError, LogStyleAdapter
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -37,7 +38,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2015-12-30'
-__updated__ = '2017-02-28'
+__updated__ = '2017-03-04'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -56,9 +57,9 @@ class HeatingError(RuntimeError):
 
 
 class ScriptHeatingError(HeatingError, ScriptError):
-    """Like HeatingError with the name of the script that produced the error.
+    """Like `HeatingError` with the name of the script that produced the error.
     
-    The script is saved in the attribute ScriptHeatingError.script and must
+    The script is saved in the attribute `ScriptHeatingError.script` and must
     be accessed directly, it is never printed by default.
     """
     
@@ -164,6 +165,7 @@ class ScriptHeating(BaseHeating):
         - `error`: the error message in case of failure, `null` or empty
           string otherwise.
     """
+    
     DEBUG_OPTION = '--debug'
     JSON_SUCCESS = 'success'
     JSON_STATUS = 'status'
@@ -180,7 +182,8 @@ class ScriptHeating(BaseHeating):
         If the scripts must be executed with '--debug' option appended, set the
         `debug` parameter to `True`.
         
-        @exception ScriptError if any of the provided scripts cannot be found or executed
+        @exception thermod.common.ScriptError if any of the provided scripts
+            cannot be found or executed
         """
         
         super().__init__()

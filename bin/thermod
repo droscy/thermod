@@ -32,16 +32,16 @@ from daemon import DaemonContext, pidfile
 from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
 
-from thermod import utils, const
+from thermod import common, config
+from thermod.common import ScriptError, LogStyleAdapter
 from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
 from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
-from thermod.timetable import TimeTable
+from thermod.timetable import TimeTable, JsonValueError
 from thermod.socket import ControlThread
-from thermod.utils import JsonValueError, ScriptError, LogStyleAdapter
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-02-25'
+__updated__ = '2017-03-04'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -56,7 +56,7 @@ __updated__ = '2017-02-25'
 # nuovo PiTimetable che deriva da Timetable e utilizza anche l'hardware del Pi.
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-main_return_code = const.RET_CODE_OK
+main_return_code = common.RET_CODE_OK
 
 # parsing input arguments
 parser = argparse.ArgumentParser(description='Thermod: programmable thermostat daemon for smart-heating automation')
@@ -70,7 +70,7 @@ parser.add_argument('--systemd', action='store_true', help='use only if started 
 args = parser.parse_args()
 
 # setting up logging system
-logger = LogStyleAdapter(logging.getLogger(const.LOGGER_BASE_NAME))
+logger = LogStyleAdapter(logging.getLogger(common.LOGGER_BASE_NAME))
 logger.setLevel(logging.INFO)
 
 if args.debug:
@@ -78,15 +78,15 @@ if args.debug:
 
 if args.foreground and not args.systemd:
     console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(logging.Formatter(fmt=const.LOGGER_FMT_MSG,
-                                           datefmt=const.LOGGER_FMT_TIME,
-                                           style=const.LOGGER_FMT_STYLE))
+    console.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG,
+                                           datefmt=common.LOGGER_FMT_TIME,
+                                           style=common.LOGGER_FMT_STYLE))
     logger.addHandler(console)
     logger.debug('executing in foreground, logging to console')
 else:
     syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
-    syslog.setFormatter(logging.Formatter(fmt=const.LOGGER_FMT_MSG_SYSLOG,
-                                          style=const.LOGGER_FMT_STYLE))
+    syslog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_SYSLOG,
+                                          style=common.LOGGER_FMT_STYLE))
     logger.addHandler(syslog)
     logger.debug('executing in background, logging to syslog (daemon)')
 
@@ -111,25 +111,25 @@ if args.log:
             logger.info('the daemon will start without logfile')
     
     if logfile:
-        logfile.setFormatter(logging.Formatter(fmt=const.LOGGER_FMT_MSG,
-                                               datefmt=const.LOGGER_FMT_DATETIME,
-                                               style=const.LOGGER_FMT_STYLE))
+        logfile.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG,
+                                               datefmt=common.LOGGER_FMT_DATETIME,
+                                               style=common.LOGGER_FMT_STYLE))
         logger.addHandler(logfile)
 
 
 # reading configuration files
-(cfg, main_return_code) = utils.read_config_files(args.config)
+(cfg, main_return_code) = config.read_config_file(args.config)
 
-if main_return_code != const.RET_CODE_OK:
+if main_return_code != common.RET_CODE_OK:
     logger.info('closing daemon with return code {}', main_return_code)
     exit(main_return_code)
 
 
 # parsing main settings
-settings = utils.parse_main_settings(cfg)
+settings = config.parse_main_settings(cfg)
 debug = settings.debug or args.debug
 
-if main_return_code != const.RET_CODE_OK:
+if main_return_code != common.RET_CODE_OK:
     logger.info('closing daemon with return code {}', main_return_code)
     exit(main_return_code)
 
@@ -140,7 +140,7 @@ enabled = settings.enabled or args.foreground
 # if the daemon is disabled we exit immediately
 if not enabled:
     logger.info('daemon disabled in configuration file, exiting...')
-    exit(const.RET_CODE_DAEMON_DISABLED)
+    exit(common.RET_CODE_DAEMON_DISABLED)
 
 
 # if mail server is present in configuration file, a new SMTPHandler is created
@@ -151,9 +151,9 @@ if settings.email['server']:
                           settings.email['subject'],
                           settings.email['credentials'])
     
-    maillog.setFormatter(logging.Formatter(fmt=const.LOGGER_FMT_MSG_MAILLOG,
-                                           datefmt=const.LOGGER_FMT_DATETIME,
-                                           style=const.LOGGER_FMT_STYLE))
+    maillog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_MAILLOG,
+                                           datefmt=common.LOGGER_FMT_DATETIME,
+                                           style=common.LOGGER_FMT_STYLE))
     
     maillog.setLevel(logging.WARNING)
     logger.addHandler(maillog)
@@ -182,7 +182,7 @@ try:
     # once they will be created.
     else:
         # The execution should not arrive here because the settings are
-        # already checked inside const.parse_main_settings() function.
+        # already checked inside common.parse_main_settings() function.
         raise RuntimeError('invalid heating configuration')
     
     if settings.thermometer['script'][0] == '/':  # a full path starts with /
@@ -208,66 +208,66 @@ try:
     # once they will be created.
     else:
         # The execution should not arrive here because the settings are
-        # already checked inside const.parse_main_settings() function.
+        # already checked inside common.parse_main_settings() function.
         raise RuntimeError('invalid thermometer configuration')
     
     timetable = TimeTable(settings.tt_file)
 
 except ScriptError as se:
-    main_return_code = const.RET_CODE_SCRIPT_INIT_ERR
+    main_return_code = common.RET_CODE_SCRIPT_INIT_ERR
     logger.critical('error accessing the script `{}`: {}', se.script, se)
 
 except FileNotFoundError as fnfe:
-    main_return_code = const.RET_CODE_TT_NOT_FOUND
+    main_return_code = common.RET_CODE_TT_NOT_FOUND
     logger.critical('cannot find timetable file `{}`', settings.tt_file)
 
 except PermissionError as pe:
-    main_return_code = const.RET_CODE_TT_READ_ERR
+    main_return_code = common.RET_CODE_TT_READ_ERR
     logger.critical('cannot read timetable file `{}`', settings.tt_file)
 
 except OSError as oe:
-    main_return_code = const.RET_CODE_TT_OTHER_ERR
+    main_return_code = common.RET_CODE_TT_OTHER_ERR
     logger.critical('error accessing timetable file `{}`: {}', settings.tt_file, oe)
 
 except ValueError as ve:
-    main_return_code = const.RET_CODE_TT_INVALID_SYNTAX
+    main_return_code = common.RET_CODE_TT_INVALID_SYNTAX
     logger.critical('timetable file is not in JSON format or has syntax errors: {}', ve)
 
 except ValidationError as jve:
-    main_return_code = const.RET_CODE_TT_INVALID_CONTENT
+    main_return_code = common.RET_CODE_TT_INVALID_CONTENT
     logger.critical('invalid element {} in timetable file: {}', list(jve.path), jve.message)
 
 except (HeatingError, ThermometerError) as pie:
     # TODO cambiare messaggio di log, non è detto che si sia su un Pi
-    main_return_code = const.RET_CODE_PI_INIT_ERR
+    main_return_code = common.RET_CODE_PI_INIT_ERR
     logger.critical('cannot access Raspberry Pi: {}', pie)
 
 except RuntimeError as re:
-    main_return_code = const.RET_CODE_CFG_FILE_UNKNOWN_ERR
+    main_return_code = common.RET_CODE_CFG_FILE_UNKNOWN_ERR
     logger.critical('error during creation of base objects: {}', re)
 
 except Exception as e:
-    main_return_code = const.RET_CODE_INIT_ERR
+    main_return_code = common.RET_CODE_INIT_ERR
     logger.critical('error during daemon initialization: {}', e, exc_info=True)
 
 except KeyboardInterrupt:
-    main_return_code = const.RET_CODE_KEYB_INTERRUPT
+    main_return_code = common.RET_CODE_KEYB_INTERRUPT
 
 except:
-    main_return_code = const.RET_CODE_INIT_ERR
+    main_return_code = common.RET_CODE_INIT_ERR
     logger.critical('unknown error during daemon initialization, no more details', exc_info=True)
 
 else:
-    main_return_code = const.RET_CODE_OK
+    main_return_code = common.RET_CODE_OK
     logger.debug('base objects created')
     
 finally:
-    if main_return_code != const.RET_CODE_OK:
+    if main_return_code != common.RET_CODE_OK:
         logger.info('closing daemon with return code {}', main_return_code)
         exit(main_return_code)
 
 
-def shutdown(signum=None, frame=None, exitcode=const.RET_CODE_OK):
+def shutdown(signum=None, frame=None, exitcode=common.RET_CODE_OK):
     global enabled, main_return_code
     
     logger.info('shutdown requested')
@@ -322,18 +322,18 @@ def thermostat_cycle(timetable, heating, thermometer):
     except OSError as oe:
         # probably the socket address is already in use
         logger.critical('cannot start control socket: {}', oe)
-        main_return_code = const.RET_CODE_SOCKET_PORT_ERR
+        main_return_code = common.RET_CODE_SOCKET_PORT_ERR
     
     except Exception as e:
         logger.critical('cannot start control socket: {}', e, exc_info=True)
-        main_return_code = const.RET_CODE_SOCKET_START_ERR
+        main_return_code = common.RET_CODE_SOCKET_START_ERR
 
     except KeyboardInterrupt:
-        main_return_code = const.RET_CODE_KEYB_INTERRUPT
+        main_return_code = common.RET_CODE_KEYB_INTERRUPT
     
     except:
         logger.critical('unkown error starting control socket', exc_info=True)
-        main_return_code = const.RET_CODE_SOCKET_START_ERR
+        main_return_code = common.RET_CODE_SOCKET_START_ERR
     
     else:
         try:
@@ -347,11 +347,11 @@ def thermostat_cycle(timetable, heating, thermometer):
             logger.error('cannot query the heating to retrieve current status: {}', e)
             
         except KeyboardInterrupt:
-            shutdown(exitcode=const.RET_CODE_KEYB_INTERRUPT)
+            shutdown(exitcode=common.RET_CODE_KEYB_INTERRUPT)
             
         except:
             logger.critical('unknown error during first query to the heating', exc_info=True)
-            shutdown(exitcode=const.RET_CODE_RUN_HEATING_ERR)
+            shutdown(exitcode=common.RET_CODE_RUN_HEATING_ERR)
         
         # The following variable is needed to print info messages only
         # when no timeout has occurred, that means that someone has changed
@@ -399,14 +399,14 @@ def thermostat_cycle(timetable, heating, thermometer):
                         # socket connection. So we print a critical error and
                         # we close the daemon.
                         logger.critical('invalid element {} in timetable file: {}', list(ve.path), ve)
-                        shutdown(exitcode=const.RET_CODE_RUN_INVALID_STATE)
+                        shutdown(exitcode=common.RET_CODE_RUN_INVALID_STATE)
                     
                     except JsonValueError as jve:
                         # A strange value has been set somewhere and the daemon
                         # didn't catch the appropriate exception. We print a
                         # critical message and we close the daemon.
                         logger.critical(jve)
-                        shutdown(exitcode=const.RET_CODE_RUN_INVALID_VALUE)
+                        shutdown(exitcode=common.RET_CODE_RUN_INVALID_VALUE)
                     
                     except ScriptError as se:
                         # One of the external scripts reported an error, we
@@ -437,14 +437,14 @@ def thermostat_cycle(timetable, heating, thermometer):
             except Exception as e:
                 # An unknown error occurred somewhere
                 logger.critical('unknown error occurred: {}', e, exc_info=True)
-                shutdown(exitcode=const.RET_CODE_RUN_OTHER_ERR)
+                shutdown(exitcode=common.RET_CODE_RUN_OTHER_ERR)
             
             except KeyboardInterrupt:
-                shutdown(exitcode=const.RET_CODE_KEYB_INTERRUPT)
+                shutdown(exitcode=common.RET_CODE_KEYB_INTERRUPT)
             
             except:
                 logger.critical('unknown error during normal operation', exc_info=True)
-                shutdown(exitcode=const.RET_CODE_RUN_OTHER_ERR)
+                shutdown(exitcode=common.RET_CODE_RUN_OTHER_ERR)
     
     finally:    
         logger.debug('stopping daemon')
@@ -473,8 +473,8 @@ def thermostat_cycle(timetable, heating, thermometer):
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
-            if main_return_code == const.RET_CODE_OK:
-                main_return_code = const.RET_CODE_SOCKET_STOP_ERR
+            if main_return_code == common.RET_CODE_OK:
+                main_return_code = common.RET_CODE_SOCKET_STOP_ERR
         
         except KeyboardInterrupt:
             # We are already shutting down, no other operations required
@@ -485,8 +485,8 @@ def thermostat_cycle(timetable, heating, thermometer):
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
-            if main_return_code == const.RET_CODE_OK:
-                main_return_code = const.RET_CODE_SOCKET_STOP_ERR
+            if main_return_code == common.RET_CODE_OK:
+                main_return_code = common.RET_CODE_SOCKET_STOP_ERR
         
         try:
             if heating.is_on():
@@ -499,8 +499,8 @@ def thermostat_cycle(timetable, heating, thermometer):
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
-            if main_return_code == const.RET_CODE_OK:
-                main_return_code = const.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
+            if main_return_code == common.RET_CODE_OK:
+                main_return_code = common.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
         
         except HeatingError as he:
             logger.warning('error from heating while shutting down the '
@@ -508,8 +508,8 @@ def thermostat_cycle(timetable, heating, thermometer):
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
-            if main_return_code == const.RET_CODE_OK:
-                main_return_code = const.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
+            if main_return_code == common.RET_CODE_OK:
+                main_return_code = common.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
         
         except Exception as e:
             logger.error('error in switching off the heating during '
@@ -517,8 +517,8 @@ def thermostat_cycle(timetable, heating, thermometer):
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
-            if main_return_code == const.RET_CODE_OK:
-                main_return_code = const.RET_CODE_SHUTDOWN_OTHER_ERR
+            if main_return_code == common.RET_CODE_OK:
+                main_return_code = common.RET_CODE_SHUTDOWN_OTHER_ERR
         
         except KeyboardInterrupt:
             # We are already shutting down, no other operations required
@@ -530,8 +530,8 @@ def thermostat_cycle(timetable, heating, thermometer):
             
             # We set a new exit code only if this is the first error
             # otherwise we leave the original error exit code.
-            if main_return_code == const.RET_CODE_OK:
-                main_return_code = const.RET_CODE_SHUTDOWN_OTHER_ERR
+            if main_return_code == common.RET_CODE_OK:
+                main_return_code = common.RET_CODE_SHUTDOWN_OTHER_ERR
     
     logger.info('daemon stopped')
 
@@ -571,19 +571,19 @@ else:
     
     except lockfile.LockFailed:
         logger.critical('cannot create PID file {}', daemon.pidfile.path)
-        main_return_code = const.RET_CODE_PID_FILE_ERROR
+        main_return_code = common.RET_CODE_PID_FILE_ERROR
     
     except lockfile.AlreadyLocked:
         logger.critical('PID file {} is already locked', daemon.pidfile.path)
-        main_return_code = const.RET_CODE_PID_FILE_ERROR
+        main_return_code = common.RET_CODE_PID_FILE_ERROR
     
     except lockfile.LockError:
         logger.critical('unkown error writing PID file {}', daemon.pidfile.path)
-        main_return_code = const.RET_CODE_PID_FILE_ERROR
+        main_return_code = common.RET_CODE_PID_FILE_ERROR
 
 
 # closing daemon
-if main_return_code != const.RET_CODE_OK:
+if main_return_code != common.RET_CODE_OK:
     logger.info('closing daemon with return code {}', main_return_code)
 
 exit(main_return_code)

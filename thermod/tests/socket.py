@@ -28,11 +28,11 @@ import unittest
 import requests
 
 import thermod.socket as socket
-from thermod import TimeTable, BaseHeating, ControlThread, utils, const
+from thermod import TimeTable, BaseHeating, ControlThread, utils, common, timetable
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-03-01'
+__updated__ = '2017-03-04'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/heating'
 
@@ -53,8 +53,8 @@ class TestSocket(unittest.TestCase):
         self.control_socket = ControlThread(self.timetable,
                                             self.heating,
                                             self.thermometer,
-                                            const.SOCKET_DEFAULT_HOST,
-                                            const.SOCKET_DEFAULT_PORT)
+                                            common.SOCKET_DEFAULT_HOST,
+                                            common.SOCKET_DEFAULT_PORT)
         self.control_socket.start()
    
 
@@ -127,7 +127,7 @@ class TestSocket(unittest.TestCase):
         
         # wrong JSON data for settings
         settings = self.timetable.__getstate__()
-        settings[const.JSON_TEMPERATURES][const.JSON_TMAX_STR] = 'inf'
+        settings[timetable.JSON_TEMPERATURES][timetable.JSON_TMAX_STR] = 'inf'
         wrong = requests.post(__url_settings__, {socket.req_settings_all: settings})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
@@ -145,26 +145,26 @@ class TestSocket(unittest.TestCase):
     
     def test_post_right_messages(self):
         # single settings
-        p = requests.post(__url_settings__, {socket.req_settings_status: const.JSON_STATUS_OFF})
+        p = requests.post(__url_settings__, {socket.req_settings_status: timetable.JSON_STATUS_OFF})
         self.assertEqual(p.status_code, 200)
-        self.assertEqual(self.timetable.status, const.JSON_STATUS_OFF)
+        self.assertEqual(self.timetable.status, timetable.JSON_STATUS_OFF)
         p.close()
         
         # multiple settings
-        q = requests.post(__url_settings__, {socket.req_settings_status: const.JSON_STATUS_TMAX,
+        q = requests.post(__url_settings__, {socket.req_settings_status: timetable.JSON_STATUS_TMAX,
                                     socket.req_settings_tmax: 32.3,
                                     socket.req_settings_grace_time: 'inf'})
         
         self.assertEqual(q.status_code, 200)
-        self.assertEqual(self.timetable.status, const.JSON_STATUS_TMAX)
+        self.assertEqual(self.timetable.status, timetable.JSON_STATUS_TMAX)
         self.assertAlmostEqual(self.timetable.tmax, 32.3, delta=0.01)
         self.assertEqual(self.timetable.grace_time, float('inf'))
         q.close()
         
         # some days
         old_set = self.timetable.__getstate__()
-        friday = old_set[const.JSON_TIMETABLE][utils.json_get_day_name(5)]
-        sunday = old_set[const.JSON_TIMETABLE][utils.json_get_day_name(7)]
+        friday = old_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(5)]
+        sunday = old_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(7)]
         
         friday['h12'][0] = 44
         friday['h15'][1] = 45
@@ -178,8 +178,8 @@ class TestSocket(unittest.TestCase):
         
         self.assertEqual(r.status_code, 200)
         new_set = self.timetable.__getstate__()
-        new_friday = new_set[const.JSON_TIMETABLE][utils.json_get_day_name(5)]
-        new_sunday = new_set[const.JSON_TIMETABLE][utils.json_get_day_name(7)]
+        new_friday = new_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(5)]
+        new_sunday = new_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(7)]
         
         self.assertEqual(new_friday['h12'][0], 44)
         self.assertEqual(new_friday['h15'][1], 45)
@@ -188,7 +188,7 @@ class TestSocket(unittest.TestCase):
         
         # all settings
         tt2 = copy.deepcopy(self.timetable)
-        tt2.status = const.JSON_STATUS_TMAX
+        tt2.status = timetable.JSON_STATUS_TMAX
         tt2.grace_time = 3600
         tt2.update('thursday', 4, 1, 36.5)
         

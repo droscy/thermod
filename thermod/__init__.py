@@ -19,16 +19,19 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from thermod.utils import JsonValueError, ScriptError
+from thermod.common import ScriptError
 from thermod.heating import BaseHeating, ScriptHeating, PiPinsRelayHeating, \
     HeatingError, ScriptHeatingError
 from thermod.socket import ControlThread
-from thermod.timetable import TimeTable, ShouldBeOn
+from thermod.timetable import TimeTable, ShouldBeOn, JsonValueError
 from thermod.thermometer import BaseThermometer, ScriptThermometer, \
     PiAnalogZeroThermometer, ThermometerError, ScriptThermometerError
 
-# No import of memento module because it is not specific to Thermod daemon,
+# No import of memento module because it is not specific to thermod package,
 # it is here only for convenience. If someone wants to use its functionality
 # he/she can manually import thermod.memento.
+
+# There is also no import of utils and config modules because they are specific
+# to Thermod daemon and probably they are not for general pourpose usage.
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

@@ -4,7 +4,7 @@
 Switch on/off or get the status of the heating using a serial TTL relay.
 
 @author:     Simone Rossetto
-@copyright:  2016 Simone Rossetto
+@copyright:  2017 Simone Rossetto
 @license:    GNU General Public License v3
 @contact:    simros85@gmail.com
 
@@ -28,15 +28,14 @@ import logging
 import serial
 
 from argparse import ArgumentParser
-from configparser import ConfigParser
 from logging.handlers import SysLogHandler
 from serial import Serial, SerialException
-from thermod import const, ScriptHeating
+from thermod import common, ScriptHeating
 
 
-__version__ = '1.0.0b9'
+__version__ = '1.0.0b10'
 __date__ = '2015-10-02'
-__updated__ = '2016-10-14'
+__updated__ = '2017-03-04'
 
 
 # Control commands
@@ -62,7 +61,7 @@ relay_com2close_rsp = b'\x33\x3C\x00\x00\x00\x00\x02\x71'
 
 
 # defult logger for this scripts
-logger = logging.getLogger(const.LOGGER_BASE_NAME).getChild('switch')
+logger = logging.getLogger(common.LOGGER_BASE_NAME).getChild('switch')
 
 
 def switch_on(device, timeout=5):
@@ -182,7 +181,6 @@ def main(argv=None):
     prog_epilog = 'The exit code is POSIX compliant: 0 on success, 1 on error.'
     
     result = None
-    device = None
     status = None
     error = None
     
@@ -203,7 +201,7 @@ def main(argv=None):
     args = parser.parse_args()
     
     global logger
-    logger = logging.getLogger(const.LOGGER_BASE_NAME).getChild(
+    logger = logging.getLogger(common.LOGGER_BASE_NAME).getChild(
                                             args.on and 'switchon'
                                             or (args.off and 'switchoff'
                                                 or 'status'))
@@ -219,44 +217,34 @@ def main(argv=None):
         # log to console only when json output is not choosen
         # or when json and debug but no syslog
         console = logging.StreamHandler(sys.stderr)
-        console.setFormatter(logging.Formatter(fmt=const.LOGGER_FMT_MSG,
-                                               datefmt=const.LOGGER_FMT_TIME,
-                                               style=const.LOGGER_FMT_STYLE))
+        console.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG,
+                                               datefmt=common.LOGGER_FMT_TIME,
+                                               style=common.LOGGER_FMT_STYLE))
         logger.addHandler(console)
     
     if args.syslog:
         syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_USER)
-        syslog.setFormatter(logging.Formatter(fmt=const.LOGGER_FMT_MSG_SYSLOG,
-                                              style=const.LOGGER_FMT_STYLE))
+        syslog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_SYSLOG,
+                                              style=common.LOGGER_FMT_STYLE))
         logger.addHandler(syslog)
     
-    logger.debug('reading Thermod configuration from files {}'.format(const.MAIN_CONFIG_FILES))
-    cfg = ConfigParser()
-    _cfg_files_found = cfg.read(const.MAIN_CONFIG_FILES)
-    logger.debug('configuration files found: {}'.format(_cfg_files_found))
-
-    # device provided by command line arguments has the precedence
-    if ((cfg.has_section('scripts') and cfg.has_option('scripts', 'device'))
-            or args.device):
-        device = (args.device or cfg['scripts']['device']).strip('"')
-
     try:
-        if device is None:
+        if args.device is None:
             raise SerialException('device not provided, cannot continue')
         
         if args.on:
             logger.debug('switching on the heating')
-            status = switch_on(device)
+            status = switch_on(args.device)
             logger.info('heating switched ON')
         
         elif args.off:
             logger.debug('switching off the heating')
-            status = switch_off(device)
+            status = switch_off(args.device)
             logger.info('heating switched OFF')
         
         else:
             logger.debug('getting current status of the heating')
-            status = get_status(device)
+            status = get_status(args.device)
             logger.info('the heating is %s',((status == 1) and 'ON' or 'OFF'))
         
         result = 0

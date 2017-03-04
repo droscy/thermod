@@ -29,7 +29,8 @@ from copy import deepcopy
 #from json.decoder import JSONDecodeError
 from threading import Thread, Event
 from collections import deque
-from .utils import ScriptError, check_script, LogStyleAdapter
+from .utils import check_script
+from .common import ScriptError, LogStyleAdapter
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
 if sys.version[0:3] >= '3.5':
@@ -38,7 +39,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2017-02-25'
+__updated__ = '2017-03-04'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -66,10 +67,10 @@ class ThermometerError(RuntimeError):
 
 
 class ScriptThermometerError(ThermometerError, ScriptError):
-    """Like ThermometerError with the name of the script that produced the error.
+    """Like `ThermometerError` with the name of the script that produced the error.
     
-    The script is saved in the attribute ScriptThermometerError.script and must
-    be accessed directly, it is never printed by default.
+    The script is saved in the attribute `ScriptThermometerError.script` and
+    must be accessed directly, it is never printed by default.
     """
     
     def __init__(self, error=None, suberror=None, script=None):
@@ -117,7 +118,7 @@ class BaseThermometer(object):
         
         The subclasses methods must return the current temperature as a
         float number in the scale selected during class instantiation in order
-        to correctly handle conversion methods and must raise a ThermometerError
+        to correctly handle conversion methods and must raise a `ThermometerError`
         in case of failure.
         
         @exception ThermometerError if an error occurred in retriving temperature
@@ -183,7 +184,8 @@ class ScriptThermometer(BaseThermometer):
         If the script must be executed with '--debug' option appended, set the
         `debug` parameter to `True`.
         
-        @exception ScriptError if the provided script cannot be found or executed
+        @exception thermod.common.ScriptError if the provided script cannot
+            be found or executed
         """
         
         super().__init__(scale)
@@ -272,7 +274,7 @@ class ScriptThermometer(BaseThermometer):
                                          'invalid value', str(vte),
                                          self._script[0])
         
-        logger.debug('current temperature: {.2f}', t)
+        logger.debug('current temperature: {:.2f}', t)
         return t
 
 

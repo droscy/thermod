@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Init of `thermod.tests` package.
 
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -19,10 +19,7 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from thermod.tests.heating import TestHeating
-from thermod.tests.memento import TestMemento
-from thermod.tests.socket import TestSocket
-from thermod.tests.timetable import TestTimeTable
-from thermod.tests.thermometer import TestThermometer
+# Nothing to import.
+# Each test can be executed with: `python3 -m thermod.tests.<module>`
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

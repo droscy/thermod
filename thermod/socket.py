@@ -38,8 +38,8 @@ if sys.version[0:3] >= '3.5':
 else:
     JSONDecodeError = ValueError
 
-from . import utils, const
-from .utils import LogStyleAdapter
+from . import utils, common, timetable
+from .common import LogStyleAdapter
 from .memento import memento
 from .timetable import TimeTable
 from .heating import BaseHeating, HeatingError
@@ -47,20 +47,20 @@ from .thermometer import BaseThermometer, ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2017-03-01'
+__updated__ = '2017-03-04'
 __version__ = '1.4'
 
-logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else const.LOGGER_BASE_NAME))
+logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else common.LOGGER_BASE_NAME))
 
 
 req_settings_all = 'settings'
 req_settings_days = 'days'
-req_settings_status = const.JSON_STATUS
-req_settings_t0 = const.JSON_T0_STR
-req_settings_tmin = const.JSON_TMIN_STR
-req_settings_tmax = const.JSON_TMAX_STR
-req_settings_differential = const.JSON_DIFFERENTIAL
-req_settings_grace_time = const.JSON_GRACE_TIME
+req_settings_status = timetable.JSON_STATUS
+req_settings_t0 = timetable.JSON_T0_STR
+req_settings_tmin = timetable.JSON_TMIN_STR
+req_settings_tmax = timetable.JSON_TMAX_STR
+req_settings_differential = timetable.JSON_DIFFERENTIAL
+req_settings_grace_time = timetable.JSON_GRACE_TIME
 
 req_heating_status = 'status'
 req_heating_temperature = 'temperature'
@@ -254,7 +254,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     logger.warning('{} {}: {}', self.client_address, message, he)
                     response = {rsp_error: message, rsp_fullmsg: str(he)}
                 
-                except ThermometerError as ste:
+                except ThermometerError as te:
                     code = 422
                     message = 'cannot query the thermometer'
                     logger.warning('{} {}: {}', self.client_address, message, te)
@@ -338,11 +338,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
             * `days` to update one or more days: must be an array of day and
               each day must me the full part of JSON settings as described in
-              thermod.const.JSON_SCHEMA (see thermod.timetable.TimeTable.update_days()
+              thermod.config.JSON_SCHEMA (see thermod.timetable.TimeTable.update_days()
               for attitional informations)
             
             * `status` to update the internal status: accepted values
-              in thermod.const.JSON_ALL_STATUSES
+              in thermod.config.JSON_ALL_STATUSES
             
             * `t0` to update the t0 temperature
             
@@ -755,9 +755,9 @@ if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
     
     console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(logging.Formatter(fmt=const.LOGGER_FMT_MSG,
-                                           datefmt=const.LOGGER_FMT_DATETIME,
-                                           style=const.LOGGER_FMT_STYLE))
+    console.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG,
+                                           datefmt=common.LOGGER_FMT_DATETIME,
+                                           style=common.LOGGER_FMT_STYLE))
     logger.addHandler(console)
     
     file = 'timetable.json'
