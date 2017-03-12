@@ -47,33 +47,33 @@ from .thermometer import BaseThermometer, ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-11-05'
-__updated__ = '2017-03-04'
+__updated__ = '2017-03-12'
 __version__ = '1.4'
 
 logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else common.LOGGER_BASE_NAME))
 
 
-req_settings_all = 'settings'
-req_settings_days = 'days'
-req_settings_status = timetable.JSON_STATUS
-req_settings_t0 = timetable.JSON_T0_STR
-req_settings_tmin = timetable.JSON_TMIN_STR
-req_settings_tmax = timetable.JSON_TMAX_STR
-req_settings_differential = timetable.JSON_DIFFERENTIAL
-req_settings_grace_time = timetable.JSON_GRACE_TIME
+REQ_SETTINGS_ALL = 'settings'
+REQ_SETTINGS_DAYS = 'days'
+REQ_SETTINGS_STATUS = timetable.JSON_STATUS
+REQ_SETTINGS_T0 = timetable.JSON_T0_STR
+REQ_SETTINGS_TMIN = timetable.JSON_TMIN_STR
+REQ_SETTINGS_TMAX = timetable.JSON_TMAX_STR
+REQ_SETTINGS_DIFFERENTIAL = timetable.JSON_DIFFERENTIAL
+REQ_SETTINGS_GRACE_TIME = timetable.JSON_GRACE_TIME
 
-req_heating_status = 'status'
-req_heating_temperature = 'temperature'
-req_heating_target_temp = 'target'
+REQ_HEATING_STATUS = 'status'
+REQ_HEATING_TEMPERATURE = 'temperature'
+REQ_HEATING_TARGET_TEMP = 'target'
 
-req_path_settings = ('settings', 'set')
-req_path_heating = ('heating', 'heat')
-req_path_version = ('version', 'ver')
-req_path_teapot = ('elena', 'tea')
+REQ_PATH_SETTINGS = ('settings', 'set')
+REQ_PATH_HEATING = ('heating', 'heat')
+REQ_PATH_VERSION = ('version', 'ver')
+REQ_PATH_TEAPOT = ('elena', 'tea')
 
-rsp_error = 'error'
-rsp_message = 'message'
-rsp_fullmsg = 'explain'
+RSP_ERROR = 'error'
+RSP_MESSAGE = 'message'
+RSP_FULLMSG = 'explain'
 
 
 class ControlThread(Thread):
@@ -227,7 +227,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         heating = self.server.heating
         thermometer = self.server.thermometer
         
-        if pathlist[0] in req_path_settings:
+        if pathlist[0] in REQ_PATH_SETTINGS:
             logger.debug('{} sending back Thermod settings', self.client_address)
             
             with timetable.lock:
@@ -236,7 +236,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             
             data = self._send_header(200, data=settings, last_modified=last_updt)
         
-        elif pathlist[0] in req_path_heating:
+        elif pathlist[0] in REQ_PATH_HEATING:
             logger.debug('{} sending back heating status', self.client_address)
             
             with timetable.lock:
@@ -244,21 +244,21 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 targett = timetable.target_temperature()
                 
                 try:
-                    response = {req_heating_status: heating.status,
-                                req_heating_temperature: thermometer.temperature,
-                                req_heating_target_temp: (targett if math.isfinite(targett) else None)}
+                    response = {REQ_HEATING_STATUS: heating.status,
+                                REQ_HEATING_TEMPERATURE: thermometer.temperature,
+                                REQ_HEATING_TARGET_TEMP: (targett if math.isfinite(targett) else None)}
                 
                 except HeatingError as he:
                     code = 422
                     message = 'cannot query the heating'
                     logger.warning('{} {}: {}', self.client_address, message, he)
-                    response = {rsp_error: message, rsp_fullmsg: str(he)}
+                    response = {RSP_ERROR: message, RSP_FULLMSG: str(he)}
                 
                 except ThermometerError as te:
                     code = 422
                     message = 'cannot query the thermometer'
                     logger.warning('{} {}: {}', self.client_address, message, te)
-                    response = {rsp_error: message, rsp_fullmsg: str(te)}
+                    response = {RSP_ERROR: message, RSP_FULLMSG: str(te)}
                 
                 except Exception as e:
                     # this is an unhandled exception, a critical message is printed
@@ -270,7 +270,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                                      exc_info=True)
                     
                     message = 'cannot process the request'
-                    response = {rsp_error: message, rsp_fullmsg: str(e)}
+                    response = {RSP_ERROR: message, RSP_FULLMSG: str(e)}
                 
                 else:
                     code = 200
@@ -278,17 +278,17 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 
             data = self._send_header(code, message, response, last_updt)
         
-        elif pathlist[0] in req_path_version:
+        elif pathlist[0] in REQ_PATH_VERSION:
             logger.debug('{} sending back Thermod version', self.client_address)
             data = self._send_header(200,data=json.dumps({'version': PROGRAM_VERSION}))
         
-        elif pathlist[0] in req_path_teapot:
+        elif pathlist[0] in REQ_PATH_TEAPOT:
             logger.info('{} I\'m a teapot', self.client_address)
             
             code = 418
             message = 'I\'m a teapot'
-            response = {rsp_error: 'To my future wife',
-                        rsp_fullmsg: ('I dedicate this application to Elena, '
+            response = {RSP_ERROR: 'To my future wife',
+                        RSP_FULLMSG: ('I dedicate this application to Elena, '
                                       'my future wife.')}
             
             last_updt = datetime(2017, 7, 29, 17, 0).timestamp()
@@ -300,7 +300,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             logger.warning('{} {} "{} {}" received', self.client_address,
                            message, self.command, self.path)
                        
-            data = self._send_header(code, message, {rsp_error: message})
+            data = self._send_header(code, message, {RSP_ERROR: message})
         
         self.end_headers()
         logger.debug('{} header sent', self.client_address)
@@ -368,7 +368,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
         code = None
         data = None
         
-        if self.pathlist[0] in req_path_settings:
+        if self.pathlist[0] in REQ_PATH_SETTINGS:
             logger.debug('{} parsing received POST data', self.client_address)
             
             # code copied from http://stackoverflow.com/a/13330449
@@ -396,11 +396,11 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                                exclude=['_lock', '_heating', '_thermometer'])
                 
                 # updating all settings
-                if req_settings_all in postvars:
+                if REQ_SETTINGS_ALL in postvars:
                     logger.debug('{} updating Thermod settings', self.client_address)
                     
                     try:
-                        self.server.timetable.load(postvars[req_settings_all])
+                        self.server.timetable.load(postvars[REQ_SETTINGS_ALL])
                         self.server.timetable.save()  # saving changes to filesystem
                     
                     except JSONDecodeError as jde:
@@ -410,8 +410,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        '{}', self.client_address, jde)
                         
                         message = 'invalid JSON syntax'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{}: {}'.format(message, jde)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{}: {}'.format(message, jde)}
                     
                     except ValidationError as jsve:
                         code = 400
@@ -423,8 +423,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        jsve.message)
                         
                         message = 'incomplete or invalid JSON element'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{} {}: {}'.format(message, list(jsve.path), jsve.message)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{} {}: {}'.format(message, list(jsve.path), jsve.message)}
                     
                     except ValueError as ve:
                         code = 400
@@ -433,8 +433,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        'data: {}', self.client_address, ve)
                         
                         message = 'incomplete or invalid settings'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{}: {}'.format(message, ve)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{}: {}'.format(message, ve)}
                     
                     except IOError as ioe:
                         # Can be raised only by timetable.save() method, so the
@@ -447,8 +447,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                      'fileystem: {}', self.client_address, ioe)
                         
                         message = 'cannot save new settings to fileystem'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: ('new settings accepted and '
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: ('new settings accepted and '
                                         'applied on running Thermod but they '
                                         'cannot be saved to filesystem so, on '
                                         'daemon restart, they will be lost, '
@@ -466,8 +466,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                         type(e).__name__, exc_info=True)
                         
                         message = 'cannot process the request'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{}: {}'.format(message, e)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{}: {}'.format(message, e)}
                         
                         # restoring old settings from memento
                         restore_old_settings()
@@ -476,17 +476,17 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 200
                         message = 'all settings updated'
                         logger.info('{} {}', self.client_address, message)
-                        response = {rsp_message: message}
+                        response = {RSP_MESSAGE: message}
                     
                     finally:
                         data = self._send_header(code, message, response)
             
                 # updating only some days
-                elif req_settings_days in postvars:
+                elif REQ_SETTINGS_DAYS in postvars:
                     logger.debug('{} updating one or more days', self.client_address)
                     
                     try:
-                        days = self.server.timetable.update_days(postvars[req_settings_days])
+                        days = self.server.timetable.update_days(postvars[REQ_SETTINGS_DAYS])
                         self.server.timetable.save()  # saving changes to filesystem
                     
                     except JSONDecodeError as jde:
@@ -496,8 +496,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        '{}', self.client_address, jde)
                         
                         message = 'invalid JSON syntax'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{}: {}'.format(message, jde)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{}: {}'.format(message, jde)}
                     
                     except ValidationError as jsve:
                         code = 400
@@ -509,8 +509,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        jsve.message)
                         
                         message = 'incomplete or invalid JSON element'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{} {}: {}'.format(message, list(jsve.path), jsve.message)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{} {}: {}'.format(message, list(jsve.path), jsve.message)}
                     
                     except ValueError as ve:
                         code = 400
@@ -519,8 +519,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        'data: {}', self.client_address, ve)
                         
                         message = 'incomplete or invalid days'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{}: {}'.format(message, ve)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{}: {}'.format(message, ve)}
                     
                     except IOError as ioe:
                         # Can be raised only by timetable.save() method, so the
@@ -533,8 +533,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                      'fileystem: {}', self.client_address, ioe)
                         
                         message = 'cannot save new settings to fileystem'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: ('new settings accepted and '
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: ('new settings accepted and '
                                         'applied on running Thermod but they '
                                         'cannot be saved to filesystem so, on '
                                         'daemon restart, they will be lost, '
@@ -556,8 +556,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                         exc_info=True)
                         
                         message = 'cannot process the request'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{}: {}'.format(message, e)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{}: {}'.format(message, e)}
                         
                         # restoring old settings from memento
                         restore_old_settings()
@@ -568,7 +568,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                     self.client_address, days)
                         
                         message = 'days updated'
-                        response = {rsp_message: '{}: {}'.format(message, days)}
+                        response = {RSP_MESSAGE: '{}: {}'.format(message, days)}
                     
                     finally:
                         data = self._send_header(code, message, response)
@@ -580,22 +580,22 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                     newvalues = {}
                     try:
                         for var, value in postvars.items():
-                            if var == req_settings_status:
+                            if var == REQ_SETTINGS_STATUS:
                                 self.server.timetable.status = value
                                 newvalues[var] = self.server.timetable.status
-                            elif var == req_settings_t0:
+                            elif var == REQ_SETTINGS_T0:
                                 self.server.timetable.t0 = value
                                 newvalues[var] = self.server.timetable.t0
-                            elif var == req_settings_tmin:
+                            elif var == REQ_SETTINGS_TMIN:
                                 self.server.timetable.tmin = value
                                 newvalues[var] = self.server.timetable.tmin
-                            elif var == req_settings_tmax:
+                            elif var == REQ_SETTINGS_TMAX:
                                 self.server.timetable.tmax = value
                                 newvalues[var] = self.server.timetable.tmax
-                            elif var == req_settings_differential:
+                            elif var == REQ_SETTINGS_DIFFERENTIAL:
                                 self.server.timetable.differential = value
                                 newvalues[var] = self.server.timetable.differential
-                            elif var == req_settings_grace_time:
+                            elif var == REQ_SETTINGS_GRACE_TIME:
                                 self.server.timetable.grace_time = value
                                 newvalues[var] = self.server.timetable.grace_time
                             else:
@@ -621,8 +621,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                        jsve.message)
                         
                         message = 'cannot update settings'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: 'cannot update {}: {}'.format(list(jsve.path), jsve.message)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: 'cannot update {}: {}'.format(list(jsve.path), jsve.message)}
                         
                         # restoring old settings from memento
                         restore_old_settings()
@@ -636,8 +636,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         logger.warning('{} cannot update {}: {}', self.client_address, var, ve)
                         
                         message = 'cannot update settings'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: 'cannot update {}: {}'.format(var, ve)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: 'cannot update {}: {}'.format(var, ve)}
                         
                         # restoring old settings from memento
                         restore_old_settings()
@@ -653,8 +653,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                      'fileystem: {}', self.client_address, ioe)
                         
                         message = 'cannot save new settings to fileystem'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: ('new settings accepted and '
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: ('new settings accepted and '
                                         'applied on running Thermod but they '
                                         'cannot be saved to filesystem so, on '
                                         'daemon restart, they will be lost, '
@@ -676,8 +676,8 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                         exc_info=True)
                         
                         message = 'cannot process the request'
-                        response = {rsp_error: message,
-                                    rsp_fullmsg: '{}: {}'.format(message, e)}
+                        response = {RSP_ERROR: message,
+                                    RSP_FULLMSG: '{}: {}'.format(message, e)}
                         
                         # restoring old settings from memento
                         restore_old_settings()
@@ -686,7 +686,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                         code = 200
                         message = 'settings updated'
                         logger.info('{} {}: {}', self.client_address, message, newvalues)
-                        response = {rsp_message: '{}: {}'.format(message, newvalues)}
+                        response = {RSP_MESSAGE: '{}: {}'.format(message, newvalues)}
                     
                     finally:
                         data = self._send_header(code, message, response)
@@ -697,7 +697,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                                    'contains no data', self.client_address)
                     
                     message = 'no settings provided'
-                    data = self._send_header(code, message, {rsp_error: message})
+                    data = self._send_header(code, message, {RSP_ERROR: message})
                 
                 # if some settings of timetable have been updated, we'll notify
                 # this changes in order to recheck current temperature
@@ -710,7 +710,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
             logger.warning('{} {} "{} {}" received', self.client_address,
                            message, self.command, self.path)
             
-            data = self._send_header(code, message, {rsp_error: message})
+            data = self._send_header(code, message, {RSP_ERROR: message})
         
         logger.debug('{} sending back {} code {:d}', self.client_address,
                      ('error' if (code>=400) else 'status'), code)
