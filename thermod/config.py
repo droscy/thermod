@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2017-03-04'
+__updated__ = '2017-03-18'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -166,7 +166,17 @@ def parse_main_settings(cfg):
         else:
             raise ValueError('invalid value `{}` for heating manager'.format(heating['manager']))
         
-        thermometer = {'script': cfg.get('thermometer', 'thermometer')}
+        thermometer = {'script': cfg.get('thermometer', 'thermometer'),
+                       't_ref': [int(t) for t in cfg.get('thermometer', 't_ref').split(',')],
+                       't_raw': [int(t) for t in cfg.get('thermometer', 't_raw').split(',')]}
+        
+        _scale = cfg.get('thermometer', 'scale', fallback='celsius').casefold()
+        if _scale not in ('celsius', 'fahrenheit'):
+                raise ValueError('the degree scale must be `celsius` or '
+                                 '`fahrenheit`, `{}` provided'.format(_scale))
+        
+        thermometer['scale'] = _scale[0]  # only the first letter of _level is used
+        
         if thermometer['script'][0] == '/':
             # If the first char is a / it denotes the beginning of a filesystem
             # path, so the value is acceptable and no additional parameters
@@ -177,8 +187,6 @@ def parse_main_settings(cfg):
             # The user choose to use the internal class for Raspberry Pi
             # thermometer instead of an external script.
             thermometer['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
-            thermometer['multiplier'] = cfg.getfloat('thermometer/PiAnalogZero', 'multiplier', fallback=1.0)
-            thermometer['shift'] = cfg.getfloat('thermometer/PiAnalogZero', 'shift', fallback=0.0)
         
         # An `elif` can be added with additional specific thermometer classes
         # once they will be created.

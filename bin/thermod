@@ -41,7 +41,7 @@ from thermod.socket import ControlThread
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-03-04'
+__updated__ = '2017-03-18'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -186,7 +186,11 @@ try:
         raise RuntimeError('invalid heating configuration')
     
     if settings.thermometer['script'][0] == '/':  # a full path starts with /
-        thermometer = ScriptThermometer(settings.thermometer['script'], debug)
+        thermometer = ScriptThermometer(settings.thermometer['script'],
+                                        debug,
+                                        settings.thermometer['scale'],
+                                        settings.thermometer['t_ref'],
+                                        settings.thermometer['t_raw'])
         
     elif settings.thermometer['script'] == 'PiAnalogZero':
         # The PiAnalogZeroThermometer uses Thread and gpiozero.MCP3008 objects
@@ -198,8 +202,9 @@ try:
         if args.foreground or args.systemd:
             thermometer = PiAnalogZeroThermometer(
                                 settings.thermometer['channels'],
-                                settings.thermometer['multiplier'],
-                                settings.thermometer['shift'])
+                                settings.thermometer['scale'],
+                                settings.thermometer['t_ref'],
+                                settings.thermometer['t_raw'])
         else:
             # here thermod is launched in background
             thermometer = None
@@ -564,8 +569,9 @@ else:
                 # behaviours of Thread and gpiozero.MCP3008 objects.
                 thermometer = PiAnalogZeroThermometer(
                                     settings.thermometer['channels'],
-                                    settings.thermometer['multiplier'],
-                                    settings.thermometer['shift'])
+                                    settings.thermometer['scale'],
+                                    settings.thermometer['t_ref'],
+                                    settings.thermometer['t_raw'])
             
             thermostat_cycle(timetable, heating, thermometer)
     

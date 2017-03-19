@@ -24,6 +24,7 @@ import json
 import shlex
 import logging
 import subprocess
+import numpy
 
 from copy import deepcopy
 #from json.decoder import JSONDecodeError
@@ -39,7 +40,7 @@ else:
     JSONDecodeError = ValueError
 
 __date__ = '2016-02-04'
-__updated__ = '2017-03-04'
+__updated__ = '2017-03-19'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -82,29 +83,63 @@ class ScriptThermometerError(ThermometerError, ScriptError):
 class BaseThermometer(object):
     """Basic implementation of a thermometer.
     
-    The property `temperature` must be implemented in subclasses and must
-    return the current temperature as a float number.
+    The property `raw_temperature` must be implemented in subclasses and must
+    return the current temperature (without calibration) as a float number.
     
     During instantiation a degree scale must be specified, in order to
     correctly handle conversion methods: `to_celsius()` and `to_fahrenheit()`.
+    
+    The thermometer can be calibrated passing two list of temperatures:
+    `t_ref` with reference temperatures and `t_raw` with the corresponding
+    values read by the thermometer. These two lists will be used to compute a
+    transformation function to calibrate the thermometer. The two lists must
+    have the same number of elements and must have at least 6 elements each.
+    To disable the calibration or to get the values for `t_raw` list, leave
+    `t_raw` itself empty.
     """
 
-    DEGREE_CELSIUS = 'C'
-    DEGREE_FAHRENHEIT = 'F'
+    DEGREE_CELSIUS = 'c'
+    DEGREE_FAHRENHEIT = 'f'
     
-    def __init__(self, scale=DEGREE_CELSIUS):
-        """Init the thermometer with a choosen degree scale."""
+    def __init__(self, scale=DEGREE_CELSIUS, t_ref=[], t_raw=[], calibration=None):
+        """Init the thermometer with a choosen degree scale.
+        
+        @param scale degree scale to be used
+        @param t_ref list of reference values for temperature calibration
+        @param t_raw list of raw temperatures read by the thermometer
+            corresponding to values in `t_ref`
+        @param calibration e callable object to calibrate the temperature (if
+            both `t_ref` and `t_raw` are valid, this parameter is ignored)
+        """
         
         logger.debug('initializing {} with {} degrees',
                      self.__class__.__name__,
                      ('celsius' if scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'))
         
         self._scale = scale
+        self._calibrate = numpy.poly1d([1, 0])  # polynomial identity
+        
+        if len(t_raw) >= 6:
+            if len(t_ref) == len(t_raw):
+                logger.debug('performing thermometer calibration with t_ref={} and t_raw={}', t_ref, t_raw)
+                z = numpy.polyfit(t_raw, t_ref, 5)
+                self._calibrate = numpy.poly1d(z)
+                logger.debug('calibration completed')
+            else:
+                raise ThermometerError('cannot perform thermometer calibration '
+                                       'because t_ref and t_raw have different '
+                                       'number of elements')
+        elif calibration is not None:
+            logger.debug('using external function to calibrate raw temperature')
+            self._calibrate = calibration
+        else:
+            logger.debug('calibration disabled due to t_raw list empty or too small')
     
     def __repr__(self, *args, **kwargs):
-        return '{}.{}({!r})'.format(self.__module__,
-                                    self.__class__.__name__,
-                                    self._scale)
+        return '{}.{}({!r}, calibration={!r})'.format(self.__module__,
+                                                      self.__class__.__name__,
+                                                      self._scale,
+                                                      self._calibrate)
     
     def __str__(self, *args, **kwargs):
         return '{:.2f} °{}'.format(self.temperature, self._scale)
@@ -113,17 +148,25 @@ class BaseThermometer(object):
         return '{:{}}'.format(self.temperature, format_spec)
     
     @property
-    def temperature(self):
+    def raw_temperature(self):
         """This method must be implemented in subclasses.
         
-        The subclasses methods must return the current temperature as a
-        float number in the scale selected during class instantiation in order
-        to correctly handle conversion methods and must raise a `ThermometerError`
-        in case of failure.
+        The subclasses' methods must return the current temperature read from
+        the thermometer as a float number in the scale selected during class
+        instantiation in order to correctly handle conversion methods and must
+        raise `ThermometerError` in case of failure.
+        
+        No calibration adjustment must be performed in this method.
         
         @exception ThermometerError if an error occurred in retriving temperature
         """
+        
         raise NotImplementedError()
+    
+    @property
+    def temperature(self):
+        """The calibrated temperature."""
+        return self._calibrate(self.raw_temperature)
     
     def to_celsius(self):
         """Return the current temperature in Celsius degrees."""
@@ -143,8 +186,11 @@ class BaseThermometer(object):
 class FakeThermometer(BaseThermometer):
     """Fake thermometer that always returns 20.0 degrees celsius or 68.0 fahrenheit."""
     
+    def __init__(self, scale=BaseThermometer.DEGREE_CELSIUS):
+        super().__init__(scale)
+    
     @property
-    def temperature(self):
+    def raw_temperature(self):
         t = 20.0
         if self._scale == BaseThermometer.DEGREE_CELSIUS:
             return t
@@ -173,7 +219,7 @@ class ScriptThermometer(BaseThermometer):
     JSON_TEMPERATURE = 'temperature'
     JSON_ERROR = 'error'
     
-    def __init__(self, script, debug=False, scale=BaseThermometer.DEGREE_CELSIUS):
+    def __init__(self, script, debug=False, scale=BaseThermometer.DEGREE_CELSIUS, t_ref=[], t_raw=[], calibration=None):
         """Initialiaze a script-based thermometer.
         
         The first parameter must be a string containing the full paths to
@@ -188,7 +234,7 @@ class ScriptThermometer(BaseThermometer):
             be found or executed
         """
         
-        super().__init__(scale)
+        super().__init__(scale, t_ref, t_raw, calibration)
         
         if isinstance(script, list):
             self._script = deepcopy(script)
@@ -209,19 +255,20 @@ class ScriptThermometer(BaseThermometer):
                      self._script)
     
     def __repr__(self, *args, **kwargs):
-        return '{module}.{cls}({script!r}, {debug!r}, {scale!r})'.format(
+        return '{module}.{cls}({script!r}, {debug!r}, {scale!r}, calibration={calib!r})'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     script=self._script,
                     debug=(ScriptThermometer.DEBUG_OPTION in self._script),
-                    scale=self._scale)
+                    scale=self._scale,
+                    calib=self._calibrate)
     
     @property
-    def temperature(self):
+    def raw_temperature(self):
         """Retrive the current temperature executing the script.
         
         The return value is a float number. Many exceptions can be raised
-        if the script cannot be executed or if the script exit with errors.
+        if the script cannot be executed or if the script exits with errors.
         """
         logger.debug('retriving current temperature')
         
@@ -300,18 +347,19 @@ try:
         @see http://rasp.io/analogzero/
         """
         
-        def __init__(self, channels, multiplier=1, shift=0, scale=BaseThermometer.DEGREE_CELSIUS):
+        def __init__(self, channels, scale=BaseThermometer.DEGREE_CELSIUS, t_ref=[], t_raw=[], calibration=None):
             """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
             
             @param channels the list of channels to read value from
-            @param multiplier the multiplier to calibrate the raw temperature from board
-            @param shift the shift value to calibrate the raw temperature from board
+            @param t_ref list of reference values for temperature calibration
+            @param t_raw list of raw temperatures read by the thermometer
+                corresponding to values in `t_ref`
             
             @exception ValueError if no channels provided or channels out of range [0,7]
             @exception ThermometerError if the module `gpiozero' cannot be imported
             """
             
-            super().__init__(scale)
+            super().__init__(scale, t_ref, t_raw, calibration)
             
             if len(channels) == 0:
                 raise ValueError('missing input channel for PiAnalogZero thermometer')
@@ -323,14 +371,11 @@ try:
             self._vref = ((3.32/(3.32+7.5))*3.3*1000)
             self._adc = [gpiozero.MCP3008(channel=c) for c in channels]
             
-            self._multiplier = float(multiplier)
-            self._shift = float(shift)
-            
             # Allocate the queue for the last 30 temperatures to be averaged. The
             # value `30` covers a period of 3 minutes because the sleep time between
             # two measures is 6 seconds: 6*30 = 180 seconds = 3 minutes.
             maxlen = 30
-            self._temperatures = deque([self.realtime_temperature for t in range(maxlen)], maxlen)
+            self._temperatures = deque([self.realtime_raw_temperature for t in range(maxlen)], maxlen)
             
             # start averaging thread
             self._stop = Event()
@@ -338,31 +383,29 @@ try:
             self._averaging_thread.start()
         
         def __repr__(self, *args, **kwargs):
-            return '{module}.{cls}({channels!r}, {multiplier!r}, {shift!r}, {scale!r})'.format(
+            return '{module}.{cls}({channels!r}, {scale!r}, calibration={calib!r})'.format(
                         module=self.__module__,
                         cls=self.__class__.__name__,
                         channels=[adc.channel for adc in self._adc],
-                        multiplier=self._multiplier,
-                        shift=self._shift,
-                        scale=self._scale)
+                        scale=self._scale,
+                        calib=self._calibrate)
         
         def __deepcopy__(self, memodict={}):
             """Return a deep copy of this PiAnalogZeroThermometer."""
-            return self.__class__([adc.channel for adc in self._adc],
-                                  self._multiplier,
-                                  self._shift,
-                                  self._scale)
+            return self.__class__(channels=[adc.channel for adc in self._adc],
+                                  scale=self._scale,
+                                  calibration=self._calibrate)
         
         @property
-        def realtime_temperature(self):
-            """The current temperature as measured by physical thermometer.
+        def realtime_raw_temperature(self):
+            """The current raw temperature as measured by physical thermometer.
             
             If more than one channel is provided during object creation, the
             returned temperature is the average value computed on all channels.
             """
             
-            temp = sum([(((adc.value * self._vref) - 500) / 10) for adc in self._adc]) / len(self._adc)
-            return ((self._multiplier * temp) + self._shift)
+            temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
+            return round(sum(temperatures) / len(temperatures), 3)  # additional decimal are meaningless
         
         def _update_temperatures(self):
             """Start a cycle to update the list of last measured temperatures.
@@ -376,10 +419,10 @@ try:
             
             while not self._stop.wait(6):
                 logger.debug('appending new realtime temperature')
-                self._temperatures.append(self.realtime_temperature)
+                self._temperatures.append(self.realtime_raw_temperature)
         
         @property
-        def temperature(self):
+        def raw_temperature(self):
             """Return the average of the last measured temperatures.
             
             The average is the way to reduce fluctuation in measurment. Precisely
@@ -387,7 +430,7 @@ try:
             trick is to stabilize the returned value.
             """
             
-            logger.debug('retriving current temperature')
+            logger.debug('retriving current raw temperature')
             
             temperatures = list(self._temperatures)
             temperatures.sort()
@@ -395,7 +438,7 @@ try:
             skip = 5
             shortened = temperatures[skip:(len(temperatures)-skip)]
             
-            return round(sum(shortened) / len(shortened), 4)  # addtition decimal are meaningless
+            return round(sum(shortened) / len(shortened), 3)  # additional decimal are meaningless
         
         def __del__(self):
             """Stop the temperature-averaging thread."""
