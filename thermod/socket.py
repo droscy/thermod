@@ -50,7 +50,7 @@ __date__ = '2015-11-05'
 __updated__ = '2017-03-12'
 __version__ = '1.4'
 
-logger = LogStyleAdapter(logging.getLogger(__name__ if __name__ != '__main__' else common.LOGGER_BASE_NAME))
+logger = LogStyleAdapter(logging.getLogger(__name__))
 
 
 REQ_SETTINGS_ALL = 'settings'
@@ -744,32 +744,5 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
     
     def do_DELETE(self):
         self._do_other()
-
-
-# only for debug purpose
-if __name__ == '__main__':
-    import os
-    import shutil
-    import tempfile
-    
-    logger.setLevel(logging.DEBUG)
-    
-    console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG,
-                                           datefmt=common.LOGGER_FMT_DATETIME,
-                                           style=common.LOGGER_FMT_STYLE))
-    logger.addHandler(console)
-    
-    file = 'timetable.json'
-    tmpfile = os.path.join(tempfile.gettempdir(),file)
-    shutil.copy(file, tmpfile)
-    tt = TimeTable(tmpfile)
-    cc = ControlThread(tt)
-    
-    try:
-        cc.start()
-        cc.join()
-    except:
-        cc.stop()
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

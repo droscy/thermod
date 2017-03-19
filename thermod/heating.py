@@ -496,26 +496,4 @@ except ImportError as ie:
         def __init__(self, *args, **kwargs):
             raise HeatingError('module RPi.GPIO not loaded')
 
-
-# only for debug purpose
-if __name__ == '__main__':
-    heating = ScriptHeating('python3 scripts/switch.py --on -j',
-                            'python3 scripts/switch.py --off -j',
-                            'python3 scripts/switch.py --status -j')
-    
-    print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
-    print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
-    
-    heating.switch_off()
-    print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
-    print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
-    
-    heating.switch_on()
-    print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
-    print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
-    
-    heating.switch_on()
-    print('STATUS: {}'.format(heating.status() and 'ON' or 'OFF'))
-    print('IS ON: {}'.format(heating.is_on() and 'ON' or 'OFF'))
-
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

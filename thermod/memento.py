@@ -78,30 +78,4 @@ def transactional(exclude=None):
     return wrapper
 
 
-
-# only for debug purpose
-if __name__ == '__main__':
-    class Test(object):
-        def __init__(self):
-            self.test1 = 'test1'
-            self.test2 = 'test2'
-        
-        @transactional('test2')
-        def update(self, param1):
-            self.test1 = 'updated'
-            self.test2 = 'updated'
-            raise RuntimeError('update failed')
-    
-    c = Test()
-    print('t1: ', c.test1)
-    print('t2: ', c.test2)
-    
-    try:
-        c.update('param1')
-    except:
-        pass
-    
-    print('t1: ', c.test1)
-    print('t2: ', c.test2)
-
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
