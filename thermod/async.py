@@ -28,16 +28,17 @@ __version__ = '0.1'
 
 
 async def return_author(request):
-    a = await request.app['q'].get()
-    return web.json_response(a)
+    future = asyncio.Future(loop=request.app.loop)
+    await request.app['q'].put(future)
+    return web.json_response(await asyncio.wait_for(future, timeout=None, loop=request.app.loop))
 
 async def put_author(request):
     q = request.app['q']
     p = await request.post()
     a = p.get('author', 'unknown')
     print(a)
-    await q.put({'author': a})
-    #print([q.put_nowait({'author': a}) for i in range(q.qsize())])
+    for i in range(q.qsize()):
+        q.get_nowait().set_result({'author': a})
     return web.Response()
 
 
