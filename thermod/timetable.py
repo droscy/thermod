@@ -42,7 +42,7 @@ from .common import LogStyleAdapter, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-03-04'
+__updated__ = '2017-04-01'
 __version__ = '1.5'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -131,10 +131,7 @@ JSON_SCHEMA = {
 
 class JsonValueError(ValueError):
     """Exception for invalid settings values in JSON file or socket messages."""
-    
-    @property
-    def message(self):
-        return str(self)
+    pass
 
 
 
@@ -218,7 +215,7 @@ class TimeTable(object):
         self._last_update_timestamp = 0
         """Timestamp of settings last update.
         
-        Equal to JSON file mtime if settings loaded from file or equal
+        Equal to JSON file mtime if settings are loaded from file or equal
         to current timestamp of last settings change.
         """
         
@@ -227,7 +224,7 @@ class TimeTable(object):
         
         Whenever the target temperature is reached, this value is updated with
         the current timestamp. When the current temperature falls below the
-        target temperature, this value is reset to `const.TIMESTAMP_MAX_VALUE`.
+        target temperature, this value is reset to `common.TIMESTAMP_MAX_VALUE`.
         
         It is used in the `TimeTable.should_the_heating_be_on()`
         method to respect the grace time.
@@ -304,7 +301,7 @@ class TimeTable(object):
         new._differential = self._differential
         new._grace_time = self._grace_time
     
-        #new._lock = Condition()  # not needed a new _lock is in __init__ method
+        #new._lock = Condition()  # not needed, a new _lock is created in __init__ method
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
@@ -519,7 +516,7 @@ class TimeTable(object):
             settings = self.__getstate__()
             
             # convert possible Infinite grace_time to None
-            if math.isinf(settings[JSON_GRACE_TIME]):
+            if not math.isfinite(settings[JSON_GRACE_TIME]):
                 settings[JSON_GRACE_TIME] = None
             
             # if an old JSON file exist, load its content
@@ -533,7 +530,7 @@ class TimeTable(object):
                 old_settings = None
             
             except JSONDecodeError:
-                logger.debug('old JSON file is invalid, it will be overwrited')
+                logger.debug('old JSON file is invalid, it will be overwritten')
                 old_settings = None
             
             # save JSON settings
@@ -654,9 +651,9 @@ class TimeTable(object):
     def grace_time(self, seconds):
         """Set a new grace time in *seconds*.
         
-        The input value must be a number or, to disable the grace time, one
-        of the following values: `None` or the strings 'inf', 'infinity' or
-        'nan' (case insensitive). If the input is a float number it is
+        The input value must be a positive number or, to disable the grace time,
+        one of the following values: `None` or the strings 'Inf', 'Infinity' or
+        'NaN' (case insensitive). If the input is a float number it is
         rounded to the nearest integer value.
         """
         with self._lock:
@@ -665,11 +662,11 @@ class TimeTable(object):
             try:
                 nvalue = float(seconds if seconds is not None else '+Inf')
                 
-                if nvalue < 0:
-                    raise ValueError()
-                
                 if math.isnan(nvalue):
                     nvalue = float('+Inf')
+                
+                if nvalue < 0:
+                    raise ValueError()
             
             except:
                 logger.debug('invalid new grace time: {}', seconds)
@@ -907,10 +904,9 @@ class TimeTable(object):
     def target_temperature(self, target_time=None):
         """Return the target temperature at specific `target_time`.
         
-        The specific `target_time` must be a 'datetime` object.
-        
-        If the current status is ON the returned value is float `+Inf`, if
-        the current status is OFF the returned value is float `-Inf`.
+        @param target_time must be a `datetime` object
+        @return the target temperature at specific `target_time`, if the
+            current status is ON or OFF the returned value is `None`.
         """
         
         if target_time is None:
@@ -918,16 +914,10 @@ class TimeTable(object):
         elif not isinstance(target_time, datetime):
             raise TypeError('target_temperature() requires a datetime object')
         
-        target = None
+        target = None  # default value for always ON or OFF
         
         with self._lock:
-            if self._status == JSON_STATUS_ON:  # always on
-                target = float('+Inf')
-            
-            elif self._status == JSON_STATUS_OFF:  # always off
-                target = float('-Inf')
-            
-            elif self._status in JSON_ALL_TEMPERATURES:
+            if self._status in JSON_ALL_TEMPERATURES:
                 # target temperature is set manually
                 target = self.degrees(self._temperatures[self._status])
                 logger.debug('target_temperature: {}', target)
