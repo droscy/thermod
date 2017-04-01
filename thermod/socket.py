@@ -392,8 +392,7 @@ class ControlRequestHandler(BaseHTTPRequestHandler):
                 # Saving timetable state for a manual restore in case of
                 # errors during saving to filesystem or in case of errors
                 # updating more than one single setting.
-                restore_old_settings = memento(self.server.timetable,
-                                               exclude=['_lock', '_heating', '_thermometer'])
+                restore_old_settings = memento(self.server.timetable, exclude=['_lock'])
                 
                 # updating all settings
                 if REQ_SETTINGS_ALL in postvars:
