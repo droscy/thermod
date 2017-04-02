@@ -22,9 +22,10 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 import sys
 import logging
 from datetime import datetime
+from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2017-03-04'
+__updated__ = '2017-03-27'
 
 
 # logger common settings
@@ -81,7 +82,13 @@ except OverflowError:
     _tmv = sys.maxsize
 finally:
     TIMESTAMP_MAX_VALUE = _tmv
-    """Max value for a POSIX timestamp in current platform."""
+    """Max value for a POSIX timestamp in runnin platform."""
+
+
+ThermodStatus = namedtuple('ThermodStatus',
+                           ['timestamp', 'status', 'heating_status',
+                            'current_temperature', 'target_temperature'])
+"""Contain current global status of the thermostat."""
 
 
 class LogStyleAdapter(logging.LoggerAdapter):
@@ -110,8 +117,8 @@ class ScriptError(RuntimeError):
     """Handle error of an external script.
     
     Can be used in conjuction with other exceptions to store also the name
-    of the external script that produced an error. This script name is never
-    returned by default method, it must be requested manually.
+    of the external script that produced the error. This script name is never
+    returned by default methods, it must be requested manually.
     """
     
     def __init__(self, error=None, script=None):
