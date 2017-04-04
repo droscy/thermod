@@ -27,6 +27,8 @@ import argparse
 import signal
 import tempfile
 import lockfile
+import threading
+import asyncio
 
 from daemon import DaemonContext, pidfile
 from logging.handlers import SysLogHandler, SMTPHandler
@@ -37,7 +39,8 @@ from thermod.common import ScriptError, LogStyleAdapter
 from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
 from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
 from thermod.timetable import TimeTable, JsonValueError
-from thermod.socket import ControlThread
+#from thermod.socket import ControlThread
+from thermod.async import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
@@ -168,6 +171,13 @@ if debug:
 try:
     logger.debug('creating base objects')
     
+    # the main lock
+    lock = threading.Condition()
+    
+    # the timetable
+    timetable = TimeTable(settings.tt_file)
+    
+    # the heating
     if settings.heating['manager'] == 'scripts':
         heating = ScriptHeating(settings.heating['on'],
                                 settings.heating['off'],
@@ -185,6 +195,7 @@ try:
         # already checked inside common.parse_main_settings() function.
         raise RuntimeError('invalid heating configuration')
     
+    # the thermometer
     if settings.thermometer['script'][0] == '/':  # a full path starts with /
         thermometer = ScriptThermometer(settings.thermometer['script'],
                                         debug,
@@ -215,8 +226,6 @@ try:
         # The execution should not arrive here because the settings are
         # already checked inside common.parse_main_settings() function.
         raise RuntimeError('invalid thermometer configuration')
-    
-    timetable = TimeTable(settings.tt_file)
 
 except ScriptError as se:
     main_return_code = common.RET_CODE_SCRIPT_INIT_ERR
@@ -238,9 +247,9 @@ except ValueError as ve:
     main_return_code = common.RET_CODE_TT_INVALID_SYNTAX
     logger.critical('timetable file is not in JSON format or has syntax errors: {}', ve)
 
-except ValidationError as jve:
+except ValidationError as jsve:
     main_return_code = common.RET_CODE_TT_INVALID_CONTENT
-    logger.critical('invalid element {} in timetable file: {}', list(jve.path), jve.message)
+    logger.critical('invalid element {} in timetable file: {}', list(jsve.path), jsve.message)
 
 except (HeatingError, ThermometerError) as pie:
     # TODO cambiare messaggio di log, non è detto che si sia su un Pi
@@ -276,9 +285,9 @@ def shutdown(signum=None, frame=None, exitcode=common.RET_CODE_OK):
     global enabled, main_return_code
     
     logger.info('shutdown requested')
-    with timetable.lock:
+    with lock:
         enabled = False
-        timetable.lock.notify_all()
+        lock.notify_all()
     
     # setting the global return code
     main_return_code = exitcode
@@ -286,10 +295,10 @@ def shutdown(signum=None, frame=None, exitcode=common.RET_CODE_OK):
 
 def reload_timetable(signum=None, frame=None):
     logger.info('timetable reload requested')
-    with timetable.lock:
+    with lock:
         try:
             timetable.reload()
-            timetable.lock.notify_all()
+            lock.notify_all()
         
         except OSError as oe:
             logger.warning('cannot reload timetable file `{}`, old settings '
@@ -309,7 +318,7 @@ def reload_timetable(signum=None, frame=None):
                            'remain unchanged: {}', e)
 
 
-def thermostat_cycle(timetable, heating, thermometer):
+def thermostat_cycle(timetable, heating, thermometer, lock, loop):
     """The main cycle of temperature checking.
     
     Periodically checks the temperature and switch on/off the heating
@@ -321,9 +330,12 @@ def thermostat_cycle(timetable, heating, thermometer):
     
     try:
         # starting control socket
-        socket = ControlThread(timetable, heating, thermometer, settings.host, settings.port)
+        socket = ControlSocket(timetable, heating, thermometer,
+                               settings.host, settings.port,
+                               lock, loop)
         socket.start()
     
+    # TODO controllare gli errori con il nuovo socket asyncrono
     except OSError as oe:
         # probably the socket address is already in use
         logger.critical('cannot start control socket: {}', oe)
@@ -366,7 +378,7 @@ def thermostat_cycle(timetable, heating, thermometer):
         # the real cycle of temperature checking
         while enabled:
             try:
-                with timetable.lock:
+                with lock:
                     try:
                         should_be_on = timetable.should_the_heating_be_on(
                                             thermometer.temperature,
@@ -397,13 +409,13 @@ def thermostat_cycle(timetable, heating, thermometer):
                             else:
                                 logger.debug('heating already OFF ({})', _msg)
                     
-                    except ValidationError as ve:
+                    except ValidationError as jsve:
                         # The internal settings must be valid otherwise an error
                         # should have been already catched in other sections of
                         # the daemon, even if new settings are set from
                         # socket connection. So we print a critical error and
                         # we close the daemon.
-                        logger.critical('invalid element {} in timetable file: {}', list(ve.path), ve)
+                        logger.critical('invalid element {} in timetable file: {}', list(jsve.path), jsve)
                         shutdown(exitcode=common.RET_CODE_RUN_INVALID_STATE)
                     
                     except JsonValueError as jve:
@@ -436,7 +448,7 @@ def thermostat_cycle(timetable, heating, thermometer):
                         # The 'wait' method returns False on timeout, thus we
                         # negate it to have cycle_timeout equal True when a
                         # timeout has occurred.
-                        cycle_timeout = not timetable.lock.wait(settings.interval)
+                        cycle_timeout = not lock.wait(settings.interval)
             
             
             except Exception as e:
@@ -455,7 +467,7 @@ def thermostat_cycle(timetable, heating, thermometer):
         logger.debug('stopping daemon')
         
         try:
-            with timetable.lock:
+            with lock:
                 socket.stop()
                 socket.join(10)
         
@@ -548,7 +560,7 @@ if args.foreground or args.systemd:
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGHUP, reload_timetable)
     
-    thermostat_cycle(timetable, heating, thermometer)
+    thermostat_cycle(timetable, heating, thermometer, lock, asyncio.get_event_loop())
 
 else:
     logger.debug('starting daemon in background')
@@ -573,7 +585,7 @@ else:
                                     settings.thermometer['t_ref'],
                                     settings.thermometer['t_raw'])
             
-            thermostat_cycle(timetable, heating, thermometer)
+            thermostat_cycle(timetable, heating, thermometer, lock, asyncio.get_event_loop())
     
     except lockfile.LockFailed:
         logger.critical('cannot create PID file {}', daemon.pidfile.path)

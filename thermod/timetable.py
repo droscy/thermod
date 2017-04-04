@@ -19,16 +19,15 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys
 import json
 import logging
 import jsonschema
 import os.path
 import time
 import math
+import asyncio
 
-from copy import copy, deepcopy
-from threading import Condition
+from copy import deepcopy
 from datetime import datetime
 
 # backward compatibility for Python 3.4 (TODO check for better handling)
@@ -42,8 +41,8 @@ from .common import LogStyleAdapter, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-04-01'
-__version__ = '1.5'
+__updated__ = '2017-04-04'
+__version__ = '1.6'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -170,21 +169,12 @@ class TimeTable(object):
     def __init__(self, filepath=None):
         """Init the timetable.
         
-        The timetable can be initialized empty, if every paramether is `None`,
+        The timetable can be initialized empty, if `filepath` is `None`,
         or with full information to control the real heating providing the
         path to the JSON timetable file.
 
         @param filepath full path to a JSON file that contains all the
             informations to setup the timetable
-        
-        @param heating must be a subclass of thermod.heating.BaseHeating,
-            if `None` a thermod.heating.BaseHeating is used to provide basic
-            functionality
-        
-        @param thermometer must be a subclass of
-            thermod.thermometer.BaseThermometer, if `None` a
-            thermod.thermometer.FakeThermometer is used to provide basic
-            functionality (its `temperature` property always returns 20 degrees)
         
         @see TimeTable.reload() for possible exceptions
         """
@@ -197,9 +187,9 @@ class TimeTable(object):
         
         self._differential = 0.5
         self._grace_time = float('+Inf')  # disabled by default
-
-        self._lock = Condition()
-        """Provide single-thread concurrent access to methods of this class."""
+        
+        #self._lock = lock
+        #"""Provide exclusive access to internal settings."""
         
         self._has_been_validated = False
         """Used to speedup validation.
@@ -278,8 +268,6 @@ class TimeTable(object):
         new._timetable = self._timetable
         new._differential = self._differential
         new._grace_time = self._grace_time
-    
-        new._lock = copy(self._lock)
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
@@ -300,8 +288,6 @@ class TimeTable(object):
         new._timetable = deepcopy(self._timetable)
         new._differential = self._differential
         new._grace_time = self._grace_time
-    
-        #new._lock = Condition()  # not needed, a new _lock is created in __init__ method
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
@@ -323,24 +309,20 @@ class TimeTable(object):
         """
         
         logger.debug('validating timetable and returning internal state')
-        
-        with self._lock:
-            logger.debug('lock acquired to validate timetable')
             
-            settings = {JSON_STATUS: self._status,
-                        JSON_DIFFERENTIAL: self._differential,
-                        JSON_GRACE_TIME: self._grace_time,
-                        JSON_TEMPERATURES: self._temperatures,
-                        JSON_TIMETABLE: self._timetable}
-            
-            jsonschema.validate(settings, JSON_SCHEMA)
-            logger.debug('the timetable is valid')
+        settings = {JSON_STATUS: self._status,
+                    JSON_DIFFERENTIAL: self._differential,
+                    JSON_GRACE_TIME: self._grace_time,
+                    JSON_TEMPERATURES: self._temperatures,
+                    JSON_TIMETABLE: self._timetable}
         
-        logger.debug('returning internal state')
+        jsonschema.validate(settings, JSON_SCHEMA)
+        
+        logger.debug('the timetable is valid, returning internal state')
         return deepcopy(settings)
     
     
-    @transactional(exclude=['_lock'])
+    @transactional
     def __setstate__(self, state):
         """Set new internal state.
         
@@ -355,63 +337,53 @@ class TimeTable(object):
         
         logger.debug('setting new internal state')
         
-        # Init this object only if the _lock attribute is missing, that means
-        # that this method has been called during a copy of an other
-        # TimeTable object.
-        if not hasattr(self, '_lock'):
-            logger.debug('the timetable is empty')
-            self.__init__()
+        self._status = state[JSON_STATUS]
+        self._temperatures = deepcopy(state[JSON_TEMPERATURES])
+        self._timetable = deepcopy(state[JSON_TIMETABLE])
         
-        with self._lock:
-            logger.debug('lock acquired to set new state')
-            
-            self._status = state[JSON_STATUS]
-            self._temperatures = deepcopy(state[JSON_TEMPERATURES])
-            self._timetable = deepcopy(state[JSON_TIMETABLE])
-            
-            if JSON_DIFFERENTIAL in state:
-                self._differential = state[JSON_DIFFERENTIAL]
-            
-            if JSON_GRACE_TIME in state:
-                # using grace_time setter to perform additional checks
-                self.grace_time = state[JSON_GRACE_TIME]
-            
-            # validating new state
-            try:
-                self._has_been_validated = False
-                self._validate()
-            
-            except:
-                logger.debug('the new state is invalid, reverting to old state')
-                raise
-            
-            finally:
-                logger.debug('current status: {}', self._status)
-                logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
-                logger.debug('differential: {} deg', self._differential)
-                logger.debug('grace time: {} sec', self._grace_time)
-            
-            self._last_update_timestamp = time.time()
-            logger.debug('new internal state set')
+        if JSON_DIFFERENTIAL in state:
+            self._differential = state[JSON_DIFFERENTIAL]
+        
+        if JSON_GRACE_TIME in state:
+            # using grace_time setter to perform additional checks
+            self.grace_time = state[JSON_GRACE_TIME]
+        
+        self._last_update_timestamp = time.time()
+        
+        # validating new state
+        try:
+            self._has_been_validated = False
+            self._validate()
+        
+        except:
+            logger.debug('the new state is invalid, reverting to old state')
+            raise
+        
+        finally:
+            logger.debug('current status: {}', self._status)
+            logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
+            logger.debug('differential: {} deg', self._differential)
+            logger.debug('grace time: {} sec', self._grace_time)
+        
+        logger.debug('new internal state set')
     
     
     def _validate(self):
         """Validate the internal settings.
         
-        A full validation is performed only if TimeTable._has_been_validated
+        A full validation is performed only if `TimeTable._has_been_validated`
         is not `True`, otherwise silently exits without errors.
         
         @exception jsonschema.ValidationError if internal settings are invalid
         """
         
-        with self._lock:
-            if not self._has_been_validated:
-                
-                # perform validation
-                self.__getstate__()
-                
-                # if no exception is raised
-                self._has_been_validated = True
+        if not self._has_been_validated:
+            
+            # perform validation
+            self.__getstate__()
+            
+            # if no exception is raised
+            self._has_been_validated = True
     
     
     def settings(self, indent=0, sort_keys=True):
@@ -468,24 +440,21 @@ class TimeTable(object):
         """
         
         logger.debug('(re)loading timetable')
+            
+        if not self.filepath:  # empty string or None
+            logger.debug('filepath not set, cannot continue')
+            raise RuntimeError('no timetable file provided, cannot (re)load data')
         
-        with self._lock:
-            logger.debug('lock acquired to (re)load timetable')
-            
-            if not self.filepath:  # empty string or None
-                logger.debug('filepath not set, cannot continue')
-                raise RuntimeError('no timetable file provided, cannot (re)load data')
-            
-            # loading json file
-            with open(self.filepath, 'r') as file:
-                logger.debug('loading json file: {}', self.filepath)
-                settings = json.load(file, parse_constant=utils.json_reject_invalid_float)
-                logger.debug('json file loaded')
-            
-            self.__setstate__(settings)
-            self._last_update_timestamp = os.path.getmtime(self.filepath)
+        # loading json file
+        with open(self.filepath, 'r') as file:
+            logger.debug('loading json file: {}', self.filepath)
+            settings = json.load(file, parse_constant=utils.json_reject_invalid_float)
+            logger.debug('json file loaded')
         
-            logger.debug('timetable (re)loaded')
+        self.__setstate__(settings)
+        self._last_update_timestamp = os.path.getmtime(self.filepath)
+        
+        logger.debug('timetable (re)loaded')
     
     
     def save(self, filepath=None):
@@ -504,57 +473,48 @@ class TimeTable(object):
         
         if filepath is None:
             filepath = self.filepath
+            
+        if not filepath:  # empty string or None
+            logger.debug('filepath not set, cannot save timetable')
+            raise RuntimeError('no timetable file provided, cannot save data')
         
-        with self._lock:
-            logger.debug('lock acquired to save timetable')
-            
-            if not filepath:  # empty strings or None
-                logger.debug('filepath not set, cannot save timetable')
-                raise RuntimeError('no timetable file provided, cannot save data')
-            
-            # validate and retrive settings
-            settings = self.__getstate__()
-            
-            # convert possible Infinite grace_time to None
-            if not math.isfinite(settings[JSON_GRACE_TIME]):
-                settings[JSON_GRACE_TIME] = None
-            
-            # if an old JSON file exist, load its content
+        # validate and retrive settings
+        settings = self.__getstate__()
+        
+        # convert possible Infinite grace_time to None
+        if not math.isfinite(settings[JSON_GRACE_TIME]):
+            settings[JSON_GRACE_TIME] = None
+        
+        # if an old JSON file exists, load its content
+        try:
+            logger.debug('reading old JSON file {}', filepath)
+            with open(filepath, 'r') as file:
+                old_settings = json.load(file, parse_constant=utils.json_reject_invalid_float)
+        
+        except FileNotFoundError:
+            logger.debug('old JSON file does not exist, skipping')
+            old_settings = None
+        
+        except JSONDecodeError:
+            logger.debug('old JSON file is invalid, it will be overwritten')
+            old_settings = None
+        
+        # save JSON settings
+        with open(filepath, 'w') as file:
             try:
-                logger.debug('reading old JSON file {}', filepath)
-                with open(filepath, 'r') as file:
-                    old_settings = json.load(file, parse_constant=utils.json_reject_invalid_float)
+                logger.debug('saving timetable to JSON file {}', file.name)
+                json.dump(settings, file, indent=2, sort_keys=True, allow_nan=False)
             
-            except FileNotFoundError:
-                logger.debug('old JSON file does not exist, skipping')
-                old_settings = None
-            
-            except JSONDecodeError:
-                logger.debug('old JSON file is invalid, it will be overwritten')
-                old_settings = None
-            
-            # save JSON settings
-            with open(filepath, 'w') as file:
-                try:
-                    logger.debug('saving timetable to JSON file {}', file.name)
-                    json.dump(settings, file, indent=2, sort_keys=True, allow_nan=False)
+            except:
+                logger.debug('cannot save new settings to filesystem')
                 
-                except:
-                    logger.debug('cannot save new settings to filesystem')
-                    
-                    if old_settings:
-                        logger.debug('restoring old settings')
-                        json.dump(old_settings, file, indent=2, sort_keys=True, allow_nan=False)
-                    
-                    raise
+                if old_settings:
+                    logger.debug('restoring old settings')
+                    json.dump(old_settings, file, indent=2, sort_keys=True, allow_nan=False)
+                
+                raise
         
-            logger.debug('timetable saved')
-    
-    
-    @property
-    def lock(self):
-        """Return the internal reentrant `threading.Condition` lock."""
-        return self._lock
+        logger.debug('timetable saved')
     
     
     def last_update_timestamp(self):
@@ -570,69 +530,67 @@ class TimeTable(object):
     @property
     def status(self):
         """Return the current status."""
-        with self._lock:
-            logger.debug('lock acquired to get current status')
-            return self._status
+        logger.debug('reading current status')
+        return self._status
     
     
     @status.setter
     def status(self, status):
         """Set a new status."""
-        with self._lock:
-            logger.debug('lock acquired to set a new status')
-            
-            if status.lower() not in JSON_ALL_STATUSES:
-                logger.debug('invalid new status: {}', status)
-                raise JsonValueError(
-                    'the new status `{}` is invalid, it must be one of [{}]. '
-                    'Falling back to the previous one: `{}`.'.format(
-                        status,
-                        ', '.join(JSON_ALL_STATUSES),
-                        self._status))
-            
-            self._status = status.lower()
-            
-            # Note: cannot call _validate() method after simple update (like
-            # this method, like tmax, t0, etc) because those updates can be
-            # used even to populate an empty TimeTable that is invalid till
-            # a full population
-            self._has_been_validated = False
-            
-            self._last_update_timestamp = time.time()
-            logger.debug('new status set: {}', self._status)
+        
+        logger.debug('setting a new status')
+        
+        if status.lower() not in JSON_ALL_STATUSES:
+            logger.debug('invalid new status: {}', status)
+            raise JsonValueError(
+                'the new status `{}` is invalid, it must be one of [{}]. '
+                'Falling back to the previous one: `{}`.'.format(
+                    status,
+                    ', '.join(JSON_ALL_STATUSES),
+                    self._status))
+        
+        self._status = status.lower()
+        
+        # Note: cannot call _validate() method after simple update (like
+        # this method, like tmax, t0, etc) because those updates can be
+        # used even to populate an empty TimeTable that is invalid till
+        # a full population
+        self._has_been_validated = False
+        
+        self._last_update_timestamp = time.time()
+        logger.debug('new status set: {}', self._status)
     
     
     @property
     def differential(self):
         """Return the current differential value."""
-        with self._lock:
-            logger.debug('lock acquired to get current differntial value')
-            return self._differential
+        logger.debug('reading current differntial value')
+        return self._differential
     
     
     @differential.setter
     def differential(self, value):
         """Set a new differential value."""
-        with self._lock:
-            logger.debug('lock acquired to set a new differential value')
+        
+        logger.debug('setting a new differential value')
+        
+        try:
+            nvalue = utils.temperature_to_float(value)
             
-            try:
-                nvalue = utils.temperature_to_float(value)
-                
-                if nvalue < 0 or nvalue > 1:
-                    raise ValueError()
-            
-            # I catch and raise again the same exception to change the message
-            except:
-                logger.debug('invalid new differential value: {}', value)
-                raise JsonValueError(
-                    'the new differential value `{}` is invalid, '
-                    'it must be a number in range [0;1]'.format(value))
-            
-            self._differential = nvalue
-            self._has_been_validated = False
-            self._last_update_timestamp = time.time()
-            logger.debug('new differential value set: {}', nvalue)
+            if nvalue < 0 or nvalue > 1:
+                raise ValueError()
+        
+        # I catch and raise again the same exception to change the message
+        except:
+            logger.debug('invalid new differential value: {}', value)
+            raise JsonValueError(
+                'the new differential value `{}` is invalid, '
+                'it must be a number in range [0;1]'.format(value))
+        
+        self._differential = nvalue
+        self._has_been_validated = False
+        self._last_update_timestamp = time.time()
+        logger.debug('new differential value set: {}', nvalue)
     
     
     @property
@@ -642,9 +600,8 @@ class TimeTable(object):
         The returned value is a float and can also be the positive infinity
         if the grace time has been disabled.
         """
-        with self._lock:
-            logger.debug('lock acquired to get current grace time')
-            return self._grace_time
+        logger.debug('reading current grace time')
+        return self._grace_time
     
     
     @grace_time.setter
@@ -656,216 +613,211 @@ class TimeTable(object):
         'NaN' (case insensitive). If the input is a float number it is
         rounded to the nearest integer value.
         """
-        with self._lock:
-            logger.debug('lock acquired to set a new grace time')
+        
+        logger.debug('setting a new grace time')
+        
+        try:
+            nvalue = float(seconds if seconds is not None else '+Inf')
             
-            try:
-                nvalue = float(seconds if seconds is not None else '+Inf')
-                
-                if math.isnan(nvalue):
-                    nvalue = float('+Inf')
-                
-                if nvalue < 0:
-                    raise ValueError()
+            if math.isnan(nvalue):
+                nvalue = float('+Inf')
             
-            except:
-                logger.debug('invalid new grace time: {}', seconds)
-                raise JsonValueError(
-                    'the new grace time `{}` is invalid, it must be a positive '
-                    'number expressed in seconds or the string `Inf`'.format(seconds))
-            
-            self._grace_time = round(nvalue, 0)
-            self._has_been_validated = False
-            self._last_update_timestamp = time.time()
-            logger.debug('new grace time set: {} sec', self._grace_time)
+            if nvalue < 0:
+                raise ValueError()
+        
+        except:
+            logger.debug('invalid new grace time: {}', seconds)
+            raise JsonValueError(
+                'the new grace time `{}` is invalid, it must be a positive '
+                'number expressed in seconds or the string `Inf`'.format(seconds))
+        
+        self._grace_time = round(nvalue, 0)
+        self._has_been_validated = False
+        self._last_update_timestamp = time.time()
+        logger.debug('new grace time set: {} sec', self._grace_time)
     
     
     @property
     def t0(self):
         """Return the current value for ``t0`` temperature."""
-        with self._lock:
-            logger.debug('lock acquired to get current t0 temperature')
-            return self._temperatures[JSON_T0_STR]
+        logger.debug('reading current t0 temperature')
+        return self._temperatures[JSON_T0_STR]
     
     
     @t0.setter
     def t0(self, value):
         """Set a new value for ``t0`` temperature."""
-        with self._lock:
-            logger.debug('lock acquired to set a new t0 value')
-            
-            try:
-                nvalue = utils.temperature_to_float(value)
-            
-            # I catch and raise again the same exception to change the message
-            except:
-                logger.debug('invalid new value for t0 temperature: {}', value)
-                raise JsonValueError(
-                    'the new value `{}` for t0 temperature '
-                    'is invalid, it must be a number'.format(value))
-            
-            self._temperatures[JSON_T0_STR] = nvalue
-            self._has_been_validated = False
-            self._last_update_timestamp = time.time()
-            logger.debug('new t0 temperature set: {}', nvalue)
+        
+        logger.debug('setting a new t0 value')
+        
+        try:
+            nvalue = utils.temperature_to_float(value)
+        
+        # I catch and raise again the same exception to change the message
+        except:
+            logger.debug('invalid new value for t0 temperature: {}', value)
+            raise JsonValueError(
+                'the new value `{}` for t0 temperature '
+                'is invalid, it must be a number'.format(value))
+        
+        self._temperatures[JSON_T0_STR] = nvalue
+        self._has_been_validated = False
+        self._last_update_timestamp = time.time()
+        logger.debug('new t0 temperature set: {}', nvalue)
     
     
     @property
     def tmin(self):
         """Return the current value for ``tmin`` temperature."""
-        with self._lock:
-            logger.debug('lock acquired to get current tmin temperature')
-            return self._temperatures[JSON_TMIN_STR]
+        logger.debug('reading current tmin temperature')
+        return self._temperatures[JSON_TMIN_STR]
     
     
     @tmin.setter
     def tmin(self, value):
         """Set a new value for ``tmin`` temperature."""
-        with self._lock:
-            logger.debug('lock acquired to set a new tmin value')
-            
-            try:
-                nvalue = utils.temperature_to_float(value)
-            
-            # I catch and raise again the same exception to change the message
-            except:
-                logger.debug('invalid new value for tmin temperature: {}', value)
-                raise JsonValueError(
-                    'the new value `{}` for tmin temperature '
-                    'is invalid, it must be a number'.format(value))
-            
-            self._temperatures[JSON_TMIN_STR] = nvalue
-            self._has_been_validated = False
-            self._last_update_timestamp = time.time()
-            logger.debug('new tmin temperature set: {}', nvalue)
+        
+        logger.debug('setting a new tmin value')
+        
+        try:
+            nvalue = utils.temperature_to_float(value)
+        
+        # I catch and raise again the same exception to change the message
+        except:
+            logger.debug('invalid new value for tmin temperature: {}', value)
+            raise JsonValueError(
+                'the new value `{}` for tmin temperature '
+                'is invalid, it must be a number'.format(value))
+        
+        self._temperatures[JSON_TMIN_STR] = nvalue
+        self._has_been_validated = False
+        self._last_update_timestamp = time.time()
+        logger.debug('new tmin temperature set: {}', nvalue)
     
     
     @property
     def tmax(self):
         """Return the current value for ``tmax`` temperature."""
-        with self._lock:
-            logger.debug('lock acquired to get current tmax temperature')
-            return self._temperatures[JSON_TMAX_STR]
+        logger.debug('reading current tmax temperature')
+        return self._temperatures[JSON_TMAX_STR]
     
     
     @tmax.setter
     def tmax(self, value):
         """Set a new value for ``tmax`` temperature."""
-        with self._lock:
-            logger.debug('lock acquired to set a new tmax value')
-            
-            try:
-                nvalue = utils.temperature_to_float(value)
-            
-            # I catch and raise again the same exception to change the message
-            except:
-                logger.debug('invalid new value for tmax temperature: {}', value)
-                raise JsonValueError(
-                    'the new value `{}` for tmax temperature '
-                    'is invalid, it must be a number'.format(value))
-            
-            self._temperatures[JSON_TMAX_STR] = nvalue
-            self._has_been_validated = False
-            self._last_update_timestamp = time.time()
-            logger.debug('new tmax temperature set: {}', nvalue)
+        
+        logger.debug('setting a new tmax value')
+        
+        try:
+            nvalue = utils.temperature_to_float(value)
+        
+        # I catch and raise again the same exception to change the message
+        except:
+            logger.debug('invalid new value for tmax temperature: {}', value)
+            raise JsonValueError(
+                'the new value `{}` for tmax temperature '
+                'is invalid, it must be a number'.format(value))
+        
+        self._temperatures[JSON_TMAX_STR] = nvalue
+        self._has_been_validated = False
+        self._last_update_timestamp = time.time()
+        logger.debug('new tmax temperature set: {}', nvalue)
     
     
-    @transactional(exclude=['_lock'])
+    @transactional
     def update(self, day, hour, quarter, temperature):
         """Update the target temperature in internal timetable."""
         # TODO scrivere documentazione
         logger.debug('updating timetable: day "{}", hour "{}", quarter "{}", '
                      'temperature "{}"', day, hour, quarter, temperature)
+            
+        # get day name
+        logger.debug('retriving day name')
+        _day = utils.json_get_day_name(day)
         
-        with self._lock:
-            logger.debug('lock acquired to update a temperature in timetable')
-            
-            # get day name
-            logger.debug('retriving day name')
-            _day = utils.json_get_day_name(day)
-            
-            # check hour validity
-            logger.debug('checking and formatting hour')
-            _hour = utils.json_format_hour(hour)
-            
-            # check validity of quarter of an hour
-            logger.debug('checking validity of quarter')
-            try:
-                if int(float(quarter)) in range(4):
-                    _quarter = int(float(quarter))
-                else:
-                    raise Exception()
-            except:
-                logger.debug('invalid quarter: {}', quarter)
-                raise JsonValueError('the provided quarter `{}` is not valid, '
-                                     'it must be in range 0-3'.format(quarter))
-            
-            # format temperature and check validity
-            _temp = utils.json_format_temperature(temperature)
-            
-            # if the day is missing, add it to the timetable
-            if _day not in self._timetable.keys():
-                self._timetable[_day] = {}
-            
-            # if the hour is missing, add it to the timetable
-            if _hour not in self._timetable[_day].keys():
-                self._timetable[_day][_hour] = [None, None, None, None]
-            
-            # update timetable
-            self._timetable[_day][_hour][_quarter] = _temp
-            self._has_been_validated = False
-            self._last_update_timestamp = time.time()
+        # check hour validity
+        logger.debug('checking and formatting hour')
+        _hour = utils.json_format_hour(hour)
+        
+        # check validity of quarter of an hour
+        logger.debug('checking validity of quarter')
+        try:
+            if int(float(quarter)) in range(4):
+                _quarter = int(float(quarter))
+            else:
+                raise Exception()
+        except:
+            logger.debug('invalid quarter: {}', quarter)
+            raise JsonValueError('the provided quarter `{}` is not valid, '
+                                 'it must be in range 0-3'.format(quarter))
+        
+        # format temperature and check validity
+        logger.debug('checking and formatting temperature')
+        _temp = utils.json_format_temperature(temperature)
+        
+        # if the day is missing, add it to the timetable
+        if _day not in self._timetable.keys():
+            self._timetable[_day] = {}
+        
+        # if the hour is missing, add it to the timetable
+        if _hour not in self._timetable[_day].keys():
+            self._timetable[_day][_hour] = [None, None, None, None]
+        
+        # update timetable
+        self._timetable[_day][_hour][_quarter] = _temp
+        self._has_been_validated = False
+        self._last_update_timestamp = time.time()
         
         logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", '
                      'temperature "{}"', _day, _hour, _quarter, _temp)
     
     
     # no need for @transactional because __setstate__ is @transactionl
-    def update_days(self, json_data):
-        """Update timetable for one or more days.
-        
-        The provided `json_data` must be a part of the whole JSON settings in
-        `thermod.JSON_SCHEMA` containing all the informations for the
-        days under update.
-        
-        @return the list of updated days
-        @exception thermod.timetable.JsonValueError if `json_data` is not valid
-        @see TimeTable.__setstate__() for possible exceptions
-            raised during storing of new settings
-        """
-        
-        # TODO fare in modo che accetti sia JSON sia un dictonary con le info del giorno da aggiornare
-        
-        logger.debug('updating timetable days')
-        
-        data = json.loads(json_data, parse_constant=utils.json_reject_invalid_float)
-        days = []
-        
-        if not isinstance(data, dict) or not data:
-            logger.debug('cannot update timetable, the provided JSON data '
-                         'is empty or invalid and doesn\'t contain any days')
-            raise JsonValueError('the provided JSON data doesn\'t contain any days')
-        
-        with self._lock:
-            logger.debug('lock acquired to update the following days {}', list(data.keys()))
-            
-            new_state = self.__getstate__()
-            
-            logger.debug('updating data for each provided day')
-            for day, timetable in data.items():
-                _day = utils.json_get_day_name(day)
-                new_state[JSON_TIMETABLE][_day] = timetable
-                days.append(_day)
-            
-            try:
-                self.__setstate__(new_state)
-            except:
-                logger.debug('cannot update timetable, reverting to old '
-                             'settings, the provided JSON data is invalid: {}',
-                             json_data)
-                raise
-        
-        return days
+    #def update_days(self, json_data):
+    #    """Update timetable for one or more days.
+    #    
+    #    The provided `json_data` must be a part of the whole JSON settings in
+    #    `thermod.JSON_SCHEMA` containing all the informations for the
+    #    days under update.
+    #    
+    #    @return the list of updated days
+    #    @exception thermod.timetable.JsonValueError if `json_data` is not valid
+    #    @see TimeTable.__setstate__() for possible exceptions
+    #        raised during storing of new settings
+    #    """
+    #    
+    #    # TODO fare in modo che accetti sia JSON sia un dictonary con le info del giorno da aggiornare
+    #    
+    #    logger.debug('updating timetable days')
+    #    
+    #    data = json.loads(json_data, parse_constant=utils.json_reject_invalid_float)
+    #    days = []
+    #    
+    #    if not isinstance(data, dict) or not data:
+    #        logger.debug('cannot update timetable, the provided JSON data '
+    #                     'is empty or invalid and doesn\'t contain any days')
+    #        raise JsonValueError('the provided JSON data doesn\'t contain any days')
+    #    
+    #    with self._lock:
+    #        logger.debug('lock acquired to update the following days {}', list(data.keys()))
+    #        
+    #        new_state = self.__getstate__()
+    #        
+    #        logger.debug('updating data for each provided day')
+    #        for day, timetable in data.items():
+    #            _day = utils.json_get_day_name(day)
+    #            new_state[JSON_TIMETABLE][_day] = timetable
+    #            days.append(_day)
+    #        
+    #        try:
+    #            self.__setstate__(new_state)
+    #        except:
+    #            logger.debug('cannot update timetable, reverting to old '
+    #                         'settings, the provided JSON data is invalid: {}',
+    #                         json_data)
+    #            raise
+    #    
+    #    return days
     
     
     def degrees(self, temperature):
@@ -874,27 +826,21 @@ class TimeTable(object):
         If temperature is already a number, the number itself is returned.
         
         @exception RuntimeError if the main temperatures aren't set yet
-        @exception thermod.utils.JsonValueError if the provided temperature is invalid
+        @exception thermod.timetable.JsonValueError if the provided temperature
+            is invalid
         """
         
         logger.debug('converting temperature name to degrees')
         
-        value = None
+        if not self._temperatures:
+            logger.debug('no main temperature provided')
+            raise RuntimeError('no main temperature provided, '
+                               'cannot convert name to degrees')
         
-        with self._lock:
-            logger.debug('lock acquired to convert temperature name')
-            
-            if not self._temperatures:
-                logger.debug('no main temperature provided')
-                raise RuntimeError('no main temperature provided, '
-                                   'cannot convert name to degrees')
-            
-            temp = utils.json_format_temperature(temperature)
-            
-            if temp in JSON_ALL_TEMPERATURES:
-                value = self._temperatures[temp]
-            else:
-                value = temp
+        value = utils.json_format_temperature(temperature)
+        
+        if value in JSON_ALL_TEMPERATURES:
+            value = self._temperatures[value]
         
         logger.debug('temperature {!r} converted to {}', temperature, value)
         
@@ -914,23 +860,24 @@ class TimeTable(object):
         elif not isinstance(target_time, datetime):
             raise TypeError('target_temperature() requires a datetime object')
         
+        logger.debug('getting target temperature for {}', target_time)
+        
         target = None  # default value for always ON or OFF
         
-        with self._lock:
-            if self._status in JSON_ALL_TEMPERATURES:
-                # target temperature is set manually
-                target = self.degrees(self._temperatures[self._status])
-                logger.debug('target_temperature: {}', target)
+        if self._status in JSON_ALL_TEMPERATURES:
+            # target temperature is set manually
+            target = self.degrees(self._temperatures[self._status])
+            logger.debug('target_temperature: {}', target)
+        
+        elif self._status == JSON_STATUS_AUTO:
+            # target temperature is retrived from timetable
+            day = utils.json_get_day_name(target_time.strftime('%w'))
+            hour = utils.json_format_hour(target_time.hour)
+            quarter = int(target_time.minute // 15)
             
-            elif self._status == JSON_STATUS_AUTO:
-                # target temperature is retrived from timetable
-                day = utils.json_get_day_name(target_time.strftime('%w'))
-                hour = utils.json_format_hour(target_time.hour)
-                quarter = int(target_time.minute // 15)
-                
-                target = self.degrees(self._timetable[day][hour][quarter])
-                logger.debug('day: {}, hour: {}, quarter: {}, '
-                             'target_temperature: {}', day, hour, quarter, target)
+            target = self.degrees(self._timetable[day][hour][quarter])
+            logger.debug('day: {}, hour: {}, quarter: {}, '
+                         'target_temperature: {}', day, hour, quarter, target)
         
         return target
     
@@ -982,46 +929,43 @@ class TimeTable(object):
         should_be_on = None
         self._validate()
         
-        with self._lock:
-            logger.debug('lock acquired to check the should-be status')
+        target_time = datetime.now()
+        
+        target = None
+        current = self.degrees(current_temperature)
+        diff = self.degrees(self._differential)
+        logger.debug('status: {}, current_temperature: {}, differential: {}',
+                     self._status, current, diff)
+        
+        if self._status == JSON_STATUS_ON:  # always on
+            should_be_on = True
+        
+        elif self._status == JSON_STATUS_OFF:  # always off
+            should_be_on = False
+        
+        else:  # checking against current temperature and timetable
+            target = self.target_temperature(target_time)
+            ison = bool(heating_status)
+            nowts = target_time.timestamp()
+            offts = heating_switch_off_time.timestamp()
+            grace = self._grace_time
             
-            target_time = datetime.now()
+            if current >= target and nowts < self._last_tgt_temp_reached_timestamp:
+                # first time the target temp is reached, update timestamp
+                self._last_tgt_temp_reached_timestamp = nowts
+            elif current < target:
+                self._last_tgt_temp_reached_timestamp = TIMESTAMP_MAX_VALUE
             
-            target = None
-            current = self.degrees(current_temperature)
-            diff = self.degrees(self._differential)
-            logger.debug('status: {}, current_temperature: {}, differential: {}',
-                         self._status, current, diff)
+            tgtts = self._last_tgt_temp_reached_timestamp
             
-            if self._status == JSON_STATUS_ON:  # always on
-                should_be_on = True
+            logger.debug('heating_on: {}, switch_off_time: {}, tgt_temperature_time: {}, grace_time: {}',
+                         ison, datetime.fromtimestamp(offts), datetime.fromtimestamp(tgtts), grace)
             
-            elif self._status == JSON_STATUS_OFF:  # always off
-                should_be_on = False
-            
-            else:  # checking against current temperature and timetable
-                target = self.target_temperature(target_time)
-                ison = bool(heating_status)
-                nowts = target_time.timestamp()
-                offts = heating_switch_off_time.timestamp()
-                grace = self._grace_time
-                
-                if current >= target and nowts < self._last_tgt_temp_reached_timestamp:
-                    # first time the target temp is reached, update timestamp
-                    self._last_tgt_temp_reached_timestamp = nowts
-                elif current < target:
-                    self._last_tgt_temp_reached_timestamp = TIMESTAMP_MAX_VALUE
-                
-                tgtts = self._last_tgt_temp_reached_timestamp
-                
-                logger.debug('heating_on: {}, switch_off_time: {}, tgt_temperature_time: {}, grace_time: {}',
-                             ison, datetime.fromtimestamp(offts), datetime.fromtimestamp(tgtts), grace)
-                
-                should_be_on = (
-                    ((current <= (target - diff))
-                    or ((current < target) and ((nowts - offts) > grace))
-                    or ((current < (target + diff)) and ison))
-                        and not (current >= target and (nowts - tgtts) > grace))
+            should_be_on = (
+                ((current <= (target - diff))
+                or ((current < target) and ((nowts - offts) > grace))
+                or ((current < (target + diff)) and ison))
+                    and not (current >= target and (nowts - tgtts) > grace))
         
         logger.debug('the heating should be {}', (should_be_on and 'ON' or 'OFF'))
         

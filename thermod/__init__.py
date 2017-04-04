@@ -22,7 +22,8 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 from thermod.common import ScriptError
 from thermod.heating import BaseHeating, ScriptHeating, PiPinsRelayHeating, \
     HeatingError, ScriptHeatingError
-from thermod.socket import ControlThread
+#from thermod.socket import ControlThread
+from thermod.async import ControlSocket
 from thermod.timetable import TimeTable, ShouldBeOn, JsonValueError
 from thermod.thermometer import BaseThermometer, ScriptThermometer, \
     PiAnalogZeroThermometer, ThermometerError, ScriptThermometerError

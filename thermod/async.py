@@ -23,9 +23,10 @@ import time
 import logging
 import asyncio
 import jsonschema
-from threading import Thread
+
+from threading import Thread, Condition
 from json.decoder import JSONDecodeError
-from aiohttp.web import Application, run_app, json_response
+from aiohttp.web import Application, json_response
 from email.utils import formatdate
 from datetime import datetime
 
@@ -37,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-04-01'
+__updated__ = '2017-04-04'
 __version__ = '0.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -102,22 +103,28 @@ class ClientAddressLogAdapter(logging.LoggerAdapter):
         self.logger.log(level, '{} {}'.format(self.client_address, msg), *args, **kwargs)
 
 
-class ControlThread(Thread):
-    """Start a HTTP server ready to receive commands."""
+class ControlSocket(Thread):
+    """Start a HTTP server ready to receive commands in a separate thread."""
     
-    def __init__(self, timetable, heating, thermometer, host, port, loop):
-        baselogger.debug('initializing ControlThread')
-        super().__init__(name='ThermodControlThread')
+    def __init__(self, timetable, heating, thermometer, host, port, lock, loop):
+        baselogger.debug('initializing ControlSocket')
+        super().__init__(name='ThermodControlSocket')
         
-        self.app = Application(loop=loop, middlewares=[exceptions_middleware])
+        # TODO decidere se si deve controllare la classe del lock
+        if not isinstance(lock, Condition):
+            raise TypeError('the lock in ControlSocket must be a threading.Condition object')
+        
+        self.app = Application(middlewares=[exceptions_middleware], loop=loop)
         self.host = host
         self.port = port
+        
+        self.app['lock'] = lock
+        self.app['monitors'] = asyncio.Queue(loop=loop)
         
         self.app['timetable'] = timetable
         self.app['heating'] = heating
         self.app['thermometer'] = thermometer
         
-        self.app['monitors'] = asyncio.Queue(loop=loop)
         self.app.router.add_get('/{action}', GET_handler)
         self.app.router.add_post('/{action}', POST_handler)
     
@@ -130,13 +137,36 @@ class ControlThread(Thread):
     #                port=self.server.server_address[1])
     
     def run(self):
+        #baselogger.info('control socket listening on {}:{}', self.host, self.port)
+        #run_app(self.app, host=self.host, port=self.port)
+        
+        loop = self.app.loop
+        loop.run_until_complete(app.startup())
+        handler = self.app.make_handler()
+        
+        srv = loop.run_until_complete(loop.create_server(handler, self.host, self.port))
         baselogger.info('control socket listening on {}:{}', self.host, self.port)
-        run_app(self.app, host=self.host, port=self.port)
+        
+        try:
+            loop.run_forever()
+        
+        except:
+            # TODO
+            raise
+        
+        finally:
+            srv.close()
+            loop.run_until_complete(srv.wait_closed())
+            loop.run_until_complete(self.app.shutdown())
+            loop.run_until_complete(handler.shutdown(6))
+            loop.run_until_complete(self.app.cleanup())
+        
+        loop.close()
+        
     
     def stop(self):
         """Stop this control thread shutting down the internal HTTP server."""
-        self.server.shutdown()
-        self.server.server_close()
+        self.app.loop.stop()
         baselogger.info('control socket halted')
 
 
@@ -268,6 +298,7 @@ async def GET_handler(request):
     logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
     logger.debug('processing "{} {}" request', request.method, request.url.path)
     
+    lock = request.app['lock']
     timetable = request.app['timetable']
     heating = request.app['heating']
     thermometer = request.app['thermometer']
@@ -281,7 +312,7 @@ async def GET_handler(request):
     elif action in REQ_PATH_SETTINGS:
         logger.debug('sending back Thermod settings')
         
-        with timetable.lock:
+        with lock:
             settings = timetable.settings()
             last_updt = timetable.last_update_timestamp()
         
@@ -292,7 +323,7 @@ async def GET_handler(request):
     elif action in REQ_PATH_HEATING:
         logger.debug('sending back Thermod current status')
         
-        with timetable.lock:
+        with lock:
             last_updt = time.time()
             status = ThermodStatus(last_updt,
                                    timetable.status,
@@ -333,10 +364,11 @@ async def GET_handler(request):
     return response
 
 
-def POST_handler(request):
+async def POST_handler(request):
     logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
     logger.debug('processing "{} {}" request', request.method, request.url.path)
     
+    lock = request.app['lock']
     timetable = request.app['timetable']
     action = request.match_info['action']
     
@@ -345,11 +377,11 @@ def POST_handler(request):
         postvars = await request.post()
         logger.debug('POST variables: {}', postvars)
         
-        with timetable.lock:
+        with lock:
             # Saving timetable state for a manual restore in case of
             # errors during saving to filesystem or in case of errors
             # updating more than one single setting.
-            restore_old_settings = memento(timetable, exclude=['_lock'])
+            restore_old_settings = memento(timetable)
             
             # updating all settings
             if REQ_SETTINGS_ALL in postvars:
@@ -368,7 +400,7 @@ def POST_handler(request):
                     # we notify this changes in order to check again the
                     # current temperature.
                     
-                    timetable.lock.notify_all()
+                    lock.notify_all()
                     raise
                 
                 except Exception:
@@ -463,7 +495,7 @@ def POST_handler(request):
                     # we notify this changes in order to immediately check
                     # the current temperature.
                     
-                    timetable.lock.notify_all()
+                    lock.notify_all()
                     raise
                 
                 except Exception:
@@ -490,7 +522,7 @@ def POST_handler(request):
             # If some settings of timetable have been updated, we'll notify
             # this changes in order to recheck current temperature.
             if response.status == 200:
-                timetable.lock.notify_all()
+                lock.notify_all()
     
     else:
         message = 'Invalid Request'
