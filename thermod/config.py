@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2017-03-18'
+__updated__ = '2017-04-10'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -135,14 +135,14 @@ def parse_main_settings(cfg):
     if not isinstance(cfg, configparser.ConfigParser):
         raise TypeError('ConfigParser object is required to parse main settings')
     
-    logger.debug('parsing main settings')
-    
     try:
+        logger.debug('parsing main settings')
         enabled = cfg.getboolean('global', 'enabled')
         debug = cfg.getboolean('global', 'debug')
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
         
+        logger.debug('parsing heating settings')
         heating = {'manager': cfg.get('heating', 'heating')}
         if heating['manager'] == 'scripts':
             heating['on'] = cfg.get('heating/scripts', 'switchon')
@@ -166,9 +166,12 @@ def parse_main_settings(cfg):
         else:
             raise ValueError('invalid value `{}` for heating manager'.format(heating['manager']))
         
+        logger.debug('parsing thermometer settings')
+        _t_ref = cfg.get('thermometer', 't_ref')
+        _t_raw = cfg.get('thermometer', 't_raw')
         thermometer = {'script': cfg.get('thermometer', 'thermometer'),
-                       't_ref': [int(t) for t in cfg.get('thermometer', 't_ref').split(',')],
-                       't_raw': [int(t) for t in cfg.get('thermometer', 't_raw').split(',')]}
+                       't_ref': [float(t) for t in _t_ref.split(',')] if _t_ref else [],
+                       't_raw': [float(t) for t in _t_raw.split(',')] if _t_raw else []}
         
         _scale = cfg.get('thermometer', 'scale', fallback='celsius').casefold()
         if _scale not in ('celsius', 'fahrenheit'):
@@ -193,6 +196,7 @@ def parse_main_settings(cfg):
         else:
             raise ValueError('invalid value `{}` for thermometer'.format(thermometer['script']))
         
+        logger.debug('parsing socket settings')
         host = cfg.get('socket', 'host', fallback=common.SOCKET_DEFAULT_HOST)
         port = cfg.getint('socket', 'port', fallback=common.SOCKET_DEFAULT_PORT)
             
@@ -201,6 +205,7 @@ def parse_main_settings(cfg):
             # the daemon and the resulting log file can be messy
             raise OverflowError('socket port {:d} is outside range 0-65535'.format(port))
         
+        logger.debug('parsing email settings')
         eserver = cfg.get('email', 'server').split(':')
         euser = cfg.get('email', 'user', fallback='')
         epwd = cfg.get('email', 'password', fallback='')

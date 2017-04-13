@@ -19,6 +19,7 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import sys
 import json
 import logging
 import jsonschema
@@ -41,7 +42,7 @@ from .common import LogStyleAdapter, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-04-04'
+__updated__ = '2017-04-10'
 __version__ = '1.6'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -322,7 +323,7 @@ class TimeTable(object):
         return deepcopy(settings)
     
     
-    @transactional
+    @transactional()
     def __setstate__(self, state):
         """Set new internal state.
         
@@ -858,7 +859,12 @@ class TimeTable(object):
         if target_time is None:
             target_time = datetime.now()
         elif not isinstance(target_time, datetime):
-            raise TypeError('target_temperature() requires a datetime object')
+            try:
+                target_time = datetime.fromtimestamp(target_time)
+            except TypeError:
+                raise TypeError('target_temperature() requires a datetime '
+                                'object or a float timestamp, `{}` given'
+                                .format(target_time))
         
         logger.debug('getting target temperature for {}', target_time)
         

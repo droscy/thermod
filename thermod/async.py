@@ -141,7 +141,7 @@ class ControlSocket(Thread):
         #run_app(self.app, host=self.host, port=self.port)
         
         loop = self.app.loop
-        loop.run_until_complete(app.startup())
+        loop.run_until_complete(self.app.startup())
         handler = self.app.make_handler()
         
         srv = loop.run_until_complete(loop.create_server(handler, self.host, self.port))
@@ -151,10 +151,11 @@ class ControlSocket(Thread):
             loop.run_forever()
         
         except:
-            # TODO
+            # TODO gestire le eccezioni
             raise
         
         finally:
+            # TODO mettere messaggi di debug
             srv.close()
             loop.run_until_complete(srv.wait_closed())
             loop.run_until_complete(self.app.shutdown())
@@ -178,6 +179,8 @@ async def exceptions_middleware(app, handler):
     """Handle exceptions raised during HTTP requests."""
     
     async def exceptions_handler(request):
+        #pippo = request.transport.get_extra_info('peername')
+        #print(len(pippo), pippo[0], pippo[1])
         logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
         logger.info('received "{} {}" request', request.method, request.url.path)
         
@@ -263,6 +266,7 @@ async def exceptions_middleware(app, handler):
                                      reason=message,
                                      data={RSP_ERROR: message, RSP_FULLMSG: str(te)})
         
+        # TODO gestire anche CancelledError
         except Exception as e:
             # this is an unhandled exception, a critical message is printed
             if request.method == 'POST':
@@ -287,7 +291,7 @@ async def exceptions_middleware(app, handler):
                                            RSP_FULLMSG: '{}: {}'.format(message, e)})
         
         finally:
-            logger.debug('response ready')
+            logger.debug('sending back response')
         
         return response
     
@@ -306,11 +310,11 @@ async def GET_handler(request):
     action = request.match_info['action']
     
     if action in REQ_PATH_VERSION:
-        logger.debug('sending back Thermod version')
+        logger.debug('preparing response with Thermod version')
         response = json_response(status=200, data={RSP_VERSION: PROGRAM_VERSION})
     
     elif action in REQ_PATH_SETTINGS:
-        logger.debug('sending back Thermod settings')
+        logger.debug('preparing response with Thermod settings')
         
         with lock:
             settings = timetable.settings()
@@ -321,7 +325,7 @@ async def GET_handler(request):
                                  text=settings)
     
     elif action in REQ_PATH_HEATING:
-        logger.debug('sending back Thermod current status')
+        logger.debug('preparing response with Thermod current status')
         
         with lock:
             last_updt = time.time()
@@ -348,10 +352,13 @@ async def GET_handler(request):
     
     elif action in REQ_PATH_MONITOR:
         logger.debug('enqueuing new long-polling monitor request')
-        
         future = asyncio.Future(loop=request.app.loop)
         await request.app['monitors'].put(future)
+        
+        logger.debug('waiting for timetable status change')
         status = await asyncio.wait_for(future, timeout=None, loop=request.app.loop)
+        
+        logger.debug('preparing response with monitor update')
         response = json_response(status=200,
                                  headers=_last_mod_hdr(status.timestamp),
                                  data=status._asdict())
@@ -361,6 +368,7 @@ async def GET_handler(request):
         logger.warning('{} "{} {}" received', message.lower(), request.method, request.url.path)
         response = json_response(status=404, reason=message, data={RSP_ERROR: message})
     
+    logger.debug('response ready')
     return response
 
 
