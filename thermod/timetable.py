@@ -19,31 +19,28 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import os
 import sys
 import json
 import logging
 import jsonschema
-import os.path
 import time
 import math
 import asyncio
+import shutil
 
 from copy import deepcopy
 from datetime import datetime
-
-# backward compatibility for Python 3.4 (TODO check for better handling)
-if sys.version[0:3] >= '3.5':
-    from json.decoder import JSONDecodeError
-else:
-    JSONDecodeError = ValueError
+from tempfile import gettempdir
+from json.decoder import JSONDecodeError
 
 from . import utils
 from .common import LogStyleAdapter, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-04-10'
-__version__ = '1.6'
+__updated__ = '2017-04-14'
+__version__ = '1.7'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -300,16 +297,17 @@ class TimeTable(object):
     
     
     def __getstate__(self):
-        """Validate the internal state and return it as a dictonary.
+        """Return the internal state as a dictonary.
         
         The returned dictonary is a deep copy of the internal state.
-        The validation is performed even if `TimeTable._has_been_validated`
-        is True.
+        The validation is performed only if `TimeTable._has_been_validated`
+        is `False`.
         
-        @exception jsonschema.ValidationError if the internal state is invalid
+        @exception jsonschema.ValidationError if the validation has been
+            performed and internal state is invalid.
         """
         
-        logger.debug('validating timetable and returning internal state')
+        logger.debug('retrieving internal state')
             
         settings = {JSON_STATUS: self._status,
                     JSON_DIFFERENTIAL: self._differential,
@@ -317,7 +315,9 @@ class TimeTable(object):
                     JSON_TEMPERATURES: self._temperatures,
                     JSON_TIMETABLE: self._timetable}
         
-        jsonschema.validate(settings, JSON_SCHEMA)
+        if not self._has_been_validated:
+            logger.debug('performing validation')
+            jsonschema.validate(settings, JSON_SCHEMA)
         
         logger.debug('the timetable is valid, returning internal state')
         return deepcopy(settings)
@@ -369,13 +369,14 @@ class TimeTable(object):
         logger.debug('new internal state set')
     
     
-    def _validate(self):
+    def _validate(self, force=False):
         """Validate the internal settings.
         
         A full validation is performed only if `TimeTable._has_been_validated`
-        is not `True`, otherwise silently exits without errors.
+        is `False` , otherwise silently exits without errors.
         
-        @exception jsonschema.ValidationError if internal settings are invalid
+        @exception jsonschema.ValidationError if the validation has been
+            performed and internal state is invalid.
         """
         
         if not self._has_been_validated:
@@ -387,13 +388,13 @@ class TimeTable(object):
             self._has_been_validated = True
     
     
-    def settings(self, indent=0, sort_keys=True):
+    def settings(self, indent=0, sort_keys=False):
         """Get internal settings as JSON string.
         
         To adhere to the JSON standard, the `+Infinite` value of grace time is
         converted to `None`, thus it will be `null` in the returned JSON string.
         
-        @exception jsonschema.ValidationError if internal settings are invalid
+        @exception ValueError if there is an invalid float in internal settings
         """
         
         state = self.__getstate__()
@@ -465,6 +466,7 @@ class TimeTable(object):
         pointed by `filepath` paramether (full path to file). If `filepath` is
         `None`, settings are saved to the internal TimeTable.filepath.
         
+        @exception ValueError if there is a 'NaN' or 'Infinite' float in internal settings
         @exception RuntimeError if no timetable JSON file is provided
         @exception jsonschema.ValidationError if internal settings are invalid
         @exception OSError if the file cannot be written or other OS related errors
@@ -480,17 +482,31 @@ class TimeTable(object):
             raise RuntimeError('no timetable file provided, cannot save data')
         
         # validate and retrive settings
+        self._has_been_validated = False
         settings = self.__getstate__()
         
         # convert possible Infinite grace_time to None
         if not math.isfinite(settings[JSON_GRACE_TIME]):
             settings[JSON_GRACE_TIME] = None
         
-        # if an old JSON file exists, load its content
+        # if an old JSON file exists, load its content and copy somewhere as backup
         try:
             logger.debug('reading old JSON file {}', filepath)
             with open(filepath, 'r') as file:
                 old_settings = json.load(file, parse_constant=utils.json_reject_invalid_float)
+            
+            bkp_file = os.path.join(gettempdir(), 'timetable.json.bkp')
+            
+            try:
+                os.remove(bkp_file)
+            except FileNotFoundError:
+                pass
+            
+            try:
+                logger.debug('saving old JSON file to backup file {}', bkp_file)
+                shutil.copy2(filepath, bkp_file)
+            except OSError as oe:
+                logger.debug('cannot save backup JSON file: {}', pe)
         
         except FileNotFoundError:
             logger.debug('old JSON file does not exist, skipping')
@@ -514,6 +530,14 @@ class TimeTable(object):
                     json.dump(old_settings, file, indent=2, sort_keys=True, allow_nan=False)
                 
                 raise
+            
+            else:
+                # removing backup file
+                try:
+                    logger.debug('removing backup JSON file')
+                    os.remove(bkp_file)
+                except FileNotFoundError:
+                    pass
         
         logger.debug('timetable saved')
     
