@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Draft long polling socket
+"""Control socket to manage Thermod from external applications.
 
 Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
 
@@ -30,7 +30,7 @@ from aiohttp.web import Application, json_response
 from email.utils import formatdate
 from datetime import datetime
 
-from . import timetable
+from . import timetable as tt
 from .common import LogStyleAdapter, ThermodStatus
 from .memento import memento
 from .heating import HeatingError
@@ -38,59 +38,31 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-04-04'
+__updated__ = '2017-04-14'
 __version__ = '0.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
 REQ_PATH_SETTINGS = ('settings', )
-REQ_PATH_HEATING = ('status', 'heating')
+REQ_PATH_HEATING = ('status', )
 REQ_PATH_VERSION = ('version', )
 REQ_PATH_TEAPOT = ('elena', 'tea')
 REQ_PATH_MONITOR = ('monitor', )
 
 REQ_SETTINGS_ALL = 'settings'
 #REQ_SETTINGS_DAYS = 'days'
-REQ_SETTINGS_STATUS = timetable.JSON_STATUS
-REQ_SETTINGS_T0 = timetable.JSON_T0_STR
-REQ_SETTINGS_TMIN = timetable.JSON_TMIN_STR
-REQ_SETTINGS_TMAX = timetable.JSON_TMAX_STR
-REQ_SETTINGS_DIFFERENTIAL = timetable.JSON_DIFFERENTIAL
-REQ_SETTINGS_GRACE_TIME = timetable.JSON_GRACE_TIME
+REQ_SETTINGS_STATUS = tt.JSON_STATUS
+REQ_SETTINGS_T0 = tt.JSON_T0_STR
+REQ_SETTINGS_TMIN = tt.JSON_TMIN_STR
+REQ_SETTINGS_TMAX = tt.JSON_TMAX_STR
+REQ_SETTINGS_DIFFERENTIAL = tt.JSON_DIFFERENTIAL
+REQ_SETTINGS_GRACE_TIME = tt.JSON_GRACE_TIME
 
 RSP_ERROR = 'error'
 RSP_MESSAGE = 'message'
 RSP_FULLMSG = 'explain'
 RSP_VERSION = 'version'
 
-
-#async def return_author(request):
-#    future = asyncio.Future(loop=request.app.loop)
-#    await request.app['q'].put(future)
-#    return web.json_response(await asyncio.wait_for(future, timeout=None, loop=request.app.loop))
-#
-#async def put_author(request):
-#    q = request.app['q']
-#    p = await request.post()
-#    a = p.get('author', 'unknown')
-#    print(a)
-#    for i in range(q.qsize()):
-#        q.get_nowait().set_result({'author': a})
-#    return web.Response()
-#
-#
-#loop = asyncio.get_event_loop()
-#app = web.Application(loop=loop)
-#queue = asyncio.Queue(loop=loop)
-#
-#app['q'] = queue
-#app.router.add_get('/', return_author)
-#app.router.add_post('/', put_author)
-#web.run_app(app, host='127.0.0.1', port=8080)
-
-
-
-### nuovo socket ###
 
 class ClientAddressLogAdapter(logging.LoggerAdapter):
     """Add client address and port to the logged messagges."""
@@ -137,9 +109,6 @@ class ControlSocket(Thread):
     #                port=self.server.server_address[1])
     
     def run(self):
-        #baselogger.info('control socket listening on {}:{}', self.host, self.port)
-        #run_app(self.app, host=self.host, port=self.port)
-        
         loop = self.app.loop
         loop.run_until_complete(self.app.startup())
         handler = self.app.make_handler()
@@ -166,7 +135,7 @@ class ControlSocket(Thread):
         
     
     def stop(self):
-        """Stop this control thread shutting down the internal HTTP server."""
+        """Stop the internal HTTP server."""
         self.app.loop.stop()
         baselogger.info('control socket halted')
 
@@ -179,15 +148,8 @@ async def exceptions_middleware(app, handler):
     """Handle exceptions raised during HTTP requests."""
     
     async def exceptions_handler(request):
-        #pippo = request.transport.get_extra_info('peername')
-        #print(len(pippo), pippo[0], pippo[1])
         logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
         logger.info('received "{} {}" request', request.method, request.url.path)
-        
-        #if request.method == 'POST':
-        #    # Saving timetable state for a manual restore in case of unknown
-        #    # errors or in case of errors updating more than one single setting.
-        #    restore_old_settings = memento(app['timetable'], exclude=['_lock'])
         
         try:
             response = await handler(request)
@@ -252,31 +214,21 @@ async def exceptions_middleware(app, handler):
                                         'daemon restart, they will be lost, '
                                         'try again in a couple of minutes')})
         
-        except HeatingError as he:
-            message = 'Heating Error'
-            logger.warning('{}: {}', message.lower(), he)
+        except asyncio.CancelledError as ce:
+            logger.debug('an asynchronous operation has been cancelled due to daemon shutdown')
+            
+            message = 'Thermod is shutting down'
             response = json_response(status=503,
                                      reason=message,
-                                     data={RSP_ERROR: message, RSP_FULLMSG: str(he)})
+                                     data={RSP_ERROR: message,
+                                           RSP_FULLMSG: message})
         
-        except ThermometerError as te:
-            message = 'Thermometer Error'
-            logger.warning('{}: {}', message.lower(), te)
-            response = json_response(status=503,
-                                     reason=message,
-                                     data={RSP_ERROR: message, RSP_FULLMSG: str(te)})
-        
-        # TODO gestire anche CancelledError
         except Exception as e:
             # this is an unhandled exception, a critical message is printed
             if request.method == 'POST':
                 logger.critical('cannot update settings, the POST request '
                                 'produced an unhandled {} exception',
                                 type(e).__name__, exc_info=True)
-                
-                # We execute a manual restore of the old settings to be
-                # sure to leave the timetable in a valid state.
-                #restore_old_settings()
             
             else:
                 logger.critical('the {} request produced an unhandled '
@@ -299,6 +251,15 @@ async def exceptions_middleware(app, handler):
 
 
 async def GET_handler(request):
+    """Manage the GET requests sending back data as JSON string.
+    
+    Three paths are supported: `/settings`, `/status` and `/monitor`. The first
+    returns all settings as stored in the 'timetable.json' file, the second
+    returns the current status of the whole thermostat (status, temperature,
+    target temperature, etc.), the last path is for long-polling update of
+    a monitor (the socket responds when there is a change in the status).
+    """
+    
     logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
     logger.debug('processing "{} {}" request', request.method, request.url.path)
     
@@ -327,17 +288,35 @@ async def GET_handler(request):
     elif action in REQ_PATH_HEATING:
         logger.debug('preparing response with Thermod current status')
         
-        with lock:
-            last_updt = time.time()
-            status = ThermodStatus(last_updt,
-                                   timetable.status,
-                                   heating.status,
-                                   thermometer.temperature,
-                                   timetable.target_temperature(last_updt))
+        try:
+            with lock:
+                last_updt = time.time()
+                status = ThermodStatus(last_updt,
+                                       timetable.status,
+                                       heating.status,
+                                       thermometer.temperature,
+                                       timetable.target_temperature(last_updt))
         
-        response = json_response(status=200,
-                                 headers=_last_mod_hdr(last_updt),
-                                 data=status._asdict())
+        except HeatingError as he:
+            message = 'Heating Error'
+            logger.warning('{}: {}', message.lower(), he)
+            response = json_response(status=503,
+                                     reason=message,
+                                     data={RSP_ERROR: message,
+                                           RSP_FULLMSG: str(he)})
+        
+        except ThermometerError as te:
+            message = 'Thermometer Error'
+            logger.warning('{}: {}', message.lower(), te)
+            response = json_response(status=503,
+                                     reason=message,
+                                     data={RSP_ERROR: message,
+                                           RSP_FULLMSG: str(te)})
+        
+        else:
+            response = json_response(status=200,
+                                     headers=_last_mod_hdr(last_updt),
+                                     data=status._asdict())
     
     elif action in REQ_PATH_TEAPOT:
         message = 'I\'m a teapot'
@@ -373,6 +352,38 @@ async def GET_handler(request):
 
 
 async def POST_handler(request):
+    """Manage the POST request updating timetable settings.
+    
+    With this request a client can update the settings of the daemon. The
+    request path is the same of the GET method and the new settings must
+    be present in the body of the request.
+    
+    Accepted settings in the body:
+        * `settings` to update the whole state: JSON encoded settings as
+          as found in timetable JSON file
+        
+        * `status` to update the internal status: accepted values
+          in thermod.JSON_ALL_STATUSES
+        
+        * `t0` to update the t0 temperature
+        
+        * `tmin` to update the min temperature
+        
+        * `tmax` to update the max temperature
+        
+        * `differential` to update the differential value
+        
+        * `grace_time` to update the grace time
+    
+    Any request that produces an error in updating internal settings,
+    restores the old state except when the settings were correcly updated
+    but they couldn't be saved to filesystem. In that situation a 503
+    status code is sent to the client, the internal settings are update
+    but not saved.
+    
+    @see thermod.timetable.TimeTable and its methods
+    """
+    
     logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
     logger.debug('processing "{} {}" request', request.method, request.url.path)
     
@@ -407,7 +418,6 @@ async def POST_handler(request):
                     # Some settings of timetable could have been updated,
                     # we notify this changes in order to check again the
                     # current temperature.
-                    
                     lock.notify_all()
                     raise
                 
@@ -416,13 +426,14 @@ async def POST_handler(request):
                     # manual restore of the old settings to be sure to
                     # leave the timetable in a valid state, then we
                     # re-raise the exception for default handling.
-                    
                     restore_old_settings()
                     raise
                 
-                message = 'all settings updated'
-                logger.info(message)
-                response = json_response(status=200, data={RSP_MESSAGE: message})
+                else:
+                    message = 'all settings updated'
+                    logger.info(message)
+                    response = json_response(status=200,
+                                             data={RSP_MESSAGE: message})
             
             # updating single settings
             elif postvars:
@@ -463,7 +474,7 @@ async def POST_handler(request):
                 
                 except jsonschema.ValidationError as jsve:
                     # This exception can be raised after having successfully
-                    # updated at least one settings, so any setting must
+                    # updated at least one settings, so all settings must
                     # be manually restored to the old state.
                     
                     logger.warning('cannot update {}: {}', list(jsve.path), jsve.message)
@@ -482,7 +493,7 @@ async def POST_handler(request):
                 
                 except ValueError as ve:
                     # This exception can be raised after having successfully
-                    # updated at least one settings, so any setting must
+                    # updated at least one settings, so all settings must
                     # be manually restored to the old state.
                     
                     logger.warning('cannot update {}: {}', var, ve)
@@ -502,7 +513,6 @@ async def POST_handler(request):
                     # Some settings of timetable could have been updated,
                     # we notify this changes in order to immediately check
                     # the current temperature.
-                    
                     lock.notify_all()
                     raise
                 
@@ -511,13 +521,13 @@ async def POST_handler(request):
                     # manual restore of the old settings to be sure to
                     # leave the timetable in a valid state, then we
                     # re-raise the exception for default handling.
-                    
                     restore_old_settings()
                     raise
                 
-                message = 'Settings updated'
-                logger.info('{}: {}', message.lower(), newvalues)
-                response = json_response(status=200, data={RSP_MESSAGE: '{}: {}'.format(message, newvalues)})
+                else:
+                    message = 'Settings updated'
+                    logger.info('{}: {}', message.lower(), newvalues)
+                    response = json_response(status=200, data={RSP_MESSAGE: '{}: {}'.format(message, newvalues)})
             
             else:  # No restore required here because no settings updated
                 logger.warning('cannot update settings, the POST request is empty')
