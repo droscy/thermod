@@ -35,7 +35,7 @@ from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
 
 from thermod import common, config
-from thermod.common import ScriptError, LogStyleAdapter
+from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus
 from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
 from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
 from thermod.timetable import TimeTable, JsonValueError
@@ -380,17 +380,17 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
             try:
                 with lock:
                     try:
-                        should_be_on = timetable.should_the_heating_be_on(
-                                            thermometer.temperature,
-                                            heating.status,
-                                            heating.switch_off_time)
+                        (should_be_on, status) = timetable.should_the_heating_be_on(
+                                                    thermometer.temperature,
+                                                    heating.status,
+                                                    heating.switch_off_time)
                         
                         _msg = ('status: {!r}, '
                                 'current: {:.1f}, '
                                 'target: {:.1f}').format(
-                                            should_be_on.status,
-                                            should_be_on.current_temperature,
-                                            should_be_on.target_temperature)
+                                            status.status,
+                                            status.current_temperature,
+                                            status.target_temperature)
                         
                         if should_be_on:
                             if not heating.is_on():
@@ -439,6 +439,12 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                     except HeatingError as he:
                         logger.error('error from heating: {}', he)
                         logger.debug(he.suberror)
+                    
+                    # TODO aggiungere un modo per segnalare un errore ai monitor
+                    # ad esempio aggiungendo il campo 'error' a ThermodStatus
+                    
+                    # We update all connected monitors.
+                    socket.update_monitors(status._replace(heating_status=heating.status))
                     
                     # A shutdown may have been requested before reaching
                     # this point and in such situation we don't have to

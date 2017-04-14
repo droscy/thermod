@@ -44,7 +44,7 @@ __version__ = '0.1'
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
 REQ_PATH_SETTINGS = ('settings', )
-REQ_PATH_HEATING = ('status', )
+REQ_PATH_STATUS = ('status', )
 REQ_PATH_VERSION = ('version', )
 REQ_PATH_TEAPOT = ('elena', 'tea')
 REQ_PATH_MONITOR = ('monitor', )
@@ -132,12 +132,17 @@ class ControlSocket(Thread):
             loop.run_until_complete(self.app.cleanup())
         
         loop.close()
-        
     
     def stop(self):
         """Stop the internal HTTP server."""
         self.app.loop.stop()
         baselogger.info('control socket halted')
+    
+    def update_monitors(self, status):
+        """Send new status to every connected monitor."""
+        # TODO mettere messaggi di debug
+        while not self.app['monitors'].empty():
+            self.app['monitors'].get_nowait().set_result(status)
 
 
 def _last_mod_hdr(last_mod_time):
@@ -285,7 +290,7 @@ async def GET_handler(request):
                                  headers=_last_mod_hdr(last_updt),
                                  text=settings)
     
-    elif action in REQ_PATH_HEATING:
+    elif action in REQ_PATH_STATUS:
         logger.debug('preparing response with Thermod current status')
         
         try:
@@ -355,8 +360,8 @@ async def POST_handler(request):
     """Manage the POST request updating timetable settings.
     
     With this request a client can update the settings of the daemon. The
-    request path is the same of the GET method and the new settings must
-    be present in the body of the request.
+    request path is `/settings` the new settings must be present in the body
+    of the request itself.
     
     Accepted settings in the body:
         * `settings` to update the whole state: JSON encoded settings as

@@ -33,9 +33,10 @@ from copy import deepcopy
 from datetime import datetime
 from tempfile import gettempdir
 from json.decoder import JSONDecodeError
+from collections import namedtuple
 
 from . import utils
-from .common import LogStyleAdapter, TIMESTAMP_MAX_VALUE
+from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
@@ -129,36 +130,6 @@ JSON_SCHEMA = {
 class JsonValueError(ValueError):
     """Exception for invalid settings values in JSON file or socket messages."""
     pass
-
-
-
-class ShouldBeOn(int):
-    """Behaves as a boolean with additional attribute for heating status."""
-    
-    def __new__(cls, should_be_on, *args, **kwargs):
-        return int.__new__(cls, bool(should_be_on))
-    
-    def __init__(self, should_be_on, status=None, curr_temp=None, target_temp=None):
-        self.status = status
-        self.current_temperature = (curr_temp or float('NaN'))
-        self.target_temperature = (target_temp or float('NaN'))
-    
-    def __repr__(self, *args, **kwargs):
-        return '{module}.{cls}({should!r}, {status!r}, {curr!r}, {target!r})'.format(
-                    module=self.__module__,
-                    cls=self.__class__.__name__,
-                    should=bool(self),
-                    status=self.status,
-                    curr=self.current_temperature,
-                    target=self.target_temperature)
-    
-    def __str__(self, *args, **kwargs):
-        return str(bool(self))
-    
-    @property
-    def should_be_on(self):
-        return bool(self)
-
 
 
 class TimeTable(object):
@@ -999,6 +970,10 @@ class TimeTable(object):
         
         logger.debug('the heating should be {}', (should_be_on and 'ON' or 'OFF'))
         
-        return ShouldBeOn(should_be_on, self._status, current, target)
+        return (should_be_on, ThermodStatus(target_time.timestamp(),
+                                            self._status,
+                                            heating_status,
+                                            current,
+                                            target))
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
