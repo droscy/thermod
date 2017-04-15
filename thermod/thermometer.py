@@ -19,7 +19,6 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys
 import json
 import shlex
 import logging
@@ -27,20 +26,15 @@ import subprocess
 import numpy
 
 from copy import deepcopy
-#from json.decoder import JSONDecodeError
+from json.decoder import JSONDecodeError
 from threading import Thread, Event
 from collections import deque
+
 from .utils import check_script
 from .common import ScriptError, LogStyleAdapter
 
-# backward compatibility for Python 3.4 (TODO check for better handling)
-if sys.version[0:3] >= '3.5':
-    from json.decoder import JSONDecodeError
-else:
-    JSONDecodeError = ValueError
-
 __date__ = '2016-02-04'
-__updated__ = '2017-03-19'
+__updated__ = '2017-04-15'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 

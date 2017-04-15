@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-04-14'
+__updated__ = '2017-04-15'
 __version__ = '0.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -219,7 +219,7 @@ async def exceptions_middleware(app, handler):
                                         'daemon restart, they will be lost, '
                                         'try again in a couple of minutes')})
         
-        except asyncio.CancelledError as ce:
+        except asyncio.CancelledError:
             logger.debug('an asynchronous operation has been cancelled due to daemon shutdown')
             
             message = 'Thermod is shutting down'

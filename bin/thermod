@@ -35,7 +35,7 @@ from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
 
 from thermod import common, config
-from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus
+from thermod.common import ScriptError, LogStyleAdapter
 from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
 from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
 from thermod.timetable import TimeTable, JsonValueError
@@ -44,7 +44,7 @@ from thermod.async import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-03-18'
+__updated__ = '2017-04-15'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -392,22 +392,25 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                                             status.current_temperature,
                                             status.target_temperature)
                         
-                        if should_be_on:
-                            if not heating.is_on():
+                        if should_be_on == status.heating_status:
+                            # The heating is already as it should be, so an
+                            # info message is printed only if some settings
+                            # have been changed from outside (the timeout has
+                            # not occurred).
+                            log = (logger.info if not cycle_timeout else logger.debug)
+                            log('heating already {} ({})',
+                                ('ON' if status.heating_status else 'OFF'),
+                                _msg)
+                        
+                        else:  # the heating must be switched
+                            if should_be_on:
                                 heating.switch_on()
-                                logger.info('heating switched ON ({})', _msg)
-                            elif not cycle_timeout:
-                                logger.info('heating already ON ({})', _msg)
                             else:
-                                logger.debug('heating already ON ({})', _msg)
-                        else:
-                            if heating.is_on():
                                 heating.switch_off()
-                                logger.info('heating switched OFF ({})', _msg)
-                            elif not cycle_timeout:
-                                logger.info('heating already OFF ({})', _msg)
-                            else:
-                                logger.debug('heating already OFF ({})', _msg)
+                            
+                            logger.info('heating switched {} ({})',
+                                        ('ON' if should_be_on else 'OFF'),
+                                        _msg)
                     
                     except ValidationError as jsve:
                         # The internal settings must be valid otherwise an error

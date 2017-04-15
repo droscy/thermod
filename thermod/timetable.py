@@ -20,7 +20,6 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import os
-import sys
 import json
 import logging
 import jsonschema
@@ -33,14 +32,13 @@ from copy import deepcopy
 from datetime import datetime
 from tempfile import gettempdir
 from json.decoder import JSONDecodeError
-from collections import namedtuple
 
 from . import utils
 from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-04-14'
+__updated__ = '2017-04-15'
 __version__ = '1.7'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -477,7 +475,7 @@ class TimeTable(object):
                 logger.debug('saving old JSON file to backup file {}', bkp_file)
                 shutil.copy2(filepath, bkp_file)
             except OSError as oe:
-                logger.debug('cannot save backup JSON file: {}', pe)
+                logger.debug('cannot save backup JSON file: {}', oe)
         
         except FileNotFoundError:
             logger.debug('old JSON file does not exist, skipping')
