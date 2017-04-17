@@ -25,7 +25,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2017-03-27'
+__updated__ = '2017-04-17'
 
 
 # logger common settings
@@ -80,9 +80,9 @@ try:
     _tmv = datetime(9999,12,31).timestamp()
 except OverflowError:
     _tmv = sys.maxsize
-finally:
-    TIMESTAMP_MAX_VALUE = _tmv
-    """Max value for a POSIX timestamp in runnin platform."""
+
+TIMESTAMP_MAX_VALUE = _tmv
+"""Max value for a POSIX timestamp in runnin platform."""
 
 
 ThermodStatus = namedtuple('ThermodStatus',

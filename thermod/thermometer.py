@@ -33,8 +33,21 @@ from collections import deque
 from .utils import check_script
 from .common import ScriptError, LogStyleAdapter
 
+try:
+    # Try importing spidev or gpiozero module.
+    # If succeded spcific classes for  Raspberry Pi are defined, otherwise
+    # fake classes are created at the end of this file.
+    from spidev import SpiDev
+except ImportError:
+    SpiDev = False
+    try:
+        from gpiozero import MCP3008
+    except ImportError:
+        MCP3008 = False
+
+
 __date__ = '2016-02-04'
-__updated__ = '2017-04-15'
+__updated__ = '2017-04-17'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -160,21 +173,21 @@ class BaseThermometer(object):
     @property
     def temperature(self):
         """The calibrated temperature."""
-        return self._calibrate(self.raw_temperature)
+        return round(self._calibrate(self.raw_temperature), 2)  # additional decimal are meaningless
     
     def to_celsius(self):
         """Return the current temperature in Celsius degrees."""
         if self._scale == BaseThermometer.DEGREE_CELSIUS:
             return self.temperature
         else:
-            return fahrenheit2celsius(self.temperature)
+            return round(fahrenheit2celsius(self.temperature), 2)  # additional decimal are meaningless
     
     def to_fahrenheit(self):
         """Return the current temperature in Fahrenheit dgrees."""
         if self._scale == BaseThermometer.DEGREE_FAHRENHEIT:
             return self.temperature
         else:
-            return celsius2fahrenheit(self.temperature)
+            return round(celsius2fahrenheit(self.temperature), 2)  # additional decimal are meaningless
 
 
 class FakeThermometer(BaseThermometer):
@@ -189,7 +202,7 @@ class FakeThermometer(BaseThermometer):
         if self._scale == BaseThermometer.DEGREE_CELSIUS:
             return t
         else:
-            return celsius2fahrenheit(t)
+            return round(celsius2fahrenheit(t), 2)
 
 
 class ScriptThermometer(BaseThermometer):
@@ -315,20 +328,43 @@ class ScriptThermometer(BaseThermometer):
                                          'invalid value', str(vte),
                                          self._script[0])
         
+        # No round(t, 2) on returned value becasue the external script can be
+        # connected to a very sensitive and calibrated thermometer.
         logger.debug('current temperature: {:.2f}', t)
         return t
 
 
-try:
-    # Try importing gpiozero module, if succeded spcific classes for
-    # Raspberry Pi are defined, otherwise fake classes are created in the
-    # `except` section below.
+if SpiDev:
+    logger.debug('spidev module imported, defining custom MCP3008 class')
     
-    # IMPORTANT: for any new classes defined here, a fake one must be defined in except section!
+    class MCP3008(object):
+        
+        def __init__(self, channel):
+            self._spi = SpiDev()
+            self._spi.open(0,0)
+            self._spi.max_speed_hz = 100000
+            self._channel = channel
+        
+        @property
+        def channel(self):
+            return self._channel
+        
+        @property
+        def value(self):
+            raw = self._spi.xfer2([1, (8 + self._channel) << 4, 0])
+            data = ((raw[1] & 3) << 8) + raw[2]
+            return (data / 1023.0)
+        
+        def close(self):
+            self._spi.close()
+
+
+if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
+    # IMPORTANT: for any new classes defined here, a fake one must be defined
+    # in else section!
     
-    logger.debug('importing gpiozero module')
-    import gpiozero
-    
+    logger.debug('defining specific classes for Raspberry Pi thermometer')
+
     # TODO inserire documentazione su come creare questa board con TMP36 e su
     # come viene misurata la temperatura facendo la media di più valori.
     class PiAnalogZeroThermometer(BaseThermometer):
@@ -363,13 +399,14 @@ try:
                     raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
             
             self._vref = ((3.32/(3.32+7.5))*3.3*1000)
-            self._adc = [gpiozero.MCP3008(channel=c) for c in channels]
+            
+            logger.debug('init A/D converter with channels {}', channels)
+            self._adc = [MCP3008(channel=c) for c in channels]
             
             # Allocate the queue for the last 30 temperatures to be averaged. The
             # value `30` covers a period of 3 minutes because the sleep time between
             # two measures is 6 seconds: 6*30 = 180 seconds = 3 minutes.
-            maxlen = 30
-            self._temperatures = deque([self.realtime_raw_temperature for t in range(maxlen)], maxlen)
+            self._temperatures = deque([self.realtime_raw_temperature], maxlen=30)
             
             # start averaging thread
             self._stop = Event()
@@ -399,7 +436,7 @@ try:
             """
             
             temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
-            return round(sum(temperatures) / len(temperatures), 3)  # additional decimal are meaningless
+            return round(sum(temperatures) / len(temperatures), 2)  # additional decimal are meaningless
         
         def _update_temperatures(self):
             """Start a cycle to update the list of last measured temperatures.
@@ -412,8 +449,9 @@ try:
             logger.debug('starting temperature updating cycle')
             
             while not self._stop.wait(6):
-                logger.debug('appending new realtime temperature')
-                self._temperatures.append(self.realtime_raw_temperature)
+                temp = self.realtime_raw_temperature
+                self._temperatures.append(temp)
+                logger.debug('added new realtime temperature {:.2f}', temp)
         
         @property
         def raw_temperature(self):
@@ -426,32 +464,38 @@ try:
             
             logger.debug('retriving current raw temperature')
             
-            temperatures = list(self._temperatures)
-            temperatures.sort()
+            skip = 5  # least and greatest temperatures to be excluded
+            elements = len(self._temperatures)
             
-            skip = 5
-            shortened = temperatures[skip:(len(temperatures)-skip)]
+            if elements < (2*skip + 1):
+                shortened = self._temperatures
             
-            return round(sum(shortened) / len(shortened), 3)  # additional decimal are meaningless
+            else:
+                temperatures = list(self._temperatures)
+                temperatures.sort()
+                shortened = temperatures[skip:(elements-skip)]
+            
+            return round(sum(shortened) / len(shortened), 2)  # additional decimal are meaningless
         
         def __del__(self):
             """Stop the temperature-averaging thread."""
             # cannot use logger here, the logger could be already unloaded
             self._stop.set()
-            self._averaging_thread.join(6)
+            self._averaging_thread.join(10)
             
             for adc in self._adc:
                 adc.close()
 
-except ImportError as ie:
-    # The running system is not a Raspberry Pi or the gpiozero module is not
-    # installed, in both case fake Pi* classes are defined. If an object of the
-    # following classes is created, an exception is raised.
+else:
+    # The running system is not a Raspberry Pi or both spidev and gpiozero
+    # modules are not installed, in either cases fake Pi* classes are defined.
+    # If an object of the following classes is created, an exception is raised.
     
-    logger.debug('module gpiozero not found, probably the running system is not a Raspberry Pi')
+    logger.debug('modules spidev and gpiozero not found, '
+                 'probably the running system is not a Raspberry Pi')
     
     class PiAnalogZeroThermometer(BaseThermometer):
         def __init__(self, *args, **kwargs):
-            raise ThermometerError('module gpiozero not loaded')
+            raise ThermometerError('modules spidev and gpiozero not loaded')
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

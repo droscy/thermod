@@ -31,8 +31,17 @@ from json.decoder import JSONDecodeError
 from .utils import check_script
 from .common import ScriptError, LogStyleAdapter
 
+try:
+    # Try importing RPi.GPIO module, if succeded spcific classes for
+    # Raspberry Pi are defined, otherwise fake classes are created at the
+    # end of this file.
+    import RPi.GPIO as GPIO
+except ImportError:
+    GPIO = False
+
+
 __date__ = '2015-12-30'
-__updated__ = '2017-04-15'
+__updated__ = '2017-04-16'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -384,15 +393,11 @@ class ScriptHeating(BaseHeating):
         return self._is_on
 
 
-try:
-    # Try importing RPi.GPIO module, if succeded spcific classes for
-    # Raspberry Pi are defined, otherwise fake classes are created in the
-    # `except` section below.
+if GPIO:
+    # IMPORTANT: for any new classes defined here, a fake one must be defined
+    # in else section below!
     
-    # IMPORTANT: for any new classes defined here, a fake one must be defined in except section!
-    
-    logger.debug('importing RPi.GPIO module')
-    import RPi.GPIO as GPIO
+    logger.debug('RPi.GPIO module imported')
     GPIO.setmode(GPIO.BCM)
     
     class PiPinsRelayHeating(BaseHeating):
@@ -478,7 +483,7 @@ try:
             # cannot use logger here, the logger could be already unloaded
             self.cleanup(self._pins)
 
-except ImportError as ie:
+else:
     # The running system is not a Raspberry Pi or the RPi.GPIO module is not
     # installed, in both case fake Pi* classes are defined. If an object of the
     # following classes is created, an exception is raised.

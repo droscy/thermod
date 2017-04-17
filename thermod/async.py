@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-04-15'
+__updated__ = '2017-04-17'
 __version__ = '0.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -299,7 +299,7 @@ async def GET_handler(request):
                 status = ThermodStatus(last_updt,
                                        timetable.status,
                                        heating.status,
-                                       thermometer.temperature,
+                                       timetable.degrees(thermometer.temperature),
                                        timetable.target_temperature(last_updt))
         
         except HeatingError as he:
