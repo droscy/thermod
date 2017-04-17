@@ -112,16 +112,16 @@
 			// retrieve heating status from daemon and refresh header web page
 			function get_heating_status_and_refresh()
 			{
-				$.get('info.php', {'info':'heating', 'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
+				$.get('info.php', {'info':'status', 'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
 				{
 					if(!('error' in data))
 					{
 						var curr = data['temperature'];
 						var target = data['target'];
 						
-						$('#current-status').prop('value', (data['status']==1 ? 'On' : 'Off'));
-						$('#current-temperature').prop('value', data['temperature'].toFixed(2));
-						$('#target-temperature').prop('value', (data['target'] ? data['target'].toFixed(2) : 'n.a.'));
+						$('#current-status').prop('value', (data['heating_status']==1 ? 'On' : 'Off'));
+						$('#current-temperature').prop('value', data['current_temperature'].toFixed(2));
+						$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(2) : 'n.a.'));
 					}
 					else
 					{

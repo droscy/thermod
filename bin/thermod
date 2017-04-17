@@ -39,12 +39,11 @@ from thermod.common import ScriptError, LogStyleAdapter
 from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
 from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
 from thermod.timetable import TimeTable, JsonValueError
-#from thermod.socket import ControlThread
-from thermod.async import ControlSocket
+from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-04-15'
+__updated__ = '2017-04-17'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -53,10 +52,6 @@ __updated__ = '2017-04-15'
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
 # TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
 # TODO rivedere uso del grace-time
-
-# TODO decidere se creare una classe Status da passare a Timetable per gestire
-# lo stato corrent in maniera visuale su Raspberry Pi, oppure se creare un
-# nuovo PiTimetable che deriva da Timetable e utilizza anche l'hardware del Pi.
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK
