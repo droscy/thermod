@@ -26,11 +26,9 @@ import jsonschema
 import time
 import math
 import asyncio
-import shutil
 
 from copy import deepcopy
 from datetime import datetime
-from tempfile import gettempdir
 from json.decoder import JSONDecodeError
 
 from . import utils
@@ -38,7 +36,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-04-15'
+__updated__ = '2017-04-18'
 __version__ = '1.7'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -128,6 +126,31 @@ JSON_SCHEMA = {
 class JsonValueError(ValueError):
     """Exception for invalid settings values in JSON file or socket messages."""
     pass
+
+
+class ShouldBeOn(int):
+    """Behaves as a boolean with a Thermod status attribute."""
+    
+    def __new__(cls, should_be_on, *args, **kwargs):
+        return int.__new__(cls, bool(should_be_on))
+    
+    def __init__(self, should_be_on, status=None):
+        self.status = status
+    
+    def __repr__(self, *args, **kwargs):
+        return '{module}.{cls}({should!r}, {status!r})'.format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    should=bool(self),
+                    status=self.status)
+    
+    def __str__(self, *args, **kwargs):
+        return str(bool(self))
+    
+    @property
+    def should_be_on(self):
+        return bool(self)
+
 
 
 class TimeTable(object):
@@ -458,24 +481,11 @@ class TimeTable(object):
         if not math.isfinite(settings[JSON_GRACE_TIME]):
             settings[JSON_GRACE_TIME] = None
         
-        # if an old JSON file exists, load its content and copy somewhere as backup
+        # if an old JSON file exists, load its content for later restore if necessary
         try:
             logger.debug('reading old JSON file {}', filepath)
             with open(filepath, 'r') as file:
                 old_settings = json.load(file, parse_constant=utils.json_reject_invalid_float)
-            
-            bkp_file = os.path.join(gettempdir(), 'timetable.json.bkp')
-            
-            try:
-                os.remove(bkp_file)
-            except FileNotFoundError:
-                pass
-            
-            try:
-                logger.debug('saving old JSON file to backup file {}', bkp_file)
-                shutil.copy2(filepath, bkp_file)
-            except OSError as oe:
-                logger.debug('cannot save backup JSON file: {}', oe)
         
         except FileNotFoundError:
             logger.debug('old JSON file does not exist, skipping')
@@ -499,14 +509,6 @@ class TimeTable(object):
                     json.dump(old_settings, file, indent=2, sort_keys=True, allow_nan=False)
                 
                 raise
-            
-            else:
-                # removing backup file
-                try:
-                    logger.debug('removing backup JSON file')
-                    os.remove(bkp_file)
-                except FileNotFoundError:
-                    pass
         
         logger.debug('timetable saved')
     
@@ -718,7 +720,7 @@ class TimeTable(object):
         logger.debug('new tmax temperature set: {}', nvalue)
     
     
-    @transactional
+    @transactional()
     def update(self, day, hour, quarter, temperature):
         """Update the target temperature in internal timetable."""
         # TODO scrivere documentazione
@@ -968,10 +970,11 @@ class TimeTable(object):
         
         logger.debug('the heating should be {}', (should_be_on and 'ON' or 'OFF'))
         
-        return (should_be_on, ThermodStatus(target_time.timestamp(),
-                                            self._status,
-                                            heating_status,
-                                            current,
-                                            target))
+        return ShouldBeOn(should_be_on,
+                          ThermodStatus(target_time.timestamp(),
+                                        self._status,
+                                        heating_status,
+                                        current,
+                                        target))
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

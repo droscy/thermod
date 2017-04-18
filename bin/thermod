@@ -43,7 +43,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-04-17'
+__updated__ = '2017-04-18'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -375,26 +375,26 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
             try:
                 with lock:
                     try:
-                        (should_be_on, status) = timetable.should_the_heating_be_on(
-                                                    thermometer.temperature,
-                                                    heating.status,
-                                                    heating.switch_off_time)
+                        should_be_on = timetable.should_the_heating_be_on(
+                                            thermometer.temperature,
+                                            heating.status,
+                                            heating.switch_off_time)
                         
                         _msg = ('status: {!r}, '
                                 'current: {:.1f}, '
                                 'target: {:.1f}').format(
-                                            status.status,
-                                            status.current_temperature,
-                                            status.target_temperature)
+                                    should_be_on.status.status,
+                                    should_be_on.status.current_temperature,
+                                    float(should_be_on.status.target_temperature or 'NaN'))
                         
-                        if should_be_on == status.heating_status:
+                        if should_be_on == should_be_on.status.heating_status:
                             # The heating is already as it should be, so an
                             # info message is printed only if some settings
                             # have been changed from outside (the timeout has
                             # not occurred).
                             log = (logger.info if not cycle_timeout else logger.debug)
                             log('heating already {} ({})',
-                                ('ON' if status.heating_status else 'OFF'),
+                                ('ON' if should_be_on.status.heating_status else 'OFF'),
                                 _msg)
                         
                         else:  # the heating must be switched
@@ -442,7 +442,7 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                     # ad esempio aggiungendo il campo 'error' a ThermodStatus
                     
                     # We update all connected monitors.
-                    socket.update_monitors(status._replace(heating_status=heating.status))
+                    socket.update_monitors(should_be_on.status._replace(heating_status=heating.status))
                     
                     # A shutdown may have been requested before reaching
                     # this point and in such situation we don't have to

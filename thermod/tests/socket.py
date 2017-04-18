@@ -21,26 +21,31 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import copy
-import json
+#import json
 import logging
 import tempfile
 import unittest
 import requests
+import threading
+import asyncio
 
 import thermod.socket as socket
-from thermod import TimeTable, BaseHeating, ControlThread, utils, common, timetable
+from thermod import TimeTable, BaseHeating, ControlSocket, utils, common, timetable
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-03-12'
+__updated__ = '2017-04-17'
 __url_settings__ = 'http://localhost:4344/settings'
-__url_heating__ = 'http://localhost:4344/heating'
+__url_heating__ = 'http://localhost:4344/status'
 
 
 class TestSocket(unittest.TestCase):
     """Test cases for `thermod.socket` module."""
 
     def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.lock = threading.Condition()
+        
         self.timetable = TimeTable()
         fill_timetable(self.timetable)
         
@@ -50,11 +55,13 @@ class TestSocket(unittest.TestCase):
         self.heating = BaseHeating()
         self.thermometer = FakeThermometer()
         
-        self.control_socket = ControlThread(self.timetable,
+        self.control_socket = ControlSocket(self.timetable,
                                             self.heating,
                                             self.thermometer,
                                             common.SOCKET_DEFAULT_HOST,
-                                            common.SOCKET_DEFAULT_PORT)
+                                            common.SOCKET_DEFAULT_PORT,
+                                            self.lock,
+                                            self.loop)
         self.control_socket.start()
    
 
@@ -94,9 +101,9 @@ class TestSocket(unittest.TestCase):
         r.close()
         
         # check returned heating informations
-        self.assertEqual(heating[socket.REQ_HEATING_STATUS], self.heating.status)
-        self.assertAlmostEqual(heating[socket.REQ_HEATING_TEMPERATURE], self.thermometer.temperature, delta=0.1)
-        self.assertEqual(heating[socket.REQ_HEATING_TARGET_TEMP], self.timetable.target_temperature())
+        self.assertEqual(heating[socket.RSP_STATUS_HEATING_STATUS], self.heating.status)
+        self.assertAlmostEqual(heating[socket.RSP_STATUS_CURR_TEMP], self.thermometer.temperature, delta=0.1)
+        self.assertEqual(heating[socket.RSP_STATUS_TARGET_TEMP], self.timetable.target_temperature())
     
     
     def test_post_wrong_messages(self):
@@ -115,15 +122,15 @@ class TestSocket(unittest.TestCase):
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
-        # wrong JSON data for days
-        wrong = requests.post(__url_settings__, {socket.REQ_SETTINGS_DAYS: '{"monday":["invalid"]}'})
-        self.assertEqual(wrong.status_code, 400)
-        wrong.close()
-        
-        # invalid JSON syntax for days
-        wrong = requests.post(__url_settings__, {socket.REQ_SETTINGS_DAYS: '{"monday":["missing quote]}'})
-        self.assertEqual(wrong.status_code, 400)
-        wrong.close()
+        ## wrong JSON data for days
+        #wrong = requests.post(__url_settings__, {socket.REQ_SETTINGS_DAYS: '{"monday":["invalid"]}'})
+        #self.assertEqual(wrong.status_code, 400)
+        #wrong.close()
+        #
+        ## invalid JSON syntax for days
+        #wrong = requests.post(__url_settings__, {socket.REQ_SETTINGS_DAYS: '{"monday":["missing quote]}'})
+        #self.assertEqual(wrong.status_code, 400)
+        #wrong.close()
         
         # wrong JSON data for settings
         settings = self.timetable.__getstate__()
@@ -171,20 +178,20 @@ class TestSocket(unittest.TestCase):
         sunday['h06'][2] = 46
         sunday['h07'][3] = 47
         
-        r = requests.post(__url_settings__,
-            {socket.REQ_SETTINGS_DAYS:
-                json.dumps({utils.json_get_day_name(5): friday,
-                            utils.json_get_day_name(7): sunday})})
-        
-        self.assertEqual(r.status_code, 200)
-        new_set = self.timetable.__getstate__()
-        new_friday = new_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(5)]
-        new_sunday = new_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(7)]
-        
-        self.assertEqual(new_friday['h12'][0], 44)
-        self.assertEqual(new_friday['h15'][1], 45)
-        self.assertEqual(new_sunday['h06'][2], 46)
-        self.assertEqual(new_sunday['h07'][3], 47)
+        #r = requests.post(__url_settings__,
+        #    {socket.REQ_SETTINGS_DAYS:
+        #        json.dumps({utils.json_get_day_name(5): friday,
+        #                    utils.json_get_day_name(7): sunday})})
+        #
+        #self.assertEqual(r.status_code, 200)
+        #new_set = self.timetable.__getstate__()
+        #new_friday = new_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(5)]
+        #new_sunday = new_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(7)]
+        #
+        #self.assertEqual(new_friday['h12'][0], 44)
+        #self.assertEqual(new_friday['h15'][1], 45)
+        #self.assertEqual(new_sunday['h06'][2], 46)
+        #self.assertEqual(new_sunday['h07'][3], 47)
         
         # all settings
         tt2 = copy.deepcopy(self.timetable)

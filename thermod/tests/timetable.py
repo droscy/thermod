@@ -20,9 +20,8 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import os
-import sys
 import copy
-import json
+#import json
 import time
 import locale
 import unittest
@@ -31,16 +30,9 @@ import threading
 from jsonschema import ValidationError
 #from json.decoder import JSONDecodeError
 from datetime import datetime, timedelta
-from thermod import timetable, TimeTable, ShouldBeOn, JsonValueError, utils, BaseHeating
+from thermod import timetable, TimeTable, ShouldBeOn, JsonValueError, utils, BaseHeating, ThermodStatus
 
-# backward compatibility for Python 3.4 (TODO check for better handling)
-if sys.version[0:3] >= '3.5':
-    from json.decoder import JSONDecodeError
-else:
-    JSONDecodeError = ValueError
-
-
-__updated__ = '2017-03-04'
+__updated__ = '2017-04-18'
 
 
 def fill_timetable(tt):
@@ -346,55 +338,55 @@ class TestTimeTable(unittest.TestCase):
         self.assertRaises(JsonValueError, self.timetable.update, 4, 11, 'invalid', timetable.JSON_TMAX_STR)
     
     
-    def test_update_day(self):
-        fill_timetable(self.timetable)
-        
-        data = {'saturday': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
-                             'h01': [1,1,1,1],     'h13': [13,13,13,13],
-                             'h02': [2,2,2,2],     'h14': [14,14,14,14],
-                             'h03': [3,3,3,3],     'h15': [15,15,15,15],
-                             'h04': [4,4,4,4],     'h16': [16,16,16,16],
-                             'h05': [5,5,5,5],     'h17': [17,17,17,17],
-                             'h06': [6,6,6,6],     'h18': [18,18,18,18],
-                             'h07': [7,7,7,7],     'h19': [19,19,19,19],
-                             'h08': [8,8,8,8],     'h20': [20,20,20,20],
-                             'h09': [9,9,9,9],     'h21': [21,21,21,21],
-                             'h10': [10,10,10,10], 'h22': [22,22,22,22],
-                             'h11': [11,11,11,11], 'h23': [23,23,23,23]},
-                
-                '3': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
-                      'h01': [1,1,1,1],     'h13': [13,13,13,13],
-                      'h02': [2,2,2,2],     'h14': [14,14,14,14],
-                      'h03': [3,3,3,3],     'h15': [15,15,15,15],
-                      'h04': [4,4,4,4],     'h16': [16,16,16,16],
-                      'h05': [5,5,5,5],     'h17': [17,17,17,17],
-                      'h06': [6,6,6,6],     'h18': [18,18,18,18],
-                      'h07': [7,7,7,7],     'h19': [19,19,19,19],
-                      'h08': [8,8,8,8],     'h20': [20,20,20,20],
-                      'h09': [9,9,9,9],     'h21': [21,21,21,21],
-                      'h10': [10,10,10,10], 'h22': [22,22,22,22],
-                      'h11': [11,11,11,11], 'h23': [23,23,23,23]}}
-        
-        json_data = json.dumps(data)
-        self.timetable.update_days(json_data)
-        
-        day6 = utils.json_get_day_name(6)
-        day3 = utils.json_get_day_name(3)
-        state = self.timetable.__getstate__()
-        
-        for h in range(24):
-            hour = utils.json_format_hour(h)
-            t1_6 = utils.temperature_to_float(state[timetable.JSON_TIMETABLE][day6][hour][0])
-            t1_3 = utils.temperature_to_float(state[timetable.JSON_TIMETABLE][day3][hour][0])
-            t2 = utils.temperature_to_float(h)
-            self.assertEqual(t1_6, t2)
-            self.assertEqual(t1_3, t2)
-        
-        self.assertRaises(ValidationError, self.timetable.update_days, json.dumps({'monday': {'00': [0,0,0]}}))
-        self.assertRaises(JsonValueError, self.timetable.update_days, json.dumps({'00': data['saturday']}))
-        self.assertRaises(JsonValueError, self.timetable.update_days, json.dumps(data['saturday']['h15']))
-        self.assertRaises(JSONDecodeError, self.timetable.update_days, '{invalid}')
-        self.assertRaises(TypeError, self.timetable.update_days, data)
+    #def test_update_day(self):
+    #    fill_timetable(self.timetable)
+    #    
+    #    data = {'saturday': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
+    #                         'h01': [1,1,1,1],     'h13': [13,13,13,13],
+    #                         'h02': [2,2,2,2],     'h14': [14,14,14,14],
+    #                         'h03': [3,3,3,3],     'h15': [15,15,15,15],
+    #                         'h04': [4,4,4,4],     'h16': [16,16,16,16],
+    #                         'h05': [5,5,5,5],     'h17': [17,17,17,17],
+    #                         'h06': [6,6,6,6],     'h18': [18,18,18,18],
+    #                         'h07': [7,7,7,7],     'h19': [19,19,19,19],
+    #                         'h08': [8,8,8,8],     'h20': [20,20,20,20],
+    #                         'h09': [9,9,9,9],     'h21': [21,21,21,21],
+    #                         'h10': [10,10,10,10], 'h22': [22,22,22,22],
+    #                         'h11': [11,11,11,11], 'h23': [23,23,23,23]},
+    #            
+    #            '3': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
+    #                  'h01': [1,1,1,1],     'h13': [13,13,13,13],
+    #                  'h02': [2,2,2,2],     'h14': [14,14,14,14],
+    #                  'h03': [3,3,3,3],     'h15': [15,15,15,15],
+    #                  'h04': [4,4,4,4],     'h16': [16,16,16,16],
+    #                  'h05': [5,5,5,5],     'h17': [17,17,17,17],
+    #                  'h06': [6,6,6,6],     'h18': [18,18,18,18],
+    #                  'h07': [7,7,7,7],     'h19': [19,19,19,19],
+    #                  'h08': [8,8,8,8],     'h20': [20,20,20,20],
+    #                  'h09': [9,9,9,9],     'h21': [21,21,21,21],
+    #                  'h10': [10,10,10,10], 'h22': [22,22,22,22],
+    #                  'h11': [11,11,11,11], 'h23': [23,23,23,23]}}
+    #    
+    #    json_data = json.dumps(data)
+    #    self.timetable.update_days(json_data)
+    #    
+    #    day6 = utils.json_get_day_name(6)
+    #    day3 = utils.json_get_day_name(3)
+    #    state = self.timetable.__getstate__()
+    #    
+    #    for h in range(24):
+    #        hour = utils.json_format_hour(h)
+    #        t1_6 = utils.temperature_to_float(state[timetable.JSON_TIMETABLE][day6][hour])
+    #        t1_3 = utils.temperature_to_float(state[timetable.JSON_TIMETABLE][day3][hour])
+    #        t2 = utils.temperature_to_float(h)
+    #        self.assertEqual(t1_6, t2)
+    #        self.assertEqual(t1_3, t2)
+    #    
+    #    self.assertRaises(ValidationError, self.timetable.update_days, json.dumps({'monday': {'00': [0,0,0]}}))
+    #    self.assertRaises(JsonValueError, self.timetable.update_days, json.dumps({'00': data['saturday']}))
+    #    self.assertRaises(JsonValueError, self.timetable.update_days, json.dumps(data['saturday']['h15']))
+    #    self.assertRaises(JSONDecodeError, self.timetable.update_days, '{invalid}')
+    #    self.assertRaises(TypeError, self.timetable.update_days, data)
     
     
     def test_locale(self):
@@ -702,10 +694,10 @@ class TestTimeTable(unittest.TestCase):
         self.assertAlmostEqual(self.timetable.target_temperature(datetime(2016,2,10,23,34,0)), self.timetable.t0, delta=0.01)
         
         self.timetable.status = timetable.JSON_STATUS_ON
-        self.assertEqual(self.timetable.target_temperature(time), float('+Inf'))
+        self.assertEqual(self.timetable.target_temperature(time), None)
         
         self.timetable.status = timetable.JSON_STATUS_OFF
-        self.assertEqual(self.timetable.target_temperature(time), float('-Inf'))
+        self.assertEqual(self.timetable.target_temperature(time), None)
         
         self.timetable.status = timetable.JSON_STATUS_TMAX
         self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.tmax, delta=0.01)
@@ -727,13 +719,16 @@ class TestTimeTable(unittest.TestCase):
         # initial status, the heating should be on
         self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
         
+        # creating main lock
+        lock = threading.Condition()
+        
         # creating updating thread
-        thread = threading.Thread(target=self.thread_change_status)
+        thread = threading.Thread(target=self.thread_change_status, args=(lock,))
         
         # the lock is acquired, then the thread that changes a parameter is
         # executed and the assert is checked again, if the lock works the
         # assert is still True
-        with self.timetable.lock:
+        with lock:
             thread.start()
             self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
         
@@ -741,26 +736,26 @@ class TestTimeTable(unittest.TestCase):
         thread.join()
         self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
     
-    def thread_change_status(self):
+    def thread_change_status(self, lock):
         self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
         
-        with self.timetable.lock:
+        with lock:
             self.timetable.status = timetable.JSON_STATUS_OFF
             self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
-    
-    
+
     def test_should_be_on(self):
         s1 = ShouldBeOn(True)
         self.assertTrue(s1)
         
-        s2 = ShouldBeOn(False,timetable.JSON_STATUS_AUTO,5,10)
+        st2 = ThermodStatus(time.time(), timetable.JSON_STATUS_AUTO, 1, 5, 10)
+        s2 = ShouldBeOn(False, st2)
         self.assertFalse(s2)
         
-        s3 = ShouldBeOn(True,timetable.JSON_STATUS_ON,17,21)
+        st3 = ThermodStatus(time.time(), timetable.JSON_STATUS_ON, 0, 17, 21)
+        s3 = ShouldBeOn(True, st3)
         self.assertEqual(s1, s3)
-        
-        self.assertFalse(s1 and s2)
 
+        self.assertFalse(s1 and s2)
 
 
 if __name__ == '__main__':

@@ -63,6 +63,12 @@ RSP_MESSAGE = 'message'
 RSP_FULLMSG = 'explain'
 RSP_VERSION = 'version'
 
+RSP_STATUS_TIMESTAMP = ThermodStatus._fields[0]
+RSP_STATUS_STATUS = ThermodStatus._fields[1]
+RSP_STATUS_HEATING_STATUS = ThermodStatus._fields[2]
+RSP_STATUS_CURR_TEMP = ThermodStatus._fields[3]
+RSP_STATUS_TARGET_TEMP = ThermodStatus._fields[4]
+
 
 class ClientAddressLogAdapter(logging.LoggerAdapter):
     """Add client address and port to the logged messagges."""

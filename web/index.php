@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+ * Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
  *
  * This file is part of Thermod.
  *
@@ -116,9 +116,6 @@
 				{
 					if(!('error' in data))
 					{
-						var curr = data['temperature'];
-						var target = data['target'];
-						
 						$('#current-status').prop('value', (data['heating_status']==1 ? 'On' : 'Off'));
 						$('#current-temperature').prop('value', data['current_temperature'].toFixed(2));
 						$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(2) : 'n.a.'));
@@ -534,7 +531,7 @@
 		
 		<div id="copyright">
 			<p>Thermod (Web Manager) <span id="version"></span></p>
-			<p>Copyright &copy; 2016<?=(date('Y')>2016?'-'.date('Y'):'');?> Simone Rossetto</p>
+			<p>Copyright &copy; 2017<?=(date('Y')>2017?'-'.date('Y'):'');?> Simone Rossetto</p>
 			<p>GNU General Public License v3.0</p>
 		</div>
 	</body>

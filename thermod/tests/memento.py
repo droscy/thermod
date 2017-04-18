@@ -20,7 +20,7 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import copy
-import json
+#import json
 import time
 import unittest
 import threading
@@ -30,36 +30,31 @@ from thermod import TimeTable, timetable, BaseHeating
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-03-04'
+__updated__ = '2017-04-18'
 
 
 class MementoTable(TimeTable):
     """Support class for testing memento on thermod.timetable.TimeTable."""
     
-    @transactional(exclude=['_lock'])
+    @transactional()
     def __setstate__(self, state):
         """New method without control on errors."""
         
-        if not hasattr(self, '_lock'):
-            self.__init__()
+        # storing new values
+        self._status = state[timetable.JSON_STATUS]
+        self._temperatures = copy.deepcopy(state[timetable.JSON_TEMPERATURES])
+        self._timetable = copy.deepcopy(state[timetable.JSON_TIMETABLE])
         
-        with self._lock:
-            
-            # storing new values
-            self._status = state[timetable.JSON_STATUS]
-            self._temperatures = copy.deepcopy(state[timetable.JSON_TEMPERATURES])
-            self._timetable = copy.deepcopy(state[timetable.JSON_TIMETABLE])
-            
-            if timetable.JSON_DIFFERENTIAL in state:
-                self._differential = state[timetable.JSON_DIFFERENTIAL]
-            
-            if timetable.JSON_GRACE_TIME in state:
-                self._grace_time = float(state[timetable.JSON_GRACE_TIME])
-            
-            # validating
-            self._has_been_validated = False
-            self._validate()
-            self._last_update_timestamp = time.time()
+        if timetable.JSON_DIFFERENTIAL in state:
+            self._differential = state[timetable.JSON_DIFFERENTIAL]
+        
+        if timetable.JSON_GRACE_TIME in state:
+            self._grace_time = float(state[timetable.JSON_GRACE_TIME])
+        
+        # validating
+        self._has_been_validated = False
+        self._validate()
+        self._last_update_timestamp = time.time()
 
 
 class TestMemento(unittest.TestCase):
@@ -97,45 +92,45 @@ class TestMemento(unittest.TestCase):
         self.assertEqual(tt1, tt2)  # they are equal again
     
     
-    def test02_memento_many_days(self):
-        tt1 = self.timetable
-        tt2 = copy.deepcopy(self.timetable)
-        self.assertEqual(tt1, tt2)
-        
-        data = {'saturday': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
-                             'h01': [1,1,1,1],     'h13': [13,13,13,13],
-                             'h02': [2,2,2,2],     'h14': [14,14,14,14],
-                             'h03': [3,3,3,3],     'h15': [15,15,15,15],
-                             'h04': [4,4,4,4],     'h16': [16,16,16,16],
-                             'h05': [5,5,5,5],     'h17': [17,17,17,17],
-                             'h06': [6,6,6,6],     'h18': [18,18,18,18],
-                             'h07': [7,7,7,7],     'h19': [19,19,19,19],
-                             'h08': [8,8,8,8],     'h20': [20,20,20,20],
-                             'h09': [9,9,9,9],     'h21': [21,21,21,21],
-                             'h10': [10,10,10,10], 'h22': [22,22,22,22],
-                             'h11': [11,11,11,11], 'h23': [23,23,23,23]},
-                
-                '3': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
-                      'h01': [1,1,1,1],     'h13': [13,13,13,13],
-                      'h02': [2,2,2,2],     'h14': [14,14,14,14],
-                      'h03': [3,3,3,3],     'h15': [15,15,15,15],
-                      'h04': [4,4,4,4],     'h16': [16,16,16,16],
-                      'h05': [5,5,5,5],     'h17': [17,17,17,17],
-                      'h06': [6,6,6,6],     'h18': [18,18,18,18],
-                      'h07': [7,7,7,7],     'h19': [19,19,19,19],
-                      'h08': [8,8,8,8],     'h20': [20,20,20,20],
-                      'h09': [9,9,9,9],     'h21': [21,21,21,21],
-                      'h10': [10,10,10,10], 'h22': [22,22,22,22],
-                      'h11': [11,11,11,11], 'h23': [23,23,23,23]}}
-        
-        json_data = json.dumps(data)
-        
-        # change timetable and restore
-        restore = memento(tt1)
-        tt1.update_days(json_data)
-        self.assertNotEqual(tt1, tt2)  # they now differ
-        restore()
-        self.assertEqual(tt1, tt2)  # they are equal again
+    #def test02_memento_many_days(self):
+    #    tt1 = self.timetable
+    #    tt2 = copy.deepcopy(self.timetable)
+    #    self.assertEqual(tt1, tt2)
+    #    
+    #    data = {'saturday': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
+    #                         'h01': [1,1,1,1],     'h13': [13,13,13,13],
+    #                         'h02': [2,2,2,2],     'h14': [14,14,14,14],
+    #                         'h03': [3,3,3,3],     'h15': [15,15,15,15],
+    #                         'h04': [4,4,4,4],     'h16': [16,16,16,16],
+    #                         'h05': [5,5,5,5],     'h17': [17,17,17,17],
+    #                         'h06': [6,6,6,6],     'h18': [18,18,18,18],
+    #                         'h07': [7,7,7,7],     'h19': [19,19,19,19],
+    #                         'h08': [8,8,8,8],     'h20': [20,20,20,20],
+    #                         'h09': [9,9,9,9],     'h21': [21,21,21,21],
+    #                         'h10': [10,10,10,10], 'h22': [22,22,22,22],
+    #                         'h11': [11,11,11,11], 'h23': [23,23,23,23]},
+    #            
+    #            '3': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
+    #                  'h01': [1,1,1,1],     'h13': [13,13,13,13],
+    #                  'h02': [2,2,2,2],     'h14': [14,14,14,14],
+    #                  'h03': [3,3,3,3],     'h15': [15,15,15,15],
+    #                  'h04': [4,4,4,4],     'h16': [16,16,16,16],
+    #                  'h05': [5,5,5,5],     'h17': [17,17,17,17],
+    #                  'h06': [6,6,6,6],     'h18': [18,18,18,18],
+    #                  'h07': [7,7,7,7],     'h19': [19,19,19,19],
+    #                  'h08': [8,8,8,8],     'h20': [20,20,20,20],
+    #                  'h09': [9,9,9,9],     'h21': [21,21,21,21],
+    #                  'h10': [10,10,10,10], 'h22': [22,22,22,22],
+    #                  'h11': [11,11,11,11], 'h23': [23,23,23,23]}}
+    #    
+    #    json_data = json.dumps(data)
+    #    
+    #    # change timetable and restore
+    #    restore = memento(tt1)
+    #    tt1.update_days(json_data)
+    #    self.assertNotEqual(tt1, tt2)  # they now differ
+    #    restore()
+    #    self.assertEqual(tt1, tt2)  # they are equal again
     
     
     def test03_transactional_status(self):
@@ -174,8 +169,9 @@ class TestMemento(unittest.TestCase):
         mt1 = self.mttable
         mt2 = copy.deepcopy(mt1)
         self.assertEqual(mt1, mt2)
+        lock = threading.Condition()
         
-        with mt1.lock:
+        with lock:
             sett = mt1.__getstate__()
             sett[timetable.JSON_TIMETABLE] = None  # clearing timetable
             
@@ -195,14 +191,17 @@ class TestMemento(unittest.TestCase):
         # initial status, the heating should be on
         self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
         
+        # creating main lock
+        lock = threading.Condition()
+        
         # creating updating thread
-        thread = threading.Thread(target=self.thread_change_status)
+        thread = threading.Thread(target=self.thread_change_status, args=(lock,))
         
         # The lock is acquired, then the thread that changes a parameter is
         # executed. It should wait. An invalid paramether is then stored,
         # the transactional should restore the old values with lock
         # still acquired.
-        with self.mttable.lock:
+        with lock:
             thread.start()
             self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
             
@@ -213,7 +212,7 @@ class TestMemento(unittest.TestCase):
                 # set an invalid state, exception raised
                 self.mttable.__setstate__(sett)
             
-            self.assertTrue(self.mttable.lock._is_owned())  # still owned
+            self.assertTrue(lock._is_owned())  # still owned
             self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))  # old settings still valid
             
             thread.join(3)  # deadlock, so should exit for timeout
@@ -225,10 +224,10 @@ class TestMemento(unittest.TestCase):
         self.assertFalse(thread.is_alive())  # exit join() for lock releasing
         self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))  # new settings of thread
     
-    def thread_change_status(self):
+    def thread_change_status(self, lock):
         self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
         
-        with self.mttable.lock:
+        with lock:
             self.mttable.status = timetable.JSON_STATUS_OFF
             self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
 
