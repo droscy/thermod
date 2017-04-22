@@ -45,9 +45,8 @@ except ImportError:
     except ImportError:
         MCP3008 = False
 
-
 __date__ = '2016-02-04'
-__updated__ = '2017-04-17'
+__updated__ = '2017-04-22'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -337,26 +336,45 @@ class ScriptThermometer(BaseThermometer):
 if SpiDev:
     logger.debug('spidev module imported, defining custom MCP3008 class')
     
-    class MCP3008(object):
-        
-        def __init__(self, channel):
-            self._spi = SpiDev()
-            self._spi.open(0,0)
-            self._spi.max_speed_hz = 100000
-            self._channel = channel
-        
-        @property
-        def channel(self):
-            return self._channel
+    class _MCP3008(object):
+        def __init__(self, device, channel):
+            self._device = device
+            self.channel = channel
         
         @property
         def value(self):
-            raw = self._spi.xfer2([1, (8 + self._channel) << 4, 0])
+            raw = self._device.xfer2([1, (8 + self.channel) << 4, 0])
             data = ((raw[1] & 3) << 8) + raw[2]
             return (data / 1023.0)
         
         def close(self):
-            self._spi.close()
+            # do nothing, here only for compatibility with gpiozero.MCP3008 class
+            pass
+        
+        @property
+        def _spi(self):
+            # here only for compatibility with gpiozero.MCP3008
+            return self
+    
+    class _SpiDeviceWrapper(object):
+        def __init__(self, bus=0, device=0):
+            self.spi = SpiDev()
+            self.bus = bus
+            self.device = device
+            #self.spi.open(bus, device)
+            #self.spi.max_speed_hz = 15200
+        
+        def __del__(self):
+            self.spi.close()
+        
+        def __call__(self, channel):
+            if self.spi.fileno() == -1:
+                self.open(self.bus, self.device)
+            
+            return _MCP3008(self.spi, channel)
+    
+    # TODO documentare, ma vale usare un'implementazione custom per velocizzare l'avvio?
+    MCP3008 = _SpiDeviceWrapper()
 
 
 if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
@@ -402,6 +420,19 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             
             logger.debug('init A/D converter with channels {}', channels)
             self._adc = [MCP3008(channel=c) for c in channels]
+            
+            # Set max comunication speed with the SPI device.
+            # It's enough to set only for first MCP3008 object because every
+            # MCP3008 object share the same SPI device (both mine and gpiozero
+            # implementations). From my tests I have stated that 15200 Hz is
+            # the best frequency to read temperature from TMP36 thermometer
+            # connected through a MCP3008 A/D converter.
+            try:
+                self._adc[0]._spi._device.max_speed_hz = 15200
+            except AttributeError:
+                # Cannot set a custom communication speed because software bus
+                # of gpiozero package is in use.
+                logger.debug('PiAnalogZero thermometer is using gpiozero software bus to SPI device')
             
             # Allocate the queue for the last 30 temperatures to be averaged. The
             # value `30` covers a period of 3 minutes because the sleep time between

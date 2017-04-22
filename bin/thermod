@@ -36,14 +36,14 @@ from jsonschema import ValidationError
 
 from thermod import common, config
 from thermod.common import ScriptError, LogStyleAdapter
-from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
+from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer, MCP3008
 from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
 from thermod.timetable import TimeTable, JsonValueError
 from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-04-18'
+__updated__ = '2017-04-22'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -571,11 +571,19 @@ else:
     
     daemon = DaemonContext()
     daemon.pidfile = pidfile.PIDLockFile(args.pid)
+    daemon.files_preserve = []
     daemon.signal_map = {signal.SIGTERM: shutdown,
                          signal.SIGHUP: reload_timetable}
     
     if args.log:
-        daemon.files_preserve = [logfile.stream]
+        daemon.files_preserve.append(logfile.stream)
+    
+    if settings.thermometer['script'] == 'PiAnalogZero':
+        try:
+            daemon.files_preserve.append(MCP3008.spi.fileno())
+        except AttributeError:
+            # the thermometer is not using custom MCP3008 class
+            pass
     
     try:
         with daemon:
