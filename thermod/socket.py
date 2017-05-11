@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-04-17'
+__updated__ = '2017-05-11'
 __version__ = '2.0'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -58,10 +58,10 @@ REQ_SETTINGS_TMAX = tt.JSON_TMAX_STR
 REQ_SETTINGS_DIFFERENTIAL = tt.JSON_DIFFERENTIAL
 REQ_SETTINGS_GRACE_TIME = tt.JSON_GRACE_TIME
 
-RSP_ERROR = 'error'
 RSP_MESSAGE = 'message'
-RSP_FULLMSG = 'explain'
 RSP_VERSION = 'version'
+RSP_ERROR = ThermodStatus._fields[5]
+RSP_EXPLAIN = ThermodStatus._fields[6]
 
 RSP_STATUS_TIMESTAMP = ThermodStatus._fields[0]
 RSP_STATUS_STATUS = ThermodStatus._fields[1]
@@ -145,15 +145,27 @@ class ControlSocket(Thread):
         baselogger.info('control socket halted')
     
     def update_monitors(self, status):
-        """Send new status to every connected monitor."""
+        """Send new status to every connected monitor.
+        
+        The new status must be a subclass of `thermod.common.ThermodStatus`
+        to be fully compliant.
+        """
+        
+        if not isinstance(status, ThermodStatus):
+            raise TypeError('new status for monitors must be a ThermodStatus object')
+        
         # TODO mettere messaggi di debug
         while not self.app['monitors'].empty():
             self.app['monitors'].get_nowait().set_result(status)
 
 
 def _last_mod_hdr(last_mod_time):
+    # return a dict with the 'Last-Modified' HTTP header already formatted
     return {'Last-Modified': formatdate(last_mod_time, usegmt=True)}
 
+def _remove_None(dict):
+    # return a dictonary with only not-None elements found in dict
+    return {key: value for (key, value) in dict.items() if value is not None}
 
 async def exceptions_middleware(app, handler):
     """Handle exceptions raised during HTTP requests."""
@@ -179,7 +191,7 @@ async def exceptions_middleware(app, handler):
             response = json_response(status=400,
                                      reason=message,
                                      data={RSP_ERROR: message,
-                                           RSP_FULLMSG: '{}: {}'.format(message, jde)})
+                                           RSP_EXPLAIN: '{}: {}'.format(message, jde)})
         
         except jsonschema.ValidationError as jsve:
             logger.warning('cannot update settings, the {} request contains '
@@ -192,7 +204,7 @@ async def exceptions_middleware(app, handler):
             response = json_response(status=400,
                                      reason=message,
                                      data={RSP_ERROR: message,
-                                           RSP_FULLMSG: '{} {}: {}'
+                                           RSP_EXPLAIN: '{} {}: {}'
                                                         .format(message,
                                                                 list(jsve.path),
                                                                 jsve.message)})
@@ -205,7 +217,7 @@ async def exceptions_middleware(app, handler):
             response = json_response(status=400,
                                      reason=message,
                                      data={RSP_ERROR: message,
-                                           RSP_FULLMSG: '{}: {}'.format(message, ve)})
+                                           RSP_EXPLAIN: '{}: {}'.format(message, ve)})
         
         except IOError as ioe:
             # Can be raised only by timetable.save() method, so the
@@ -219,7 +231,7 @@ async def exceptions_middleware(app, handler):
                     status=503,
                     reason=message,
                     data={RSP_ERROR: message,
-                          RSP_FULLMSG: ('new settings accepted and '
+                          RSP_EXPLAIN: ('new settings accepted and '
                                         'applied on running Thermod but they '
                                         'cannot be saved to filesystem so, on '
                                         'daemon restart, they will be lost, '
@@ -232,7 +244,7 @@ async def exceptions_middleware(app, handler):
             response = json_response(status=503,
                                      reason=message,
                                      data={RSP_ERROR: message,
-                                           RSP_FULLMSG: message})
+                                           RSP_EXPLAIN: message})
         
         except Exception as e:
             # this is an unhandled exception, a critical message is printed
@@ -251,7 +263,7 @@ async def exceptions_middleware(app, handler):
             response = json_response(status=500,
                                      reason=message,
                                      data={RSP_ERROR: message,
-                                           RSP_FULLMSG: '{}: {}'.format(message, e)})
+                                           RSP_EXPLAIN: '{}: {}'.format(message, e)})
         
         finally:
             logger.debug('sending back response')
@@ -314,7 +326,7 @@ async def GET_handler(request):
             response = json_response(status=503,
                                      reason=message,
                                      data={RSP_ERROR: message,
-                                           RSP_FULLMSG: str(he)})
+                                           RSP_EXPLAIN: str(he)})
         
         except ThermometerError as te:
             message = 'Thermometer Error'
@@ -322,12 +334,12 @@ async def GET_handler(request):
             response = json_response(status=503,
                                      reason=message,
                                      data={RSP_ERROR: message,
-                                           RSP_FULLMSG: str(te)})
+                                           RSP_EXPLAIN: str(te)})
         
         else:
             response = json_response(status=200,
                                      headers=_last_mod_hdr(last_updt),
-                                     data=status._asdict())
+                                     data=_remove_None(status._asdict()))
     
     elif action in REQ_PATH_TEAPOT:
         message = 'I\'m a teapot'
@@ -337,7 +349,7 @@ async def GET_handler(request):
             reason=message,
             headers=_last_mod_hdr(datetime(2017, 7, 29, 17, 0).timestamp()),
             data={RSP_ERROR: 'To my future wife',
-                  RSP_FULLMSG: ('I dedicate this application to Elena, '
+                  RSP_EXPLAIN: ('I dedicate this application to Elena, '
                                 'my future wife.')})
     
     elif action in REQ_PATH_MONITOR:
@@ -348,10 +360,13 @@ async def GET_handler(request):
         logger.debug('waiting for timetable status change')
         status = await asyncio.wait_for(future, timeout=None, loop=request.app.loop)
         
+        # TODO si deve creare una classe specifica per traferire gli aggiornamenti
+        # ai monitors. Potrebbe essere anche ThermodStatus ma allora deve essere
+        # subclassata per avere altre funzionalità.
         logger.debug('preparing response with monitor update')
-        response = json_response(status=200,
+        response = json_response(status=(200 if status.error is None else 503),
                                  headers=_last_mod_hdr(status.timestamp),
-                                 data=status._asdict())
+                                 data=_remove_None(status._asdict()))
     
     else:
         message = 'Invalid Request'
@@ -495,7 +510,7 @@ async def POST_handler(request):
                                     status=400,
                                     reason=message,
                                     data={RSP_ERROR: message,
-                                          RSP_FULLMSG: 'Cannot update {}: {}'
+                                          RSP_EXPLAIN: 'Cannot update {}: {}'
                                                        .format(list(jsve.path),
                                                                jsve.message)})
                     
@@ -514,7 +529,7 @@ async def POST_handler(request):
                                     status=400,
                                     reason=message,
                                     data={RSP_ERROR: message,
-                                          RSP_FULLMSG: 'Cannot update {}: {}'
+                                          RSP_EXPLAIN: 'Cannot update {}: {}'
                                                         .format(var, ve)})
                     
                     # restoring old settings from memento

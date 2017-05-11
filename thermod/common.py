@@ -25,7 +25,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2017-04-17'
+__updated__ = '2017-05-11'
 
 
 # logger common settings
@@ -87,8 +87,13 @@ TIMESTAMP_MAX_VALUE = _tmv
 
 ThermodStatus = namedtuple('ThermodStatus',
                            ['timestamp', 'status', 'heating_status',
-                            'current_temperature', 'target_temperature'])
+                            'current_temperature', 'target_temperature',
+                            'error', 'explain'])
 """Contain current global status of the thermostat."""
+
+# Set default values for ThermodStatus and ThermodError tuples (timestamp is
+# always required, thus the '-1' in len function below).
+ThermodStatus.__new__.__defaults__ = (None,) * (len(ThermodStatus._fields) - 1)
 
 
 class LogStyleAdapter(logging.LoggerAdapter):

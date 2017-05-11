@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-04-22'
+__updated__ = '2017-05-11'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -369,7 +369,7 @@ if SpiDev:
         
         def __call__(self, channel):
             if self.spi.fileno() == -1:
-                self.open(self.bus, self.device)
+                self.spi.open(self.bus, self.device)
             
             return _MCP3008(self.spi, channel)
     

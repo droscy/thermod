@@ -29,6 +29,7 @@ import tempfile
 import lockfile
 import threading
 import asyncio
+import time
 
 from daemon import DaemonContext, pidfile
 from logging.handlers import SysLogHandler, SMTPHandler
@@ -43,7 +44,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-04-22'
+__updated__ = '2017-05-11'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
@@ -262,10 +263,6 @@ except Exception as e:
 except KeyboardInterrupt:
     main_return_code = common.RET_CODE_KEYB_INTERRUPT
 
-except:
-    main_return_code = common.RET_CODE_INIT_ERR
-    logger.critical('unknown error during daemon initialization, no more details', exc_info=True)
-
 else:
     main_return_code = common.RET_CODE_OK
     logger.debug('base objects created')
@@ -343,10 +340,6 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
     except KeyboardInterrupt:
         main_return_code = common.RET_CODE_KEYB_INTERRUPT
     
-    except:
-        logger.critical('unkown error starting control socket', exc_info=True)
-        main_return_code = common.RET_CODE_SOCKET_START_ERR
-    
     else:
         try:
             logger.info('the heating is currently {}', (heating.is_on() and 'ON' or 'OFF'))
@@ -360,10 +353,6 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
             
         except KeyboardInterrupt:
             shutdown(exitcode=common.RET_CODE_KEYB_INTERRUPT)
-            
-        except:
-            logger.critical('unknown error during first query to the heating', exc_info=True)
-            shutdown(exitcode=common.RET_CODE_RUN_HEATING_ERR)
         
         # The following variable is needed to print info messages only
         # when no timeout has occurred, that means that someone has changed
@@ -413,36 +402,53 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                         # the daemon, even if new settings are set from
                         # socket connection. So we print a critical error and
                         # we close the daemon.
+                        newstatus = ThermodStatus(time.time(), error='Invalid element in timetable file')
                         logger.critical('invalid element {} in timetable file: {}', list(jsve.path), jsve)
-                        shutdown(exitcode=common.RET_CODE_RUN_INVALID_STATE)
+                        #shutdown(exitcode=common.RET_CODE_RUN_INVALID_STATE)
+                        # TODO decidere se tutti questi errori devono solo essere gestiti senza cauare uno sto del demone
                     
                     except JsonValueError as jve:
                         # A strange value has been set somewhere and the daemon
                         # didn't catch the appropriate exception. We print a
                         # critical message and we close the daemon.
+                        newstatus = ThermodStatus(time.time(), error='Invalid value in running daemon')
                         logger.critical(jve)
-                        shutdown(exitcode=common.RET_CODE_RUN_INVALID_VALUE)
+                        #shutdown(exitcode=common.RET_CODE_RUN_INVALID_VALUE)
+                        # TODO decidere se tutti questi errori devono solo essere gestiti senza cauare uno sto del demone
                     
                     except ScriptError as se:
                         # One of the external scripts reported an error, we
                         # print it as a severe error but we leave the daemon
                         # running even if probably it is not fully functional.
+                        newstatus = ThermodStatus(time.time(), error='Error in script {}'.format(se.script))
                         logger.error('the script `{}` reported the following '
                                      'error: {}', se.script, se)
                     
                     except ThermometerError as te:
+                        newstatus = ThermodStatus(time.time(), error='Error from thermometer')
                         logger.error('error from thermometer: {}', te)
                         logger.debug(te.suberror)
                     
                     except HeatingError as he:
+                        newstatus = ThermodStatus(time.time(), error='Error from heating')
                         logger.error('error from heating: {}', he)
                         logger.debug(he.suberror)
                     
-                    # TODO aggiungere un modo per segnalare un errore ai monitor
-                    # ad esempio aggiungendo il campo 'error' a ThermodStatus
+                    except Exceotion:
+                        # There is an unknown error, we create the new status
+                        # for monitors and we re-raise the exception.
+                        newstatus = ThermodStatus(time.time(), error='Unknown Error')
+                        raise
                     
-                    # We update all connected monitors.
-                    socket.update_monitors(should_be_on.status._replace(heating_status=heating.status))
+                    except KeyboardInterrupt:
+                        newstatus = ThermodStatus(time.time(), error='Shutting down Thermod')
+                        raise
+                    
+                    else:
+                        newstatus = should_be_on.status._replace(heating_status=heating.status)
+                    
+                    finally:  # we update all connected monitors
+                        socket.update_monitors(newstatus)
                     
                     # A shutdown may have been requested before reaching
                     # this point and in such situation we don't have to
@@ -462,10 +468,6 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
             
             except KeyboardInterrupt:
                 shutdown(exitcode=common.RET_CODE_KEYB_INTERRUPT)
-            
-            except:
-                logger.critical('unknown error during normal operation', exc_info=True)
-                shutdown(exitcode=common.RET_CODE_RUN_OTHER_ERR)
     
     finally:    
         logger.debug('stopping daemon')
@@ -500,14 +502,6 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
         except KeyboardInterrupt:
             # We are already shutting down, no other operations required
             pass
-        
-        except:
-            logger.error('unknown error stopping control socket', exc_info=True)
-            
-            # We set a new exit code only if this is the first error
-            # otherwise we leave the original error exit code.
-            if main_return_code == common.RET_CODE_OK:
-                main_return_code = common.RET_CODE_SOCKET_STOP_ERR
         
         try:
             if heating.is_on():
@@ -544,15 +538,6 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
         except KeyboardInterrupt:
             # We are already shutting down, no other operations required
             pass
-        
-        except:
-            logger.error('unknown error in switching off the heating during '
-                         'daemon shutdown', exc_info=True)
-            
-            # We set a new exit code only if this is the first error
-            # otherwise we leave the original error exit code.
-            if main_return_code == common.RET_CODE_OK:
-                main_return_code = common.RET_CODE_SHUTDOWN_OTHER_ERR
     
     logger.info('daemon stopped')
 
