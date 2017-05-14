@@ -26,7 +26,7 @@ import jsonschema
 
 from threading import Thread, Condition
 from json.decoder import JSONDecodeError
-from aiohttp.web import Application, json_response
+from aiohttp.web import Application, json_response, HTTPNotFound
 from email.utils import formatdate
 from datetime import datetime
 
@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-05-11'
+__updated__ = '2017-05-14'
 __version__ = '2.0'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -163,9 +163,10 @@ def _last_mod_hdr(last_mod_time):
     # return a dict with the 'Last-Modified' HTTP header already formatted
     return {'Last-Modified': formatdate(last_mod_time, usegmt=True)}
 
-def _remove_None(dict):
-    # return a dictonary with only not-None elements found in dict
-    return {key: value for (key, value) in dict.items() if value is not None}
+def _remove_None(dict_):
+    # return a dictonary with only not-None elements found in dict_
+    return {key: value for (key, value) in dict_.items() if value is not None}
+
 
 async def exceptions_middleware(app, handler):
     """Handle exceptions raised during HTTP requests."""
@@ -177,11 +178,13 @@ async def exceptions_middleware(app, handler):
         try:
             response = await handler(request)
         
-        #except HTTPError as rsp_err:
-        #    # If the handler raised an HTTPError, here we simply send
-        #    # it back as response.
-        #    logger.debug('responding with an HTTPError created by the request handler')
-        #    response = rsp_err
+        except HTTPNotFound as htnf:
+            message = 'Invalid Request'
+            logger.warning('{} "{} {}" received', message.lower(), request.method, request.url.path)
+            response = json_response(status=404,
+                                     reason=message,
+                                     data={RSP_ERROR: message,
+                                           RSP_EXPLAIN: str(htnf)})
         
         except JSONDecodeError as jde:
             logger.warning('cannot update settings, the {} request contains '
@@ -369,9 +372,7 @@ async def GET_handler(request):
                                  data=_remove_None(status._asdict()))
     
     else:
-        message = 'Invalid Request'
-        logger.warning('{} "{} {}" received', message.lower(), request.method, request.url.path)
-        response = json_response(status=404, reason=message, data={RSP_ERROR: message})
+        raise HTTPNotFound(reason='Invalid "{}" action in request.'.format(action))
     
     logger.debug('response ready')
     return response
@@ -569,9 +570,7 @@ async def POST_handler(request):
                 lock.notify_all()
     
     else:
-        message = 'Invalid Request'
-        logger.warning('{} "{} {}" received', message.lower(), request.method, request.url.path)
-        response = json_response(status=404, reason=message, data={RSP_ERROR: message})
+        raise HTTPNotFound(reason='Invalid "{}" action in request.'.format(action))
     
     return response
 
