@@ -18,10 +18,65 @@
  * along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-	// hostname (or IP address) and port where Thermod socket is listening on
-	// see section 'socket' in file etc/thermod.conf
+// TODO con la connessione diretta a thermod (o tramite proxy) le richieste
+// jQuery devono essere modificate perché in caso di status code non 200
+// deve essere chiamata una funziona a parte, non si può banalmente
+// controllare che non ci sia il parametro 'error'. Gestire anche
+// diversamente il socket_http_code alla riga 155.
+
+	/*
+	 * Hostname (or IP address), port and path where Thermod is listening on.
+	 * 
+	 * If Thermod is proxied by a webserver, $PATH must be set accordingly to
+	 * the webserver configuration while $HOST and $PORT must be left empty.
+	 * If no webserver is used, $PATH must be left empty and $HOST and $PORT
+	 * must be set to the same value configured in the 'socket' section of
+	 * etc/thermod.conf file.
+	 * 
+	 * Sample configuration for Apache proxy:
+	 * 
+	 *   // this file
+	 *   $HOST = '';
+	 *   $PORT = '';
+	 *   $PATH = 'thermodpath'; // whatever you want, the same set in apache.conf
+	 *   
+	 *   // apache.conf
+	 *   ProxyPass /thermodpath/ http://real.thermod.hostname:4344/
+	 *   ProxyPassReverse /thermodpath/ http://real.thermod.hostname:4344/
+	 * 
+	 * Sample configuration without webserver proxy:
+	 * 
+	 *   $HOST = 'real.thermod.hostname';
+	 *   $PORT = '4344';
+	 *   $PATH = '';
+	 * 
+	 * The $PATH value can also be a multiple path like:
+	 * 
+	 *   $PATH = 'thermod/socket';
+	 * 
+	 * without leading and trailing slash.
+	 * 
+	 * For example, if Thermod Web Manager is reachable at http://webserver:8080/thermod
+	 * and you want to use the webserver as a proxy, you can set the following configuration:
+	 * 
+	 *   // this file
+	 *   $HOST = '';
+	 *   $PORT = '';
+	 *   $PATH = 'thermod/socket';
+	 *   
+	 *   // apache.conf
+	 *   ProxyPass /thermod/socket/ http://real.thermod.hostname:4344/
+	 *   ProxyPassReverse /thermod/socket/ http://real.thermod.hostname:4344/
+	 */
 	$HOST = 'localhost';
 	$PORT = '4344';
+	$PATH = '';
+	
+	// base request url (do not change unless you know what you are doing)
+	if($HOST && $PORT)  // no webserver proxy
+		$BASEURL = 'http://' . preg_replace(array('/\/+/', '/\/+$/'), array('/', ''), "{$HOST}:{$PORT}/{$PATH}");
+	else
+		$BASEURL = preg_replace(array('/\/+/', '/\/+$/'), array('/', ''), "/{$PATH}");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -80,7 +135,7 @@
 			{
 				var target_status = $('#target-status option:selected').prop('value');
 
-				$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'status': target_status}, function(data)
+				$.post('<?=$BASEURL;?>/settings', {'status': target_status}, function(data)
 				{
 					if(!('error' in data))
 					{
@@ -112,7 +167,7 @@
 			// retrieve heating status from daemon and refresh header web page
 			function get_heating_status_and_refresh()
 			{
-				$.get('info.php', {'info':'status', 'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
+				$.get('<?=$BASEURL;?>/status', {}, function(data)
 				{
 					if(!('error' in data))
 					{
@@ -288,7 +343,7 @@
 
 				$('#save').click(function()
 				{
-					$.post('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>', 'settings': settings}, function(data)
+					$.post('<?=$BASEURL;?>/settings', {'settings': settings}, function(data)
 					{
 						if(!('error' in data))
 						{
@@ -317,7 +372,7 @@
 				// settings initialization
 				get_heating_status_and_refresh();
 
-				$.get('settings.php', {'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
+				$.get('<?=$BASEURL;?>/settings', {}, function(data)
 				{
 					if(!('error' in data))
 					{
@@ -362,7 +417,7 @@
 					}
 				},'json');
 
-				$.get('info.php', {'info':'version', 'host':'<?=$HOST;?>', 'port':'<?=$PORT;?>'}, function(data)
+				$.get('<?=$BASEURL;?>/version', {}, function(data)
 				{
 					if(!('error' in data))
 					{

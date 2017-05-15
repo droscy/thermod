@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-05-14'
+__updated__ = '2017-05-16'
 __version__ = '2.0'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -177,6 +177,13 @@ async def exceptions_middleware(app, handler):
         
         try:
             response = await handler(request)
+            
+            try:
+                response.headers['Access-Control-Allow-Origin'] = request.headers['Origin']
+                #logger.debug('added header \'Access-Control-Allow-Origin: {}\' to response', request.headers['Origin'])
+            except KeyError:
+                #logger.debug('no Origin header found in request, no need for Access-Control-Allow-Origin in response')
+                pass
         
         except HTTPNotFound as htnf:
             message = 'Invalid Request'
