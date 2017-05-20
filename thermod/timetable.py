@@ -36,7 +36,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-04-18'
+__updated__ = '2017-05-20'
 __version__ = '1.7'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -353,6 +353,8 @@ class TimeTable(object):
             raise
         
         finally:
+            # TODO with exceptions the transactional fires later than this code
+            # block, thus these debug messages will contain the new values, always!
             logger.debug('current status: {}', self._status)
             logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
             logger.debug('differential: {} deg', self._differential)
@@ -473,8 +475,8 @@ class TimeTable(object):
             logger.debug('filepath not set, cannot save timetable')
             raise RuntimeError('no timetable file provided, cannot save data')
         
-        # validate and retrive settings
-        self._has_been_validated = False
+        # validate (if not already validated) and retrive settings
+        #self._has_been_validated = False
         settings = self.__getstate__()
         
         # convert possible Infinite grace_time to None
@@ -546,13 +548,6 @@ class TimeTable(object):
                     self._status))
         
         self._status = status.lower()
-        
-        # Note: cannot call _validate() method after simple update (like
-        # this method, like tmax, t0, etc) because those updates can be
-        # used even to populate an empty TimeTable that is invalid till
-        # a full population
-        self._has_been_validated = False
-        
         self._last_update_timestamp = time.time()
         logger.debug('new status set: {}', self._status)
     
@@ -584,7 +579,6 @@ class TimeTable(object):
                 'it must be a number in range [0;1]'.format(value))
         
         self._differential = nvalue
-        self._has_been_validated = False
         self._last_update_timestamp = time.time()
         logger.debug('new differential value set: {}', nvalue)
     
@@ -628,7 +622,6 @@ class TimeTable(object):
                 'number expressed in seconds or the string `Inf`'.format(seconds))
         
         self._grace_time = round(nvalue, 0)
-        self._has_been_validated = False
         self._last_update_timestamp = time.time()
         logger.debug('new grace time set: {} sec', self._grace_time)
     
@@ -657,7 +650,6 @@ class TimeTable(object):
                 'is invalid, it must be a number'.format(value))
         
         self._temperatures[JSON_T0_STR] = nvalue
-        self._has_been_validated = False
         self._last_update_timestamp = time.time()
         logger.debug('new t0 temperature set: {}', nvalue)
     
@@ -686,7 +678,6 @@ class TimeTable(object):
                 'is invalid, it must be a number'.format(value))
         
         self._temperatures[JSON_TMIN_STR] = nvalue
-        self._has_been_validated = False
         self._last_update_timestamp = time.time()
         logger.debug('new tmin temperature set: {}', nvalue)
     
@@ -715,7 +706,6 @@ class TimeTable(object):
                 'is invalid, it must be a number'.format(value))
         
         self._temperatures[JSON_TMAX_STR] = nvalue
-        self._has_been_validated = False
         self._last_update_timestamp = time.time()
         logger.debug('new tmax temperature set: {}', nvalue)
     
