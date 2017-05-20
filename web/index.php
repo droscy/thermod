@@ -18,12 +18,6 @@
  * along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// TODO con la connessione diretta a thermod (o tramite proxy) le richieste
-// jQuery devono essere modificate perché in caso di status code non 200
-// deve essere chiamata una funziona a parte, non si può banalmente
-// controllare che non ci sia il parametro 'error'. Gestire anche
-// diversamente il socket_http_code alla riga 155.
-
 	/*
 	 * Hostname (or IP address), port and path where Thermod is listening on.
 	 * 
@@ -33,12 +27,15 @@
 	 * must be set to the same value configured in the 'socket' section of
 	 * etc/thermod.conf file.
 	 * 
+	 * Note: the proxy functionality of webservers is required if HTTPS is in
+	 * use to serve Thermod Web Manager.
+	 * 
 	 * Sample configuration for Apache proxy:
 	 * 
 	 *   // this file
 	 *   $HOST = '';
 	 *   $PORT = '';
-	 *   $PATH = 'thermodpath'; // whatever you want, the same set in apache.conf
+	 *   $PATH = 'thermodpath'; // whatever you want, the same set in apache.conf below
 	 *   
 	 *   // apache.conf
 	 *   ProxyPass /thermodpath/ http://real.thermod.hostname:4344/
@@ -56,7 +53,7 @@
 	 * 
 	 * without leading and trailing slash.
 	 * 
-	 * For example, if Thermod Web Manager is reachable at http://webserver:8080/thermod
+	 * For example, if Thermod Web Manager is reachable at https://webserver:9090/thermod
 	 * and you want to use the webserver as a proxy, you can set the following configuration:
 	 * 
 	 *   // this file
@@ -135,15 +132,25 @@
 			{
 				var target_status = $('#target-status option:selected').prop('value');
 
-				$.post('<?=$BASEURL;?>/settings', {'status': target_status}, function(data)
+				$.ajax(
 				{
-					if(!('error' in data))
+					type: 'POST',
+					url: '<?=$BASEURL;?>/settings',
+					data: {'status': target_status},
+					success: function(data)
 					{
 						settings['status'] = target_status;
 						get_heating_status_and_refresh();
-					}
-					else
+					},
+					error: function(jqXHR, textStatus, errorThrown)
 					{
+						var data = null;
+
+						if(jqXHR.getResponseHeader('content-type').search(/json/i) >= 0)
+							data = $.parseJSON(jqXHR.responseText);
+						else
+							data = {'error': errorThrown};
+
 						var error = (('explain' in data) ? data['explain'] : data['error']);
 						$('#dialog').dialog('option', 'title', 'Cannot change status');
 						$('#dialog').dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
@@ -152,34 +159,42 @@
 						stop_loading();
 						$('#dialog').dialog('open');
 
-						if(data['socket_http_code'] = 503)
+						if(jqXHR.status = 423)
 						{
 							settings['status'] = target_status;
 							get_heating_status_and_refresh();
 						}
-						
+
 						target_status_refresh();
 					}
-				},'json');
-
+				});
 			}
 
 			// retrieve heating status from daemon and refresh header web page
 			function get_heating_status_and_refresh()
 			{
-				$.get('<?=$BASEURL;?>/status', {}, function(data)
+				$.ajax(
 				{
-					if(!('error' in data))
+					type: 'GET',
+					url: '<?=$BASEURL;?>/status',
+					success: function(data)
 					{
 						$('#current-status').prop('value', (data['heating_status']==1 ? 'On' : 'Off'));
 						$('#current-temperature').prop('value', data['current_temperature'].toFixed(2));
 						$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(2) : 'n.a.'));
-					}
-					else
+					},
+					error: function(jqXHR, textStatus, errorThrown)
 					{
 						$('#current-status').prop('value', 'n.a.');
 						$('#current-temperature').prop('value', 'n.a.');
 						$('#target-temperature').prop('value', 'n.a.');
+
+						var data = null;
+
+						if(jqXHR.getResponseHeader('content-type').search(/json/i) >= 0)
+							data = $.parseJSON(jqXHR.responseText);
+						else
+							data = {'error': errorThrown};
 
 						var error = (('explain' in data) ? data['explain'] : data['error']);
 						$('#dialog').dialog('option', 'title', 'Cannot get current status');
@@ -189,19 +204,19 @@
 						stop_loading();
 						$('#dialog').dialog('open');
 					}
-				},'json');
+				});
 			}
 
 			$(function()
 			{
 				// main objects of the page
-				if($.ui.version >= '1.11')
+				/*if($.ui.version >= '1.11') TODO
 					$('#target-status').selectmenu({disabled: true, change: target_status_change});
 				else
-				{
+				{*/
 					$('#target-status').prop('disabled', true);
 					$('#target-status').change(target_status_change);
-				}
+				//}
 
 				$('#tabs').tabs();
 				$('#days').buttonset({disabled: true});
@@ -343,38 +358,49 @@
 
 				$('#save').click(function()
 				{
-					$.post('<?=$BASEURL;?>/settings', {'settings': settings}, function(data)
+					$.ajax(
 					{
-						if(!('error' in data))
+						type: 'POST',
+						url: '<?=$BASEURL;?>/settings',
+						data: {'settings': JSON.stringify(settings)},
+						success: function(data)
 						{
 							$("#dialog").dialog('option', 'title', 'Settings saved');
 							$("#dialog").dialog('option', 'buttons', {'Ok': function() { $(this).dialog('close'); }});
 							$("#dialog").html('<p><span class="ui-icon ui-icon-circle-check"></span>New settings correctly saved!</p>');
 							get_heating_status_and_refresh();
-						}
-						else
+
+							stop_loading();
+							$("#dialog").dialog('open');
+						},
+						error: function(jqXHR, textStatus, errorThrown)
 						{
+							var data = null;
+
+							if(jqXHR.getResponseHeader('content-type').search(/json/i) >= 0)
+								data = $.parseJSON(jqXHR.responseText);
+							else
+								data = {'error': errorThrown};
+
 							var error = (('explain' in data) ? data['explain'] : data['error']);
 							$("#dialog").dialog('option', 'title', 'Cannot save settings');
 							$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
 							$("#dialog").html('<p><span class="ui-icon ui-icon-alert"></span>Cannot save new settings: <em>&quot;' + error + '&quot;</em>.</p>');
 
-							// TODO forse il dialog di OK si può non mostrare e mostrare solo quello di errore
-							//stop_loading();
-							//$("#dialog").dialog('open');
+							stop_loading();
+							$("#dialog").dialog('open');
 						}
-
-						stop_loading();
-						$("#dialog").dialog('open');
-					},'json');
+					});
 				});
 
 				// settings initialization
 				get_heating_status_and_refresh();
 
-				$.get('<?=$BASEURL;?>/settings', {}, function(data)
+				$.ajax(
 				{
-					if(!('error' in data))
+					type: 'GET',
+					url: '<?=$BASEURL;?>/settings',
+					success: function(data)
 					{
 						// refresh values
 						settings = data;
@@ -399,31 +425,32 @@
 						$('#grace-time').spinner('option', 'disabled', false);
 						$('#save').button('option', 'disabled', false);
 
-						if($.ui.version >= '1.11')
+						/*if($.ui.version >= '1.11') TODO
 							$('#target-status').selectmenu('option', 'disabled', true);
-						else
+						else*/
 							$('#target-status').prop('disabled', false);
-					}
-					else
+					},
+					error: function(jqXHR, textStatus, errorThrown)
 					{
+						var data = null;
+
+						if(jqXHR.getResponseHeader('content-type').search(/json/i) >= 0)
+							data = $.parseJSON(jqXHR.responseText);
+						else
+							data = {'error': errorThrown};
+
 						var error = (('explain' in data) ? data['explain'] : data['error']);
 						$('#days').buttonset('option', 'disabled', true); // TODO capire come mai questo comando serve
 						$("#dialog").dialog('option', 'title', 'Error');
 						$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-						$("#dialog").html('<p><span class="ui-icon ui-icon-alert"></span>Cannot retrieve data from Thermod: <em>&quot;' + data['error'] + '&quot;</em>.</p>');
+						$("#dialog").html('<p><span class="ui-icon ui-icon-alert"></span>Cannot retrieve data from Thermod: <em>&quot;' + error + '&quot;</em>.</p>');
 
 						stop_loading();
 						$("#dialog").dialog('open');
 					}
-				},'json');
+				});
 
-				$.get('<?=$BASEURL;?>/version', {}, function(data)
-				{
-					if(!('error' in data))
-					{
-						$('#version').html('v' + data['version']);
-					}
-				},'json');
+				$.get('<?=$BASEURL;?>/version', {}, function(data){ $('#version').html('v' + data['version']); },'json');
 			});
 
 			$(document).ajaxStart(start_loading).ajaxStop(stop_loading);

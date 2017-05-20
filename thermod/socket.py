@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-05-16'
+__updated__ = '2017-05-20'
 __version__ = '2.0'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -238,7 +238,7 @@ async def exceptions_middleware(app, handler):
             logger.error('cannot save new settings to fileystem: {}', ioe)
             message = 'Cannot save new settings to fileystem'
             response = json_response(
-                    status=503,
+                    status=423,
                     reason=message,
                     data={RSP_ERROR: message,
                           RSP_EXPLAIN: ('new settings accepted and '
@@ -251,7 +251,7 @@ async def exceptions_middleware(app, handler):
             logger.debug('an asynchronous operation has been cancelled due to daemon shutdown')
             
             message = 'Thermod is shutting down'
-            response = json_response(status=503,
+            response = json_response(status=530,
                                      reason=message,
                                      data={RSP_ERROR: message,
                                            RSP_EXPLAIN: message})
@@ -379,7 +379,7 @@ async def GET_handler(request):
                                  data=_remove_None(status._asdict()))
     
     else:
-        raise HTTPNotFound(reason='Invalid "{}" action in request.'.format(action))
+        raise HTTPNotFound(reason='Invalid `{}` action in request.'.format(action))
     
     logger.debug('response ready')
     return response
@@ -577,7 +577,7 @@ async def POST_handler(request):
                 lock.notify_all()
     
     else:
-        raise HTTPNotFound(reason='Invalid "{}" action in request.'.format(action))
+        raise HTTPNotFound(reason='Invalid `{}` action in request.'.format(action))
     
     return response
 
