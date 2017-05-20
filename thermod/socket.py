@@ -106,14 +106,6 @@ class ControlSocket(Thread):
         self.app.router.add_get('/{action}', GET_handler)
         self.app.router.add_post('/{action}', POST_handler)
     
-    #def __repr__(self):
-    #    return '{module}.{cls}({timetable!r}, {host!r}, {port:d})'.format(
-    #                module=self.__module__,
-    #                cls=self.__class__.__name__,
-    #                timetable=self.server.timetable,
-    #                host=self.server.server_address[0],
-    #                port=self.server.server_address[1])
-    
     def run(self):
         loop = self.app.loop
         loop.run_until_complete(self.app.startup())

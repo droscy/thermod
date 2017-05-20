@@ -138,7 +138,7 @@ class ShouldBeOn(int):
         self.status = status
     
     def __repr__(self, *args, **kwargs):
-        return '{module}.{cls}({should!r}, {status!r})'.format(
+        return '<{module}.{cls}({should!r}, {status!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     should=bool(self),
@@ -218,7 +218,7 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return '{module}.{cls}({filepath!r})'.format(
+        return '<{module}.{cls}({filepath!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     filepath=self.filepath)

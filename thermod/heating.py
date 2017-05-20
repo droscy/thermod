@@ -41,7 +41,7 @@ except ImportError:
 
 
 __date__ = '2015-12-30'
-__updated__ = '2017-04-16'
+__updated__ = '2017-05-20'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -89,7 +89,7 @@ class BaseHeating(object):
         """The last time the heating has been switched off."""
     
     def __repr__(self, *args, **kwargs):
-        return '{}.{}()'.format(self.__module__, self.__class__.__name__)
+        return '<{}.{}()>'.format(self.__module__, self.__class__.__name__)
     
     def __str__(self, *args, **kwargs):
         return (self._is_on and 'ON' or 'OFF')
@@ -240,7 +240,7 @@ class ScriptHeating(BaseHeating):
                      self._status_script[0])
     
     def __repr__(self, *args, **kwargs):
-        return '{module}.{cls}({on!r}, {off!r}, {status!r}, {debug!r})'.format(
+        return '<{module}.{cls}({on!r}, {off!r}, {status!r}, {debug!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     on=self._switch_on_script,
@@ -451,7 +451,7 @@ if GPIO:
             GPIO.output(self._pins, self._off)
         
         def __repr__(self, *args, **kwargs):
-            return '{module}.{cls}({pins!r}, {level!r})'.format(
+            return '<{module}.{cls}({pins!r}, {level!r})>'.format(
                         module=self.__module__,
                         cls=self.__class__.__name__,
                         pins=self._pins,

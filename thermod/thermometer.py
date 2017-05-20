@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-05-11'
+__updated__ = '2017-05-20'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -142,10 +142,10 @@ class BaseThermometer(object):
             logger.debug('calibration disabled due to t_raw list empty or too small')
     
     def __repr__(self, *args, **kwargs):
-        return '{}.{}({!r}, calibration={!r})'.format(self.__module__,
-                                                      self.__class__.__name__,
-                                                      self._scale,
-                                                      self._calibrate)
+        return '<{}.{}({!r}, calibration={!r})>'.format(self.__module__,
+                                                        self.__class__.__name__,
+                                                        self._scale,
+                                                        self._calibrate)
     
     def __str__(self, *args, **kwargs):
         return '{:.2f} °{}'.format(self.temperature, self._scale)
@@ -261,7 +261,7 @@ class ScriptThermometer(BaseThermometer):
                      self._script)
     
     def __repr__(self, *args, **kwargs):
-        return '{module}.{cls}({script!r}, {debug!r}, {scale!r}, calibration={calib!r})'.format(
+        return '<{module}.{cls}({script!r}, {debug!r}, {scale!r}, calibration={calib!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     script=self._script,
@@ -445,7 +445,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             self._averaging_thread.start()
         
         def __repr__(self, *args, **kwargs):
-            return '{module}.{cls}({channels!r}, {scale!r}, calibration={calib!r})'.format(
+            return '<{module}.{cls}({channels!r}, {scale!r}, calibration={calib!r})>'.format(
                         module=self.__module__,
                         cls=self.__class__.__name__,
                         channels=[adc.channel for adc in self._adc],
