@@ -1,0 +1,234 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+"""
+Thermod monitor for Raspberry Pi with one button and one led.
+
+@author:     Simone Rossetto
+@copyright:  2017 Simone Rossetto
+@license:    GNU General Public License v3
+@contact:    simros85@gmail.com
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+import signal
+import argparse
+import requests
+
+from thermod import ThermodStatus
+from gpiozero import Button, RGBLED
+from threading import Timer, Semaphore, Event
+
+__version__ = '0.0.0a3'
+__date__ = '2017-05-12'
+__updated__ = '2017-05-21'
+
+
+# default LED colors
+LED_COLOR_BLACK = (0, 0, 0)
+LED_COLOR_RED = (0.1, 0, 0)
+LED_COLOR_YELLOW = (0.2, 0.03, 0)
+LED_COLOR_GREEN = (0, 0.01, 0)
+LED_COLOR_BLUE = (0, 0.01, 0.2)
+LED_COLOR_CYAN = (0, 0.08, 0.1)
+
+def get_color(status):
+    """Convert a Thermod status to its corresponding led color."""
+    
+    if status == 'auto':
+        color = LED_COLOR_GREEN
+    elif status == 'tmax':
+        color = LED_COLOR_YELLOW
+    elif status == 'tmin':
+        color = LED_COLOR_CYAN
+    elif status == 't0':
+        color = LED_COLOR_BLUE
+    elif status == 'off':
+        color = LED_COLOR_RED
+    else:
+        raise ValueError('invalid status')
+    
+    return color
+
+# the real monitor class
+class ButtonLedMonitor(object):
+    """Mangage a Thermod monitor with an RGB led and a push button."""
+    
+    def __init__(self, red, green, blue, button, host, port, timeout=3):
+        """Init a ButtonLedMonitor with corresponding PINs."""
+        
+        self._status = 'off'
+        self._new_status = None
+        
+        self._pins = (red, green, blue, button)
+        
+        self._session = None
+        self._request_url = 'http://{}:{}'.format(host, port)
+        
+        self._timeout = timeout
+        self._timer = None
+        
+        self._semaphore = Semaphore(1)
+        self._notpressing = Event()
+        self._notpressing.set()
+    
+    def __enter__(self):
+        self._session = requests.Session()
+        
+        self._led = RGBLED(self._pins[0], self._pins[1], self._pins[2])
+        self._button = Button(self._pins[3])
+        
+        self._led.blink(on_time=0.2,
+                        off_time=0.2,
+                        on_color=LED_COLOR_RED,
+                        off_color=LED_COLOR_BLACK)
+        
+        #self._button.when_pressed = self._manage_button_press
+        return self
+    
+    def __exit__(self, exc_type=None, exc_value=None, traceback=None):
+        self._session.close()
+        
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+        
+        self._button.when_pressed = None
+        self._button.close()
+        
+        self._led.off()
+        self._led.close()
+    
+    def update_status(self, longpolling=True):
+        try:
+            rsp = self._session.get('{}/{}'.format(self._request_url, ('monitor' if longpolling else 'status')))
+            rsp.raise_for_status()  # check error status code
+            
+            # TODO trovare un modo per spedire sempre tutti i campi di ThermodStatus
+            jrsp = rsp.json()
+            jrsp['error'] = None
+            jrsp['explain'] = None
+            status = ThermodStatus(**jrsp)
+            
+            color = get_color(status.status)
+            
+            if self._semaphore.acquire(blocking=False):
+                try:
+                    if status.heating_status == 1:
+                        self._led.off()
+                        self._led.blink(on_time=0.5,
+                                        off_time=0.5,
+                                        on_color=color,
+                                        off_color=LED_COLOR_BLACK)
+                    else:
+                        self._led.color = color
+                    
+                    self._status = status.status
+                
+                finally:
+                    self._semaphore.release()
+        
+        except Exception as e:
+            self._led.off()
+            self._led.blink(on_time=0.2,
+                            off_time=0.2,
+                            on_color=LED_COLOR_RED,
+                            off_color=LED_COLOR_YELLOW)
+            
+            # TODO completare gestione qui o farlo esternamente
+            raise
+    
+    def _save_new_status(self):
+        self._notpressing.set()
+        
+        try:
+            self._led.off()
+            self._led.blink(on_time=0.4,
+                            off_time=0.2,
+                            on_color=get_color(self._new_status),
+                            off_color=LED_COLOR_BLACK)
+            
+            rsp = self._session.post('{}/settings'.format(self._request_url),
+                                     data={'status': self._new_status})
+        finally:
+            self._new_status = None
+            self._semaphore.release()
+    
+    def _manage_button_press(self):
+        self._semaphore.acquire(block=self._notpressing.is_set())
+        self._notpressing.clear()
+        
+        try:
+            if self._timer:
+                self._timer.cancel()
+                self._timer = None
+            
+            if self._new_status is None:
+                # if this is the first press, we check the current status and
+                # we update the temporary new status
+                if self._status == 'auto':
+                    self._new_status = 'off'
+                else:
+                    self._new_status = 'auto'
+            else:
+                # if this is a sequential press, we check the temporary new
+                # status and we update itself
+                if self._new_status == 'auto':
+                    self._new_status = 'off'
+                elif self._new_status == 'off':
+                    self._new_status = 't0'
+                elif self._new_status == 't0':
+                    self._new_status = 'tmin'
+                elif self._new_status == 'tmin':
+                    self._new_status = 'tmax'
+                elif self._new_status == 'tmax':
+                    self._new_status = 'auto'
+            
+            self._led.color = get_color(self._new_status)
+        
+        finally:
+            self._timer = Timer(self._timeout, self._save_new_status)
+            self._timer.start()
+
+
+# shoutdown check
+running = True
+
+def shutdown(signum=None, frame=None):
+    global running
+    running = False
+
+signal.signal(signal.SIGTERM, shutdown)
+
+
+# main
+parser = argparse.ArgumentParser(description='Thermod Button+LED ButtonLedMonitor')
+parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(__version__))
+parser.add_argument('-r', '--red', action='store', type=int, default=17, metavar='PIN', help='pin number for red led')
+parser.add_argument('-g', '--green', action='store', type=int, default=27, metavar='PIN', help='pin number for green led')
+parser.add_argument('-b', '--blue', action='store', type=int, default=22, metavar='PIN', help='pin number for blue led')
+parser.add_argument('-u', '--button', action='store', type=int, default=5, metavar='PIN', help='pin number for control button')
+parser.add_argument('-H', '--host', action='store', default='localhost', help='daemon socket host name')
+parser.add_argument('-P', '--port', action='store', type=int, default=4344, help='daemon socket port')
+args = parser.parse_args()
+
+# TODO inserire eccezioni
+with ButtonLedMonitor(args.red, args.green, args.blue, args.button, args.host, args.port) as monitor:
+    monitor.update_status(False)
+    
+    while running:
+        print('.')
+        monitor.update_status()
+
+# vim: syntax=python fileencoding=utf-8
