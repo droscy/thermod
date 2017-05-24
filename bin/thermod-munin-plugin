@@ -19,7 +19,7 @@ These are the environment variables accepted by this plugin:
  - `current_critical` critical value for current temperature
 
 @author:     Simone Rossetto
-@copyright:  2016 Simone Rossetto
+@copyright:  2017 Simone Rossetto
 @license:    GNU General Public License v3
 @contact:    simros85@gmail.com
 
@@ -41,9 +41,9 @@ import os
 import sys
 import requests
 
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 __date__ = '2016-04-24'
-__updated__ = '2016-06-02'
+__updated__ = '2017-05-11'
 
 
 # default return code
@@ -67,7 +67,7 @@ graph_vlabel degrees
 graph_scale no
 graph_category sensors
 graph_order current target status
-graph_info This graph shows the current status of the heating as reported by Thermod with current room temperature and target temperatrure.
+graph_info This graph shows the current status of the heating as reported by Thermod with current room temperature and target temperature.
 target.label Target temperature
 target.info The target temperature currently active in Thermod.
 {target_warning}\
@@ -95,7 +95,7 @@ port = os.getenv('socket_port', 4344)
 
 # retrieve data from Thermod
 try:
-    req = requests.get('http://{host}:{port}/heating'.format(host=host, port=port))
+    req = requests.get('http://{host}:{port}/status'.format(host=host, port=port))
     
     if req.status_code == 200:
         heating = req.json()
@@ -104,17 +104,17 @@ try:
 
 except:
     main_return_code = 1
-    heating = {'target': 'U',
-               'temperature': 'U',
-               'status': 'U'}
+    heating = {'target_temperature': 'U',
+               'current_temperature': 'U',
+               'heating_status': 'U'}
 
 # print results
 print('''\
 target.value {}
 current.value {}
-status.value {}'''.format(heating['target'],
-                          heating['temperature'],
-                          heating['status']))
+status.value {}'''.format(heating['target_temperature'],
+                          heating['current_temperature'],
+                          heating['heating_status']))
 
 exit(main_return_code)
 

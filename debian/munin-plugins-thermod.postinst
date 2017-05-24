@@ -54,8 +54,10 @@ init_plugins() {
     fi
     echo "done."
     rm -f $TMPFILE $TMPFILE_STDERR
-    echo -n "Restarting munin-node.."
-    invoke-rc.d munin-node restart
+    if [ -d /run/systemd/system ]; then
+        echo -n "Restarting munin-node.."
+        deb-systemd-invoke restart munin-node.service
+    fi
 }
 
 

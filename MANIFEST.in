@@ -4,7 +4,7 @@ include Doxyfile
 include README.md
 include COPYING
 recursive-include thermod *.py
-include bin/thermod
+include bin/*
 include etc/*
 include samples/*
 recursive-include web *

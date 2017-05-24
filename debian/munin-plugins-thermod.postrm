@@ -36,6 +36,9 @@ if [ "$1" = "purge" ]; then
     | awk '{if($1 = /\/usr\/share\/thermod\/munin-plugins/){print $2}}'); do
         if [ ! -e $(readlink $plugin) ]; then
             rm $plugin
+            if [ -d /run/systemd/system ]; then
+                deb-systemd-invoke restart munin-node.service
+            fi
         fi  
     done
 

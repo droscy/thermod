@@ -3,16 +3,16 @@ Upstream-Name: thermod
 Source: home server, no public url at present time
 
 Files: *
-Copyright: 2016 Simone Rossetto <simros85@gmail.com>
+Copyright: 2017 Simone Rossetto <simros85@gmail.com>
 License: GPL-3.0+
 
 Files: debian/*
-Copyright: 2016 Simone Rossetto <simros85@gmail.com>
+Copyright: 2017 Simone Rossetto <simros85@gmail.com>
 License: GPL-3.0+
 
 Files: thermod/memento.py
 Copyright: 2005 Zoran Isailovski
-           2016 Simone Rossetto <simros85@gmail.com>
+           2017 Simone Rossetto <simros85@gmail.com>
 License: PSF
 
 License: GPL-3.0+
@@ -43,7 +43,7 @@ License: PSF
     reproduce, analyze, test, perform and/or display publicly, prepare
     derivative works, distribute, and otherwise use Python alone or in any
     derivative version, provided, however, that PSF’s License Agreement
-    and PSF’s notice of copyright, i.e., "Copyright © 2001-2016 Python
+    and PSF’s notice of copyright, i.e., "Copyright © 2001-2017 Python
     Software Foundation; All Rights Reserved" are retained in Python alone
     or in any derivative version prepared by Licensee.
  .

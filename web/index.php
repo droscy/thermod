@@ -35,7 +35,7 @@
 	 *   // this file
 	 *   $HOST = '';
 	 *   $PORT = '';
-	 *   $PATH = 'thermodpath'; // whatever you want, the same set in apache.conf below
+	 *   $PATH = 'thermodpath'; // whatever you want, the same set in apache config file
 	 *   
 	 *   // apache.conf
 	 *   ProxyPass /thermodpath/ http://real.thermod.hostname:4344/
@@ -65,9 +65,9 @@
 	 *   ProxyPass /thermod/socket/ http://real.thermod.hostname:4344/
 	 *   ProxyPassReverse /thermod/socket/ http://real.thermod.hostname:4344/
 	 */
-	$HOST = 'localhost';
-	$PORT = '4344';
-	$PATH = '';
+	$HOST = '';
+	$PORT = '';
+	$PATH = 'thermod/socket';
 	
 	// base request url (do not change unless you know what you are doing)
 	if($HOST && $PORT)  // no webserver proxy

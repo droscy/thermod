@@ -1,30 +1,31 @@
---- a/web/index.php
-+++ b/web/index.php
-@@ -19,7 +19,7 @@
-  */
- 
- 	// hostname (or IP address) and port where Thermod socket is listening on
--	// see section 'socket' in file etc/thermod.conf
-+	// see section 'socket' in file /etc/thermod/thermod.conf
- 	$HOST = 'localhost';
- 	$PORT = '4344';
- ?>
 --- a/etc/thermod.conf
 +++ b/etc/thermod.conf
-@@ -12,11 +12,11 @@
- 
- [scripts]
- # The following options can be full path to scripts (that return a JSON string
--# like examples script in `samples` folder) or the value 'PiPinsRelay' if you
--# want to use one (or more) relay connected to Raspberry Pi GPIO pins. If you
--# choose to use Raspberry the value 'PiPinsRelay' must be set in all three
--# options and the section PiPinsRelay below must be adjusted to meet your
--# Raspberry Pi setup.
-+# like examples script in /usr/share/doc/thermod/samples folder) or the value
-+# 'PiPinsRelay' if you want to use one (or more) relay connected to Raspberry Pi
-+# GPIO pins. If you choose to use Raspberry the value 'PiPinsRelay' must be set
-+# in all three options and the section PiPinsRelay below must be adjusted to meet
-+# your Raspberry Pi setup.
+@@ -20,7 +20,7 @@ heating = scripts
+ [heating/scripts]
+ # Full path to heating scripts. One script to switch on the heating, one to
+ # switch if off and the last one to query the current status.
+-# See `samples` folder for some example scripts.
++# See /usr/share/doc/thermod/samples folder for some example scripts.
+ # Required only if `heating` setting is set to 'scripts'.
  switchon = /etc/thermod/switch-heating --on -j -s -q
  switchoff = /etc/thermod/switch-heating --off -j -s -q
- status = /etc/thermod/switch-heating --status -j -s -q
+@@ -40,7 +40,7 @@ switch_on_level = low
+ # Full path to an external script (that return the current temperature) or
+ # the value PiAnalogZero if the temperature is retrieved from an AnalogZero
+ # board connected to a Raspberry Pi.
+-# See `samples` folder for an example script.
++# See /usr/share/doc/thermod/samples folder for some example scripts.
+ thermometer = /etc/thermod/get-temperature
+ 
+ # Degree scale of the thermometer. Two values are valid: celsius or fahrenheit.
+--- a/web/index.php
++++ b/web/index.php
+@@ -25,7 +25,7 @@
+ 	 * the webserver configuration while $HOST and $PORT must be left empty.
+ 	 * If no webserver is used, $PATH must be left empty and $HOST and $PORT
+ 	 * must be set to the same value configured in the 'socket' section of
+-	 * etc/thermod.conf file.
++	 * /etc/thermod/thermod.conf file.
+ 	 * 
+ 	 * Note: the proxy functionality of webservers is required if HTTPS is in
+ 	 * use to serve Thermod Web Manager.
