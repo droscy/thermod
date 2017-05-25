@@ -78,7 +78,7 @@ Description: Programmable thermostat daemon (button-led monitor)
 Package: munin-plugins-thermod
 Section: net
 Architecture: all
-Depends: python3-requests (>=2.4.3), munin-node | munin-node-c, ${misc:Depends}
+Depends: python3, munin-node | munin-node-c, ${misc:Depends}
 Suggests: thermod (=${binary:Version})
 Description: Programmable thermostat daemon (Munin plugin)
  Munin plugin to plot status information retrieved from Thermod daemon.
