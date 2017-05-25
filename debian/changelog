@@ -1,3 +1,9 @@
+thermod (1.0.0~beta12-2) unstable; urgency=medium
+
+  * Add install scripts for thermod-monitor-buttonled
+
+ -- Simone Rossetto <simros85@gmail.com>  Thu, 25 May 2017 12:46:36 +0200
+
 thermod (1.0.0~beta12-1) unstable; urgency=medium
 
   * Initial release.
