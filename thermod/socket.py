@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-05-20'
+__updated__ = '2017-05-26'
 __version__ = '2.0'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -154,10 +154,6 @@ class ControlSocket(Thread):
 def _last_mod_hdr(last_mod_time):
     # return a dict with the 'Last-Modified' HTTP header already formatted
     return {'Last-Modified': formatdate(last_mod_time, usegmt=True)}
-
-def _remove_None(dict_):
-    # return a dictonary with only not-None elements found in dict_
-    return {key: value for (key, value) in dict_.items() if value is not None}
 
 
 async def exceptions_middleware(app, handler):
@@ -341,7 +337,7 @@ async def GET_handler(request):
         else:
             response = json_response(status=200,
                                      headers=_last_mod_hdr(last_updt),
-                                     data=_remove_None(status._asdict()))
+                                     data=status._asdict())
     
     elif action in REQ_PATH_TEAPOT:
         message = 'I\'m a teapot'
@@ -368,7 +364,7 @@ async def GET_handler(request):
         logger.debug('preparing response with monitor update')
         response = json_response(status=(200 if status.error is None else 503),
                                  headers=_last_mod_hdr(status.timestamp),
-                                 data=_remove_None(status._asdict()))
+                                 data=status._asdict())
     
     else:
         raise HTTPNotFound(reason='Invalid `{}` action in request.'.format(action))
