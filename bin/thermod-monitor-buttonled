@@ -32,7 +32,7 @@ from threading import Timer, Semaphore, Event
 
 __version__ = '0.0.0a3'
 __date__ = '2017-05-12'
-__updated__ = '2017-05-21'
+__updated__ = '2017-06-12'
 
 
 # default LED colors
@@ -115,10 +115,7 @@ class ButtonLedMonitor(object):
             rsp = self._session.get('{}/{}'.format(self._request_url, ('monitor' if longpolling else 'status')))
             rsp.raise_for_status()  # check error status code
             
-            # TODO trovare un modo per spedire sempre tutti i campi di ThermodStatus
             jrsp = rsp.json()
-            jrsp['error'] = None
-            jrsp['explain'] = None
             status = ThermodStatus(**jrsp)
             
             color = get_color(status.status)
@@ -224,6 +221,7 @@ parser.add_argument('-P', '--port', action='store', type=int, default=4344, help
 args = parser.parse_args()
 
 # TODO inserire eccezioni
+# TODO testare funzionamento completo
 with ButtonLedMonitor(args.red, args.green, args.blue, args.button, args.host, args.port) as monitor:
     monitor.update_status(False)
     

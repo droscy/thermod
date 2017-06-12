@@ -44,15 +44,19 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-05-11'
+__updated__ = '2017-06-12'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
 # TODO creare manpage per questo file
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
-# TODO forse JsonValueError può essere tolto oppure il suo uso limitato, da pensarci
-# TODO rivedere uso del grace-time
+
+# TODO rivedere uso del grace-time, il timer deve partire sia da quando supera
+# la temperatura target (quindi timer per spegnere se non raggiunge target+diff),
+# sia da quando scende sotto target (quindi timer per accendere se non raggiunge
+# target-diff). Attualmente il timer per accedere parte da quando viene spento
+# il riscaldamento, invece deve partire da quando scende sotto il target.
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK
@@ -247,10 +251,13 @@ except ValidationError as jsve:
     main_return_code = common.RET_CODE_TT_INVALID_CONTENT
     logger.critical('invalid element {} in timetable file: {}', list(jsve.path), jsve.message)
 
-except (HeatingError, ThermometerError) as pie:
-    # TODO cambiare messaggio di log, non è detto che si sia su un Pi
-    main_return_code = common.RET_CODE_PI_INIT_ERR
-    logger.critical('cannot access Raspberry Pi: {}', pie)
+except HeatingError as he:
+    main_return_code = common.RET_CODE_HW_INIT_ERR
+    logger.critical('cannot initialize heating: {}', he)
+
+except ThermometerError as te:
+    main_return_code = common.RET_CODE_HW_INIT_ERR
+    logger.critical('cannot initialize thermometer: {}', he)
 
 except RuntimeError as re:
     main_return_code = common.RET_CODE_CFG_FILE_UNKNOWN_ERR
@@ -315,6 +322,11 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
     
     Periodically checks the temperature and switch on/off the heating
     accordingly.
+    
+    If a known error is catched somewhere, a message is printed to syslog and
+    the daemon is leaved running even if a manual operation of the user is
+    required to fix the contidion. In case of unknown error, a critical message
+    is printed and the daemon is closed.
     """
     
     global main_return_code
@@ -398,23 +410,24 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                     
                     except ValidationError as jsve:
                         # The internal settings must be valid otherwise an error
-                        # should have been already catched in other sections of
-                        # the daemon, even if new settings are set from
-                        # socket connection. So we print a critical error and
-                        # we close the daemon.
+                        # should have already been catched in other sections of
+                        # the program, even if new settings are set from
+                        # socket connection. We print a critical message but
+                        # we leave the daemon running. Manual intervention of
+                        # the user is required to fix this condition.
                         newstatus = ThermodStatus(time.time(), error='Invalid element in timetable file')
                         logger.critical('invalid element {} in timetable file: {}', list(jsve.path), jsve)
                         #shutdown(exitcode=common.RET_CODE_RUN_INVALID_STATE)
-                        # TODO decidere se tutti questi errori devono solo essere gestiti senza cauare uno sto del demone
                     
                     except JsonValueError as jve:
                         # A strange value has been set somewhere and the daemon
                         # didn't catch the appropriate exception. We print a
-                        # critical message and we close the daemon.
+                        # critical message but we leave the daemon running.
+                        # Manual intervention of the user is required to fix
+                        # this condition.
                         newstatus = ThermodStatus(time.time(), error='Invalid value in running daemon')
                         logger.critical(jve)
                         #shutdown(exitcode=common.RET_CODE_RUN_INVALID_VALUE)
-                        # TODO decidere se tutti questi errori devono solo essere gestiti senza cauare uno sto del demone
                     
                     except ScriptError as se:
                         # One of the external scripts reported an error, we
@@ -434,8 +447,8 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                         logger.error('error from heating: {}', he)
                         logger.debug(he.suberror)
                     
-                    except Exceotion:
-                        # There is an unknown error, we create the new status
+                    except Exception:
+                        # There is an unknown error. We create an error-status
                         # for monitors and we re-raise the exception.
                         newstatus = ThermodStatus(time.time(), error='Unknown Error')
                         raise
@@ -462,7 +475,8 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
             
             
             except Exception as e:
-                # An unknown error occurred somewhere
+                # An unknown error occurred somewhere, a critical message is
+                # printed and the daemon will be closed.
                 logger.critical('unknown error occurred: {}', e, exc_info=True)
                 shutdown(exitcode=common.RET_CODE_RUN_OTHER_ERR)
             

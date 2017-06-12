@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-05-26'
+__updated__ = '2017-05-31'
 __version__ = '2.0'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -50,7 +50,6 @@ REQ_PATH_TEAPOT = ('elena', 'tea')
 REQ_PATH_MONITOR = ('monitor', )
 
 REQ_SETTINGS_ALL = 'settings'
-#REQ_SETTINGS_DAYS = 'days'
 REQ_SETTINGS_STATUS = tt.JSON_STATUS
 REQ_SETTINGS_T0 = tt.JSON_T0_STR
 REQ_SETTINGS_TMIN = tt.JSON_TMIN_STR
@@ -88,7 +87,6 @@ class ControlSocket(Thread):
         baselogger.debug('initializing ControlSocket')
         super().__init__(name='ThermodControlSocket')
         
-        # TODO decidere se si deve controllare la classe del lock
         if not isinstance(lock, Condition):
             raise TypeError('the lock in ControlSocket must be a threading.Condition object')
         
@@ -358,9 +356,8 @@ async def GET_handler(request):
         logger.debug('waiting for timetable status change')
         status = await asyncio.wait_for(future, timeout=None, loop=request.app.loop)
         
-        # TODO si deve creare una classe specifica per traferire gli aggiornamenti
-        # ai monitors. Potrebbe essere anche ThermodStatus ma allora deve essere
-        # subclassata per avere altre funzionalità.
+        # TODO feature request: create a specific class to trasfer data to
+        # monitors in order to improve monitors' functionalities.
         logger.debug('preparing response with monitor update')
         response = json_response(status=(200 if status.error is None else 503),
                                  headers=_last_mod_hdr(status.timestamp),
@@ -399,7 +396,7 @@ async def POST_handler(request):
     
     Any request that produces an error in updating internal settings,
     restores the old state except when the settings were correcly updated
-    but they couldn't be saved to filesystem. In that situation a 503
+    but they couldn't be saved to filesystem. In that situation a 423
     status code is sent to the client, the internal settings are update
     but not saved.
     

@@ -25,7 +25,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2017-05-11'
+__updated__ = '2017-06-12'
 
 
 # logger common settings
@@ -57,7 +57,7 @@ RET_CODE_TT_READ_ERR = 21
 RET_CODE_TT_INVALID_SYNTAX = 22
 RET_CODE_TT_INVALID_CONTENT = 23
 RET_CODE_TT_OTHER_ERR = 24
-RET_CODE_PI_INIT_ERR = 25
+RET_CODE_HW_INIT_ERR = 25
 RET_CODE_SCRIPT_INIT_ERR = 26
 RET_CODE_INIT_ERR = 29
 RET_CODE_SOCKET_PORT_ERR = 30
