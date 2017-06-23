@@ -399,9 +399,13 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
             
             @param channels the list of channels to read value from
+            @param scale degree scale to be used
             @param t_ref list of reference values for temperature calibration
             @param t_raw list of raw temperatures read by the thermometer
                 corresponding to values in `t_ref`
+            @param calibration e callable object to calibrate the temperature
+                (if both `t_ref` and `t_raw` are valid, this parameter is
+                ignored)
             
             @exception ValueError if no channels provided or channels out of range [0,7]
             @exception ThermometerError if the module `gpiozero' cannot be imported

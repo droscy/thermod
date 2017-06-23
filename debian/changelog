@@ -1,3 +1,9 @@
+thermod (1.0.0~beta12-3) unstable; urgency=medium
+
+  * Add package graphviz to build depends.
+
+ -- Simone Rossetto <simros85@gmail.com>  Fri, 23 Jun 2017 09:48:56 +0200
+
 thermod (1.0.0~beta12-2) unstable; urgency=medium
 
   * Add install scripts for thermod-monitor-buttonled
