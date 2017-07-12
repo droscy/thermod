@@ -37,9 +37,9 @@ Section: python
 Architecture: any
 Depends: ${python3:Depends}, ${misc:Depends}
 Recommends:
- python3-spidev [armel] | python3-gpiozero (>=1.3.0) [armel],
- python3-spidev [armhf] | python3-gpiozero (>=1.3.0) [armhf],
- python3-spidev [arm64] | python3-gpiozero (>=1.3.0) [arm64]
+ python3-spidev [armel] | python3-gpiozero (>=1.3.0) [armel], python3-rpi.gpio (>=0.6.3) [armel],
+ python3-spidev [armhf] | python3-gpiozero (>=1.3.0) [armhf], python3-rpi.gpio (>=0.6.3) [armhf],
+ python3-spidev [arm64] | python3-gpiozero (>=1.3.0) [arm64], python3-rpi.gpio (>=0.6.3) [arm64]
 Suggests: python3-thermod-doc (=${binary:Version})
 Description: Programmable thermostat daemon (libraries)
  Python package for Thermod daemon.

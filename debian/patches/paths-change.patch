@@ -1,5 +1,16 @@
---- a/etc/thermod.conf
-+++ b/etc/thermod.conf
+Index: thermod/etc/thermod.conf
+===================================================================
+--- thermod.orig/etc/thermod.conf
++++ thermod/etc/thermod.conf
+@@ -8,7 +8,7 @@
+ [global]
+ enabled = false
+ debug = false
+-timetable = /etc/thermod/timetable.json
++timetable = /var/lib/thermod/timetable.json
+ interval = 30
+ 
+ [heating]
 @@ -20,7 +20,7 @@ heating = scripts
  [heating/scripts]
  # Full path to heating scripts. One script to switch on the heating, one to
@@ -18,8 +29,10 @@
  thermometer = /etc/thermod/get-temperature
  
  # Degree scale of the thermometer. Two values are valid: celsius or fahrenheit.
---- a/web/index.php
-+++ b/web/index.php
+Index: thermod/web/index.php
+===================================================================
+--- thermod.orig/web/index.php
++++ thermod/web/index.php
 @@ -25,7 +25,7 @@
  	 * the webserver configuration while $HOST and $PORT must be left empty.
  	 * If no webserver is used, $PATH must be left empty and $HOST and $PORT
