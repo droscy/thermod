@@ -23,7 +23,8 @@ case "$1" in
         chown -R thermod /var/lib/thermod
 
         # add thermod user to gpio and spi groups to access hardware devices
-        if [[ "$(dpkg --print-architecture)" =~ ^arm(el|hf|64)$ ]]; then
+        ARCH="$(dpkg --print-architecture)"
+        if [ "$ARCH" = "armel" ] || [ "$ARCH" = "armhf" ] || [ "$ARCH" = "arm64" ]; then
             usermod -a -G gpio,spi thermod
         fi
     ;;

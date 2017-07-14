@@ -1,3 +1,9 @@
+thermod (1.0.0~beta13-2) unstable; urgency=medium
+
+  * Fix postinst script for thermod
+
+ -- Simone Rossetto <simros85@gmail.com>  Fri, 14 Jul 2017 16:23:15 +0200
+
 thermod (1.0.0~beta13-1) unstable; urgency=medium
 
   * Change Debian postinst script to add thermod user to specific groups
