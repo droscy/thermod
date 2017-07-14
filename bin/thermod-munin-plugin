@@ -42,9 +42,9 @@ import sys
 import json
 from urllib import request
 
-__version__ = '1.1.0'
+__version__ = '1.1.1'
 __date__ = '2016-04-24'
-__updated__ = '2017-05-25'
+__updated__ = '2017-07-14'
 
 
 # default return code
@@ -81,8 +81,7 @@ status.label Heating status (ON/OFF)
 status.info The current status of the heating (value 1 means heating ON, value 0 means heating OFF).
 status.min 0
 status.max 1
-status.draw AREA
-status.colour COLOUR9'''.format(
+status.draw AREA'''.format(
     target_warning=('target.warning {}\n'.format(target_warning) if target_warning else ''),
     target_critical=('target.critical {}\n'.format(target_critical) if target_critical else ''),
     current_warning=('current.warning {}\n'.format(current_warning) if current_warning else ''),
