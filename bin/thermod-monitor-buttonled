@@ -28,11 +28,11 @@ import requests
 
 from thermod import ThermodStatus
 from gpiozero import Button, RGBLED
-from threading import Timer, Semaphore, Event
+from threading import Timer, Lock
 
-__version__ = '0.0.0a3'
+__version__ = '0.0.0a4'
 __date__ = '2017-05-12'
-__updated__ = '2017-06-12'
+__updated__ = '2017-09-13'
 
 
 # default LED colors
@@ -44,7 +44,7 @@ LED_COLOR_BLUE = (0, 0.01, 0.2)
 LED_COLOR_CYAN = (0, 0.08, 0.1)
 
 def get_color(status):
-    """Convert a Thermod status to its corresponding led color."""
+    """Convert a Thermod status to its corresponding LED color."""
     
     if status == 'auto':
         color = LED_COLOR_GREEN
@@ -63,7 +63,7 @@ def get_color(status):
 
 # the real monitor class
 class ButtonLedMonitor(object):
-    """Mangage a Thermod monitor with an RGB led and a push button."""
+    """Mangage a Thermod monitor with an RGB LED and a push button."""
     
     def __init__(self, red, green, blue, button, host, port, timeout=3):
         """Init a ButtonLedMonitor with corresponding PINs."""
@@ -79,9 +79,9 @@ class ButtonLedMonitor(object):
         self._timeout = timeout
         self._timer = None
         
-        self._semaphore = Semaphore(1)
-        self._notpressing = Event()
-        self._notpressing.set()
+        self._lock = Lock()
+        self._changing_status = Lock()
+        self._press_id = 0
     
     def __enter__(self):
         self._session = requests.Session()
@@ -120,21 +120,24 @@ class ButtonLedMonitor(object):
             
             color = get_color(status.status)
             
-            if self._semaphore.acquire(blocking=False):
-                try:
-                    if status.heating_status == 1:
-                        self._led.off()
-                        self._led.blink(on_time=0.5,
-                                        off_time=0.5,
-                                        on_color=color,
-                                        off_color=LED_COLOR_BLACK)
-                    else:
-                        self._led.color = color
+            with self._lock:
+                # If a change isn't happening (thus the lock is not acquired)
+                # we update the led, otherwise we skip this step.
+                if self._changing_status.acquire(blocking=False):
+                    try:
+                        if status.heating_status == 1:
+                            self._led.off()
+                            self._led.blink(on_time=0.5,
+                                            off_time=0.5,
+                                            on_color=color,
+                                            off_color=LED_COLOR_BLACK)
+                        else:
+                            self._led.color = color
+                        
+                        self._status = status.status
                     
-                    self._status = status.status
-                
-                finally:
-                    self._semaphore.release()
+                    finally:
+                        self._changing_status.release()
         
         except Exception as e:
             self._led.off()
@@ -146,57 +149,59 @@ class ButtonLedMonitor(object):
             # TODO completare gestione qui o farlo esternamente
             raise
     
-    def _save_new_status(self):
-        self._notpressing.set()
-        
-        try:
-            self._led.off()
-            self._led.blink(on_time=0.4,
-                            off_time=0.2,
-                            on_color=get_color(self._new_status),
-                            off_color=LED_COLOR_BLACK)
-            
-            rsp = self._session.post('{}/settings'.format(self._request_url),
-                                     data={'status': self._new_status})
-        finally:
-            self._new_status = None
-            self._semaphore.release()
+    def _save_new_status(self, press_id):
+        with self._lock:
+            # If this is the last started Timer then update the status
+            # otherwise do nothing.
+            if press_id == self._press_id:
+                try:
+                    self._led.off()
+                    self._led.blink(on_time=0.4,
+                                    off_time=0.2,
+                                    on_color=get_color(self._new_status),
+                                    off_color=LED_COLOR_BLACK)
+                    
+                    rsp = self._session.post('{}/settings'.format(self._request_url),
+                                             data={'status': self._new_status})
+                finally:
+                    self._new_status = None
+                    self._changing_status.release()
     
     def _manage_button_press(self):
-        self._semaphore.acquire(block=self._notpressing.is_set())
-        self._notpressing.clear()
-        
-        try:
-            if self._timer:
-                self._timer.cancel()
-                self._timer = None
-            
-            if self._new_status is None:
-                # if this is the first press, we check the current status and
-                # we update the temporary new status
-                if self._status == 'auto':
-                    self._new_status = 'off'
+        with self._lock:
+            try:
+                if self._changing_status.acquire(blocking=False):
+                    # this is the first press, we check the current status and
+                    # we update the temporary new status
+                    if self._status == 'auto':
+                        self._new_status = 'off'
+                    else:
+                        self._new_status = 'auto'
+                
                 else:
-                    self._new_status = 'auto'
-            else:
-                # if this is a sequential press, we check the temporary new
-                # status and we update itself
-                if self._new_status == 'auto':
-                    self._new_status = 'off'
-                elif self._new_status == 'off':
-                    self._new_status = 't0'
-                elif self._new_status == 't0':
-                    self._new_status = 'tmin'
-                elif self._new_status == 'tmin':
-                    self._new_status = 'tmax'
-                elif self._new_status == 'tmax':
-                    self._new_status = 'auto'
+                    # this is a sequential press, we clear the timer, we check
+                    # the temporary new status and we update itself
+                    if self._timer:
+                        self._timer.cancel()
+                        self._timer = None
+                    
+                    if self._new_status == 'auto':
+                        self._new_status = 'off'
+                    elif self._new_status == 'off':
+                        self._new_status = 't0'
+                    elif self._new_status == 't0':
+                        self._new_status = 'tmin'
+                    elif self._new_status == 'tmin':
+                        self._new_status = 'tmax'
+                    elif self._new_status == 'tmax':
+                        self._new_status = 'auto'
+                
+                self._led.color = get_color(self._new_status)
             
-            self._led.color = get_color(self._new_status)
-        
-        finally:
-            self._timer = Timer(self._timeout, self._save_new_status)
-            self._timer.start()
+            finally:
+                self._press_id += 1
+                self._timer = Timer(self._timeout, self._save_new_status, [self._press_id])
+                self._timer.start()
 
 
 # shoutdown check
@@ -222,6 +227,7 @@ args = parser.parse_args()
 
 # TODO inserire eccezioni
 # TODO testare funzionamento completo
+# TODO capire come interrompere una get in corso quando si ha il SIGTERM
 with ButtonLedMonitor(args.red, args.green, args.blue, args.button, args.host, args.port) as monitor:
     monitor.update_status(False)
     
