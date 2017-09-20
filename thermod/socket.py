@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-05-31'
-__version__ = '2.0'
+__updated__ = '2017-09-20'
+__version__ = '2.1~beta1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -144,9 +144,24 @@ class ControlSocket(Thread):
         if not isinstance(status, ThermodStatus):
             raise TypeError('new status for monitors must be a ThermodStatus object')
         
-        # TODO mettere messaggi di debug
+        baselogger.debug('updating connected monitors')
+        
+        if self.app['monitors'].empty():
+            baselogger.debug('no monitors to be updated, the queue is empty')
+        else:
+            baselogger.debug('there are {} monitor(s) in the queue'.format(self.app['monitors'].qsize()))
+        
+        count = 0
         while not self.app['monitors'].empty():
-            self.app['monitors'].get_nowait().set_result(status)
+            try:
+                self.app['monitors'].get_nowait().set_result(status)
+                baselogger.debug('monitor {} updated'.format(count))
+            
+            except asyncio.InvalidStateError as ise:
+                baselogger.debug('cannot update monitor {} because the client '
+                                 'has probably closed the connection'.format(count))
+            
+            count += 1
 
 
 def _last_mod_hdr(last_mod_time):
@@ -234,8 +249,11 @@ async def exceptions_middleware(app, handler):
                                         'try again in a couple of minutes')})
         
         except asyncio.CancelledError:
-            logger.debug('an asynchronous operation has been cancelled due to daemon shutdown')
+            logger.debug('an asynchronous operation has been cancelled due to '
+                         'daemon shutdown or client disconnection')
             
+            # TODO if the client has already closed the connection, the response
+            # is useless, find a way to separate the two behaviours.
             message = 'Thermod is shutting down'
             response = json_response(status=530,
                                      reason=message,
