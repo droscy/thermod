@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-05-20'
+__updated__ = '2017-09-20'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -438,6 +438,10 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                 # of gpiozero package is in use.
                 logger.debug('PiAnalogZero thermometer is using gpiozero software bus to SPI device')
             
+            # Only the first time an ubnormal raw temperature is read a warning
+            # message is printed. This variable is used as a check for it.
+            self._printed_warning_std = False
+            
             # Allocate the queue for the last 30 temperatures to be averaged. The
             # value `30` covers a period of 3 minutes because the sleep time between
             # two measures is 6 seconds: 6*30 = 180 seconds = 3 minutes.
@@ -447,6 +451,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             self._stop = Event()
             self._averaging_thread = Thread(target=self._update_temperatures, daemon=True)
             self._averaging_thread.start()
+            
         
         def __repr__(self, *args, **kwargs):
             return '<{module}.{cls}({channels!r}, {scale!r}, calibration={calib!r})>'.format(
@@ -471,7 +476,19 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             """
             
             temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
-            return round(sum(temperatures) / len(temperatures), 2)  # additional decimal are meaningless
+            
+            std = numpy.std(temperatures)
+            if std <= 1 and self._printed_warning_std is True:
+                self._printed_warning_std = False
+            
+            elif std > 1 and self._printed_warning_std is False:
+                self._printed_warning_std = True
+                logger.warning('standard deviation of raw temperatures is {:.2f}, '
+                               'greater than maximum allowed value, the '
+                               'temperatures are {}'.format(std, temperatures))
+            
+            # the median exludes a possible single outlier
+            return round(numpy.median(temperatures), 2)  # additional decimal are meaningless
         
         def _update_temperatures(self):
             """Start a cycle to update the list of last measured temperatures.
@@ -510,7 +527,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                 temperatures.sort()
                 shortened = temperatures[skip:(elements-skip)]
             
-            return round(sum(shortened) / len(shortened), 2)  # additional decimal are meaningless
+            return round(numpy.mean(shortened), 2)  # additional decimal are meaningless
         
         def __del__(self):
             """Stop the temperature-averaging thread."""
