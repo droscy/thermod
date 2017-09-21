@@ -89,8 +89,7 @@
 		
 		<script language="javascript" type="text/javascript" src="/javascript/jquery/jquery.js"></script>
 		<script language="javascript" type="text/javascript" src="/javascript/jquery-ui/jquery-ui.js"></script>
-		<link type="text/css" href="/javascript/jquery-ui/css/smoothness/jquery-ui.css" rel="stylesheet" />
-		<link type="text/css" href="/javascript/jquery-ui/themes/base/jquery.ui.all.css" rel="stylesheet" />
+		<link type="text/css" href="/javascript/jquery-ui/themes/base/jquery-ui.css" rel="stylesheet" />
 		<script>
 			// thermod settings
 			var settings;  
@@ -122,9 +121,6 @@
 			function target_status_refresh()
 			{
 				$('#target-status option[value=' + settings['status'] + ']').prop('selected', true);
-
-				if($.ui.version >= '1.11')
-					$('#target-status').selectmenu('refresh');
 			}
 
 			// handle the change event of target status
@@ -210,18 +206,12 @@
 			$(function()
 			{
 				// main objects of the page
-				/*if($.ui.version >= '1.11') TODO
-					$('#target-status').selectmenu({disabled: true, change: target_status_change});
-				else
-				{*/
-					$('#target-status').prop('disabled', true);
-					$('#target-status').change(target_status_change);
-				//}
-
+				$('#target-status').selectmenu({disabled: true, change: target_status_change});
 				$('#tabs').tabs();
-				$('#days').buttonset({disabled: true});
-				$('.hour').button({disabled: true});
-				$('.quarter').button({disabled: true});
+				$('#days').controlgroup({disabled: true});
+				$('#days input').checkboxradio({icon: false});
+				$('.hour').button({disabled: true, icon: false});
+				$('.quarter').button({disabled: true, icon: false});
 
 				$('.set-temperatures').spinner(
 				{
@@ -416,19 +406,14 @@
 						$('#grace-time').spinner('value', grace.toFixed(0));
 
 						// enable objects
-						$('#target-status').prop('disabled', true);
-						$('#days').buttonset('option', 'disabled', false);
+						$('#target-status').selectmenu('option', 'disabled', false).selectmenu('refresh');
+						$('#days').controlgroup('option', 'disabled', false);
 						$('.hour').button('option', 'disabled', false);
-						$('.quarter').button('option', 'disabled', false);
+						$('.quarter').button('option', 'disabled', false).button('refresh');
 						$('.set-temperatures').spinner('option', 'disabled', false);
 						$('#differential').spinner('option', 'disabled', false);
 						$('#grace-time').spinner('option', 'disabled', false);
 						$('#save').button('option', 'disabled', false);
-
-						/*if($.ui.version >= '1.11') TODO
-							$('#target-status').selectmenu('option', 'disabled', true);
-						else*/
-							$('#target-status').prop('disabled', false);
 					},
 					error: function(jqXHR, textStatus, errorThrown)
 					{
@@ -440,7 +425,7 @@
 							data = {'error': errorThrown};
 
 						var error = (('explain' in data) ? data['explain'] : data['error']);
-						$('#days').buttonset('option', 'disabled', true); // TODO capire come mai questo comando serve
+						$('#days').controlgroup('option', 'disabled', true); // TODO capire come mai questo comando serve
 						$("#dialog").dialog('option', 'title', 'Error');
 						$("#dialog").dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
 						$("#dialog").html('<p><span class="ui-icon ui-icon-alert"></span>Cannot retrieve data from Thermod: <em>&quot;' + error + '&quot;</em>.</p>');
@@ -459,7 +444,6 @@
 			/* global */
 			h1 { font-size: 150%; margin: 0.5ex 0;}
 			.ui-dialog { font-size: 90%; }
-			.ui-icon { float: left; margin: 0.3ex 1ex 7ex 0; }
 			
 			#loading { display: none; }
 			#loading-img
@@ -480,12 +464,13 @@
 			
 			/* header */
 			#main { font-size: 90%; }
-			#main ul { list-style-type: none; }
-			#main ul li { display: block; float: left; text-align: center; width: 10em; margin-bottom: 1em; }
+			#main ul { list-style-type: none; padding: 0px 1.5em; margin: 0.8em 0 0 0; }
+			#main ul li { display: block; float: left; text-align: center; width: 8em; margin-bottom: 1.2em; }
+			#main ul li label { display: block; width: 100%; }
 			#main ul li input { cursor: default; }
 			
-			#target-status { width: 9.8em; }
-			/*#target-status-button { margin-top: 0.3ex; }*/
+			#target-status-li { margin-right: 2em; }
+			#target-status-button { width: 7em; margin-top: 0.3ex; }
 			#current-status { width: 4em; margin-top: 0.3ex; }
 			#current-temperature { width: 4em; margin-top: 0.3ex; }
 			#target-temperature { width: 4em; margin-top: 0.3ex; }
@@ -498,6 +483,7 @@
 			#hours { margin-bottom: 1.5ex; }
 			.hour-box { float: left; text-align: center; margin-bottom: 1.5ex; width: 4.8em; }
 			.quarters-box { font-size: 58%; margin: 0.2ex; }
+			.quarters-box label { margin-top: 0.5ex; }
 			
 			/* settings */
 			#settings p { margin: 0 0 1.2ex 0; }
@@ -521,7 +507,7 @@
 		<h1>Thermod Web Manager</h1>
 		<div id="main" class="ui-widget-header ui-corner-all">
 			<ul>
-				<li>
+				<li id="target-status-li">
 					<label for="target-status">Status</label>
 					<select id="target-status" name="target-status">
 						<!-- TODO t_max e t_min non hanno il pedice!! -->
