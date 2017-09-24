@@ -36,7 +36,7 @@ from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
 
 from thermod import common, config
-from thermod.common import ScriptError, LogStyleAdapter
+from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus
 from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer, MCP3008
 from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
 from thermod.timetable import TimeTable, JsonValueError
@@ -44,7 +44,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-06-12'
+__updated__ = '2017-09-24'
 
 # TODO documentare return code
 # TODO provare la generazione della documentazione con doxygen

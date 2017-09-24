@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-09-20'
-__version__ = '2.1~beta1'
+__updated__ = '2017-09-24'
+__version__ = '2.1~beta2'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -157,7 +157,7 @@ class ControlSocket(Thread):
                 self.app['monitors'].get_nowait().set_result(status)
                 baselogger.debug('monitor {} updated'.format(count))
             
-            except asyncio.InvalidStateError as ise:
+            except asyncio.InvalidStateError:
                 baselogger.debug('cannot update monitor {} because the client '
                                  'has probably closed the connection'.format(count))
             
@@ -174,7 +174,9 @@ async def exceptions_middleware(app, handler):
     
     async def exceptions_handler(request):
         logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
-        logger.info('received "{} {}" request', request.method, request.url.path)
+        
+        log = (logger.debug if request.method == 'GET' else logger.info)
+        log('received "{} {}" request', request.method, request.url.path)
         
         try:
             response = await handler(request)
@@ -362,9 +364,9 @@ async def GET_handler(request):
             status=418,
             reason=message,
             headers=_last_mod_hdr(datetime(2017, 7, 29, 17, 0).timestamp()),
-            data={RSP_ERROR: 'To my future wife',
+            data={RSP_ERROR: 'To my wife',
                   RSP_EXPLAIN: ('I dedicate this application to Elena, '
-                                'my future wife.')})
+                                'my wife.')})
     
     elif action in REQ_PATH_MONITOR:
         logger.debug('enqueuing new long-polling monitor request')

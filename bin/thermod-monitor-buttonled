@@ -30,15 +30,15 @@ from thermod import ThermodStatus
 from gpiozero import Button, RGBLED
 from threading import Timer, Lock
 
-__version__ = '0.0.0a4'
+__version__ = '0.0.0a5'
 __date__ = '2017-05-12'
-__updated__ = '2017-09-13'
+__updated__ = '2017-09-24'
 
 
 # default LED colors
 LED_COLOR_BLACK = (0, 0, 0)
 LED_COLOR_RED = (0.1, 0, 0)
-LED_COLOR_YELLOW = (0.2, 0.03, 0)
+LED_COLOR_YELLOW = (0.15, 0.04, 0)
 LED_COLOR_GREEN = (0, 0.01, 0)
 LED_COLOR_BLUE = (0, 0.01, 0.2)
 LED_COLOR_CYAN = (0, 0.08, 0.1)
@@ -94,7 +94,7 @@ class ButtonLedMonitor(object):
                         on_color=LED_COLOR_RED,
                         off_color=LED_COLOR_BLACK)
         
-        #self._button.when_pressed = self._manage_button_press
+        self._button.when_pressed = self._manage_button_press
         return self
     
     def __exit__(self, exc_type=None, exc_value=None, traceback=None):
@@ -156,10 +156,11 @@ class ButtonLedMonitor(object):
             if press_id == self._press_id:
                 try:
                     self._led.off()
-                    self._led.blink(on_time=0.4,
-                                    off_time=0.2,
-                                    on_color=get_color(self._new_status),
-                                    off_color=LED_COLOR_BLACK)
+                    # local update is too fast, blink is not visible
+                    #self._led.blink(on_time=0.4,
+                    #                off_time=0.2,
+                    #                on_color=get_color(self._new_status),
+                    #                off_color=LED_COLOR_BLACK)
                     
                     rsp = self._session.post('{}/settings'.format(self._request_url),
                                              data={'status': self._new_status})
