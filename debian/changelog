@@ -1,3 +1,15 @@
+thermod (1.0.0~beta13-4) unstable; urgency=medium
+
+  * Change munin plugin
+
+ -- Simone Rossetto <simros85@gmail.com>  Mon, 25 Sep 2017 14:45:44 +0200
+
+thermod (1.0.0~beta13-3) unstable; urgency=medium
+
+  * Update
+
+ -- Simone Rossetto <simros85@gmail.com>  Sun, 24 Sep 2017 13:41:45 +0200
+
 thermod (1.0.0~beta13-2) unstable; urgency=medium
 
   * Fix postinst script for thermod

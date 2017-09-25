@@ -13,8 +13,6 @@ the environment variables `socket_host` and `socket_port`.
 These are the environment variables accepted by this plugin:
  - `socket_host` the host address or name where to contact Thermod (default to 'localhost');
  - `socket_port` the port where to contact Thermod daemon (default to 4344)
- - `target_warning` warning value for target temperature
- - `target_critical` critical value for target temperature
  - `current_warning` warning value for current temperature
  - `current_critical` critical value for current temperature
 
@@ -42,9 +40,9 @@ import sys
 import json
 from urllib import request
 
-__version__ = '1.1.1'
+__version__ = '1.2.0'
 __date__ = '2016-04-24'
-__updated__ = '2017-07-14'
+__updated__ = '2017-09-25'
 
 
 # default return code
@@ -57,8 +55,6 @@ if len(sys.argv) > 1:
         exit(main_return_code)
     
     elif sys.argv[1] == 'config':
-        target_warning = os.getenv('target_warning', None)
-        target_critical = os.getenv('target_critical', None)
         current_warning = os.getenv('current_warning', None)
         current_critical = os.getenv('current_critical', None)
         
@@ -71,19 +67,12 @@ graph_order current target status
 graph_info This graph shows the current status of the heating as reported by Thermod with current room temperature and target temperature.
 target.label Target temperature
 target.info The target temperature currently active in Thermod.
-{target_warning}\
-{target_critical}\
 current.label Current temperature
 current.info The current room temperature as reported by Thermod.
 {current_warning}\
 {current_critical}\
-status.label Heating status (ON/OFF)
-status.info The current status of the heating (value 1 means heating ON, value 0 means heating OFF).
-status.min 0
-status.max 1
-status.draw AREA'''.format(
-    target_warning=('target.warning {}\n'.format(target_warning) if target_warning else ''),
-    target_critical=('target.critical {}\n'.format(target_critical) if target_critical else ''),
+status.label Heating ON
+status.info The current status of the heating (value equal to current temperature means heating ON, no value means heating OFF).'''.format(
     current_warning=('current.warning {}\n'.format(current_warning) if current_warning else ''),
     current_critical=('current.critical {}\n'.format(current_critical) if current_critical else '')))
         
@@ -101,6 +90,12 @@ try:
             
             if status['target_temperature'] is None:
                 status['target_temperature'] = 'U'
+            
+            # the heating_status is shown only when the heating is ON
+            if status['heating_status'] == 0:
+                status['heating_status'] = 'U'
+            else:
+                status['heating_status'] = status['current_temperature']
         
         else:
             raise RuntimeError('unacceptable status code returned from Thermod')
