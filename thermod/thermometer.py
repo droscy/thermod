@@ -35,7 +35,7 @@ from .common import ScriptError, LogStyleAdapter
 
 try:
     # Try importing spidev or gpiozero module.
-    # If succeded spcific classes for  Raspberry Pi are defined, otherwise
+    # If succeded spcific classes for Raspberry Pi are defined, otherwise
     # fake classes are created at the end of this file.
     from spidev import SpiDev
 except ImportError:
@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-09-20'
+__updated__ = '2017-10-20'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -337,6 +337,13 @@ if SpiDev:
     logger.debug('spidev module imported, defining custom MCP3008 class')
     
     class _MCP3008(object):
+        """Custom lighter implementation of MCP3008 A/D converter.
+        
+        This class is a reimplementation of gpiozero.MCP3008 class and permits a
+        fast loading of thermod package on systems with limited resources (like
+        the Raspberry Pi Zero) without loading the whole `gpiozero` package.
+        """
+    
         def __init__(self, device, channel):
             self._device = device
             self.channel = channel
@@ -357,6 +364,8 @@ if SpiDev:
             return self
     
     class _SpiDeviceWrapper(object):
+        """A wrapper around a SPI device to share the same device between multiple objects."""
+        
         def __init__(self, bus=0, device=0):
             self.spi = SpiDev()
             self.bus = bus
@@ -373,8 +382,8 @@ if SpiDev:
             
             return _MCP3008(self.spi, channel)
     
-    # TODO documentare, ma vale usare un'implementazione custom per velocizzare l'avvio?
     MCP3008 = _SpiDeviceWrapper()
+    """Replacement of `gpiozero.MPC3008` class interface."""
 
 
 if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
@@ -384,13 +393,13 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
     logger.debug('defining specific classes for Raspberry Pi thermometer')
 
     # TODO inserire documentazione su come creare questa board con TMP36 e su
-    # come viene misurata la temperatura facendo la media di più valori.
+    # come viene misurata la temperatura prendendo la mediana dei valori.
     class PiAnalogZeroThermometer(BaseThermometer):
         """Read temperature from a Raspberry Pi AnalogZero board in celsius degree.
         
         If a single channel is provided during object creation, it's value is used
         as temperature, if more than one channel is provided, the current
-        temperature is computed averaging the values of all channels.
+        temperature is computed getting the median value of all channels.
         
         @see http://rasp.io/analogzero/
         """
@@ -472,16 +481,19 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             """The current raw temperature as measured by physical thermometer.
             
             If more than one channel is provided during object creation, the
-            returned temperature is the average value computed on all channels.
+            returned temperature is the median value of all channels.
+            
+            A standard deviation between all values is also used to exclude from
+            the computation broken physical thermometers.
             """
             
             temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
             
             std = numpy.std(temperatures)
-            if std <= 1 and self._printed_warning_std is True:
+            if std < 1.5 and self._printed_warning_std is True:
                 self._printed_warning_std = False
             
-            elif std > 1 and self._printed_warning_std is False:
+            elif std >= 1.5 and self._printed_warning_std is False:
                 self._printed_warning_std = True
                 logger.warning('standard deviation of raw temperatures is {:.2f}, '
                                'greater than maximum allowed value, the '

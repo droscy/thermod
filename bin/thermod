@@ -44,19 +44,12 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-09-24'
+__updated__ = '2017-10-19'
 
 # TODO documentare return code
-# TODO provare la generazione della documentazione con doxygen
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
 # TODO creare manpage per questo file
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
-
-# TODO rivedere uso del grace-time, il timer deve partire sia da quando supera
-# la temperatura target (quindi timer per spegnere se non raggiunge target+diff),
-# sia da quando scende sotto target (quindi timer per accendere se non raggiunge
-# target-diff). Attualmente il timer per accedere parte da quando viene spento
-# il riscaldamento, invece deve partire da quando scende sotto il target.
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK
@@ -378,8 +371,7 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                     try:
                         should_be_on = timetable.should_the_heating_be_on(
                                             thermometer.temperature,
-                                            heating.status,
-                                            heating.switch_off_time)
+                                            heating.status)
                         
                         _msg = ('status: {!r}, '
                                 'current: {:.1f}, '

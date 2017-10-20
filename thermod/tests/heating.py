@@ -25,7 +25,7 @@ import tempfile
 import unittest
 from thermod.heating import ScriptHeating, HeatingError
 
-__updated__ = '2017-03-01'
+__updated__ = '2017-10-19'
 
 
 class TestHeating(unittest.TestCase):
@@ -160,9 +160,12 @@ exit(retcode)
         self.heating.switch_on()
         self.assertEqual(self.heating.status, 1)
         
-        os.chmod(self.status_data,0o400)
-        with self.assertRaises(HeatingError):
-            self.heating.switch_off()
+        if os.getuid() != 0:
+            # root can write a file even with read only permissions so this
+            # test is useless when executed by root
+            os.chmod(self.status_data,0o400)
+            with self.assertRaises(HeatingError):
+                self.heating.switch_off()
         
         self.assertEqual(self.heating.is_on(), True)
         self.assertEqual(self.heating.status, 1)

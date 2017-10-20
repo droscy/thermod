@@ -30,7 +30,7 @@ from thermod import TimeTable, timetable, BaseHeating
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-04-18'
+__updated__ = '2017-10-19'
 
 
 class MementoTable(TimeTable):
@@ -189,7 +189,7 @@ class TestMemento(unittest.TestCase):
         self.mttable.status = timetable.JSON_STATUS_TMAX
         
         # initial status, the heating should be on
-        self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status))
         
         # creating main lock
         lock = threading.Condition()
@@ -203,7 +203,7 @@ class TestMemento(unittest.TestCase):
         # still acquired.
         with lock:
             thread.start()
-            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status))
             
             sett = self.mttable.__getstate__()
             sett[timetable.JSON_DIFFERENTIAL] = 'INVALID'
@@ -213,23 +213,23 @@ class TestMemento(unittest.TestCase):
                 self.mttable.__setstate__(sett)
             
             self.assertTrue(lock._is_owned())  # still owned
-            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))  # old settings still valid
+            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status))  # old settings still valid
             
             thread.join(3)  # deadlock, so should exit for timeout
             self.assertTrue(thread.is_alive())  # exit join() for timeout
-            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))  # old settings still valid
+            self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status))  # old settings still valid
         
         # the assert becomes False after the execution of the thread
         thread.join(30)  # no deadlock, timeout only to be sure
         self.assertFalse(thread.is_alive())  # exit join() for lock releasing
-        self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))  # new settings of thread
+        self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status))  # new settings of thread
     
     def thread_change_status(self, lock):
-        self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status))
         
         with lock:
             self.mttable.status = timetable.JSON_STATUS_OFF
-            self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+            self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status))
 
       
 if __name__ == "__main__":

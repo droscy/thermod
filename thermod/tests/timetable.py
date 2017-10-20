@@ -32,7 +32,7 @@ from jsonschema import ValidationError
 from datetime import datetime, timedelta
 from thermod import timetable, TimeTable, ShouldBeOn, JsonValueError, utils, BaseHeating, ThermodStatus
 
-__updated__ = '2017-04-18'
+__updated__ = '2017-10-19'
 
 
 def fill_timetable(tt):
@@ -427,13 +427,13 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         for temp in range(-10,5):
-            self.assertTrue(self.timetable.should_the_heating_be_on(temp, self.heating.status, self.heating.switch_off_time))
+            self.assertTrue(self.timetable.should_the_heating_be_on(temp, self.heating.status))
         
         # Not testing temp equal to t0 (5 degrees) because the result
         # depends by both grace time and differential. More on other tests.
         
         for temp in range(6,15):
-            self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status, self.heating.switch_off_time))
+            self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status))
     
     
     def test_timetable_02(self):  # test tmin status
@@ -448,13 +448,13 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         for temp in range(0,17):
-            self.assertTrue(self.timetable.should_the_heating_be_on(temp, self.heating.status, self.heating.switch_off_time))
+            self.assertTrue(self.timetable.should_the_heating_be_on(temp, self.heating.status))
         
         # Not testing temp equal to tmin (17 degrees) because the result
         # depends by both grace time and differential. More on other tests.
         
         for temp in range(18,21):
-            self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status, self.heating.switch_off_time))
+            self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status))
         
     
     def test_timetable_03(self):  # test tmax status
@@ -469,13 +469,13 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.update(day,hour,quarter,timetable.JSON_T0_STR)
         
         for temp in range(10,21):
-            self.assertTrue(self.timetable.should_the_heating_be_on(temp, self.heating.status, self.heating.switch_off_time))
+            self.assertTrue(self.timetable.should_the_heating_be_on(temp, self.heating.status))
         
         # Not testing temp equal to tmax (21 degrees) because the result
         # depends by both grace time and differential. More on other tests.
         
         for temp in range(22,27):
-            self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status, self.heating.switch_off_time))
+            self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status))
     
     
     def test_timetable_04(self):  # test on/off statuses
@@ -488,21 +488,21 @@ class TestTimeTable(unittest.TestCase):
         
         self.timetable.status = timetable.JSON_STATUS_ON
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
-        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(22, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(25, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(30, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(22, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(25, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(30, self.heating.status))
         
         self.timetable.status = timetable.JSON_STATUS_OFF
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
-        self.assertFalse(self.timetable.should_the_heating_be_on(3, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(10, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(22, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status, self.heating.switch_off_time))
+        self.assertFalse(self.timetable.should_the_heating_be_on(3, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(10, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(22, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status))
     
     
     def test_timetable_05(self):  # test auto status
@@ -517,39 +517,39 @@ class TestTimeTable(unittest.TestCase):
         
         # current target t0
         self.timetable.update(day,hour,quarter,timetable.JSON_T0_STR)
-        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(10, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(22, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(10, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(22, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status))
         
         # current target tmin
         self.timetable.update(day,hour,quarter,timetable.JSON_TMIN_STR)
-        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(22, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(22, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status))
         
         # current target tmax
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
-        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(22, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(22, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status))
         
         # current target manual temperature
         self.timetable.update(day,hour,quarter,27.5)
-        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(22, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(25, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(22, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(25, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status))
     
     
     def test_timetable_06(self):
@@ -564,27 +564,27 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         # check if the heating should be on
-        self.assertTrue(self.timetable.should_the_heating_be_on(19, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(19, self.heating.status))
         
         # virtually switching on and set internal state
         self.heating.switch_on()
         
         # the temperature start increasing
-        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(21, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(21.4, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21.5, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(21, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(21.4, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.5, self.heating.status))
         
         # virtually switching off and set internal state
         self.heating.switch_off()
         
         # the temperature start decreasing
-        self.assertFalse(self.timetable.should_the_heating_be_on(21.4, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(20.6, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, self.heating.status, self.heating.switch_off_time))
-        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.4, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20.6, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
     
     
     def test_timetable_07(self):
@@ -598,12 +598,12 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.status = timetable.JSON_STATUS_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
-        # the heating was on 2 hours ago, more than grace time
+        # the current temperature fell below target 2 hours ago, more than grace time
         self.heating._is_on = False
-        self.heating._switch_off_time = (now - timedelta(seconds=7200))
-        self.assertTrue(self.timetable.should_the_heating_be_on(20.9, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21.1, self.heating.status, self.heating.switch_off_time))
+        self.timetable._last_below_tgt_temp_timestamp = (now - timedelta(seconds=7200)).timestamp()
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.9, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.1, self.heating.status))
     
     
     def test_timetable_08(self):
@@ -618,13 +618,13 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         self.timetable.grace_time = 3600
         
-        # the heating was on 30 minutes ego, less than grace time
+        # the current temperature fell below target 30 minutes ago, less than grace time
         self.heating._is_on = False
-        self.heating._switch_off_time = (now - timedelta(seconds=1800))
-        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(20.6, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status, self.heating.switch_off_time))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21.5, self.heating.status, self.heating.switch_off_time))
+        self.timetable._last_below_tgt_temp_timestamp = (now - timedelta(seconds=1800)).timestamp()
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20.6, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.5, self.heating.status))
     
     
     def test_timetable_09(self):
@@ -642,18 +642,18 @@ class TestTimeTable(unittest.TestCase):
         
         # the heating is on and it remains on untill target temperature
         # plus differential
-        self.assertTrue(self.timetable.should_the_heating_be_on(21.1, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(21.1, self.heating.status))
         
         # I simulate the time passing by changing the target temperature
         # next quarter is tmin
         self.timetable.update(day,hour,quarter,timetable.JSON_TMIN_STR)
-        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status, self.heating.switch_off_time))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status))
         self.heating.switch_off()
         
         # even if next quarter is tmax again, the grace time is not passed and
         # the heating remains off
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
-        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status, self.heating.switch_off_time))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21, self.heating.status))
     
     
     def test_timetable_10(self):
@@ -670,11 +670,11 @@ class TestTimeTable(unittest.TestCase):
         self.heating.switch_on()
         
         # the heating is on
-        self.assertTrue(self.timetable.should_the_heating_be_on(21.1, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(21.1, self.heating.status))
         
         # sleeps 3 seconds to exceed the grace time, the heating is then off
         time.sleep(3)
-        self.assertFalse(self.timetable.should_the_heating_be_on(21.1, self.heating.status, self.heating.switch_off_time))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.1, self.heating.status))
     
     
     def test_target_temperature(self):
@@ -717,7 +717,7 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.status = timetable.JSON_STATUS_TMAX
         
         # initial status, the heating should be on
-        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
         
         # creating main lock
         lock = threading.Condition()
@@ -730,18 +730,18 @@ class TestTimeTable(unittest.TestCase):
         # assert is still True
         with lock:
             thread.start()
-            self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+            self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
         
         # the assert become False after the execution of the thread
         thread.join()
-        self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status))
     
     def thread_change_status(self, lock):
-        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
         
         with lock:
             self.timetable.status = timetable.JSON_STATUS_OFF
-            self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status, self.heating.switch_off_time))
+            self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status))
 
     def test_should_be_on(self):
         s1 = ShouldBeOn(True)

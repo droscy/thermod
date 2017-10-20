@@ -36,8 +36,8 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-05-20'
-__version__ = '1.7'
+__updated__ = '2017-10-20'
+__version__ = '1.8'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -205,6 +205,18 @@ class TimeTable(object):
         Whenever the target temperature is reached, this value is updated with
         the current timestamp. When the current temperature falls below the
         target temperature, this value is reset to `common.TIMESTAMP_MAX_VALUE`.
+        
+        It is used in the `TimeTable.should_the_heating_be_on()`
+        method to respect the grace time.
+        """
+        
+        self._last_below_tgt_temp_timestamp = TIMESTAMP_MAX_VALUE
+        """Timestamp of current temperature last fall below target temperature.
+        
+        Whenever the current temperature falls below the target temperature
+        this value is updated with the current timestamp. It is reset to
+        `common.TIMESTAMP_MAX_VALUE` when the current temperature reaches
+        the target temperature.
         
         It is used in the `TimeTable.should_the_heating_be_on()`
         method to respect the grace time.
@@ -712,8 +724,17 @@ class TimeTable(object):
     
     @transactional()
     def update(self, day, hour, quarter, temperature):
-        """Update the target temperature in internal timetable."""
-        # TODO scrivere documentazione
+        """Update the target temperature in internal timetable.
+        
+        @param day the day to be updated
+        @param hour the hour to be updated
+        @param quarter the quarter to be updated
+        @param temperature the new temperature to set in the timetable
+            for the provided day, hour and quarter
+        
+        @exception JsonValueError if the provided quarter is not valid
+        """
+        
         logger.debug('updating timetable: day "{}", hour "{}", quarter "{}", '
                      'temperature "{}"', day, hour, quarter, temperature)
             
@@ -756,54 +777,6 @@ class TimeTable(object):
         
         logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", '
                      'temperature "{}"', _day, _hour, _quarter, _temp)
-    
-    
-    # no need for @transactional because __setstate__ is @transactionl
-    #def update_days(self, json_data):
-    #    """Update timetable for one or more days.
-    #    
-    #    The provided `json_data` must be a part of the whole JSON settings in
-    #    `thermod.JSON_SCHEMA` containing all the informations for the
-    #    days under update.
-    #    
-    #    @return the list of updated days
-    #    @exception thermod.timetable.JsonValueError if `json_data` is not valid
-    #    @see TimeTable.__setstate__() for possible exceptions
-    #        raised during storing of new settings
-    #    """
-    #    
-    #    # TODO fare in modo che accetti sia JSON sia un dictonary con le info del giorno da aggiornare
-    #    
-    #    logger.debug('updating timetable days')
-    #    
-    #    data = json.loads(json_data, parse_constant=utils.json_reject_invalid_float)
-    #    days = []
-    #    
-    #    if not isinstance(data, dict) or not data:
-    #        logger.debug('cannot update timetable, the provided JSON data '
-    #                     'is empty or invalid and doesn\'t contain any days')
-    #        raise JsonValueError('the provided JSON data doesn\'t contain any days')
-    #    
-    #    with self._lock:
-    #        logger.debug('lock acquired to update the following days {}', list(data.keys()))
-    #        
-    #        new_state = self.__getstate__()
-    #        
-    #        logger.debug('updating data for each provided day')
-    #        for day, timetable in data.items():
-    #            _day = utils.json_get_day_name(day)
-    #            new_state[JSON_TIMETABLE][_day] = timetable
-    #            days.append(_day)
-    #        
-    #        try:
-    #            self.__setstate__(new_state)
-    #        except:
-    #            logger.debug('cannot update timetable, reverting to old '
-    #                         'settings, the provided JSON data is invalid: {}',
-    #                         json_data)
-    #            raise
-    #    
-    #    return days
     
     
     def degrees(self, temperature):
@@ -890,7 +863,7 @@ class TimeTable(object):
     # manualmente da ogni oggetto che modifica il TimeTable, ma si può creare
     # un decoratore che esegue "self._lock.notify()" ogni volta che quel
     # metodo finisce correttamente.
-    def should_the_heating_be_on(self, current_temperature, heating_status, heating_switch_off_time):
+    def should_the_heating_be_on(self, current_temperature, heating_status):
         """Check if the heating, now, should be on.
         
         This method updates only the internal variable `self._last_tgt_temp_reached_timestamp`
@@ -898,8 +871,6 @@ class TimeTable(object):
         
         @param current_temperature the current temperature of the room
         @param heating_status current status of the heating
-        @param heating_switch_off_time the switch off time of the heating (must
-            be a `datetime` object)
         
         @return an instance of thermod.timetable.ShouldBeOn with a boolean value
             of `True` if the heating should be on, `False` otherwise
@@ -938,7 +909,6 @@ class TimeTable(object):
             target = self.target_temperature(target_time)
             ison = bool(heating_status)
             nowts = target_time.timestamp()
-            offts = heating_switch_off_time.timestamp()
             grace = self._grace_time
             
             if current >= target and nowts < self._last_tgt_temp_reached_timestamp:
@@ -947,14 +917,23 @@ class TimeTable(object):
             elif current < target:
                 self._last_tgt_temp_reached_timestamp = TIMESTAMP_MAX_VALUE
             
-            tgtts = self._last_tgt_temp_reached_timestamp
+            if current < target and nowts < self._last_below_tgt_temp_timestamp:
+                # first time the current temp has fallen below target temp, update timestamp
+                self._last_below_tgt_temp_timestamp = nowts
+            elif current >= target:
+                self._last_below_tgt_temp_timestamp = TIMESTAMP_MAX_VALUE
             
-            logger.debug('heating_on: {}, switch_off_time: {}, tgt_temperature_time: {}, grace_time: {}',
-                         ison, datetime.fromtimestamp(offts), datetime.fromtimestamp(tgtts), grace)
+            tgtts = self._last_tgt_temp_reached_timestamp
+            bltts = self._last_below_tgt_temp_timestamp
+            
+            logger.debug('heating_on: {}, below_tgt_temperature_time: {}, '
+                         'tgt_temperature_time: {}, grace_time: {}',
+                         ison, datetime.fromtimestamp(bltts),
+                         datetime.fromtimestamp(tgtts), grace)
             
             should_be_on = (
                 ((current <= (target - diff))
-                or ((current < target) and ((nowts - offts) > grace))
+                or ((current < target) and ((nowts - bltts) > grace))
                 or ((current < (target + diff)) and ison))
                     and not (current >= target and (nowts - tgtts) > grace))
         
