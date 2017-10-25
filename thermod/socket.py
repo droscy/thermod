@@ -26,7 +26,7 @@ import jsonschema
 
 from threading import Thread, Condition
 from json.decoder import JSONDecodeError
-from aiohttp.web import Application, json_response, HTTPNotFound
+from aiohttp.web import Application, json_response, HTTPNotFound, HTTPMethodNotAllowed
 from email.utils import formatdate
 from datetime import datetime
 
@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-09-24'
-__version__ = '2.1~beta2'
+__updated__ = '2017-10-25'
+__version__ = '2.1~beta3'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -195,6 +195,14 @@ async def exceptions_middleware(app, handler):
                                      reason=message,
                                      data={RSP_ERROR: message,
                                            RSP_EXPLAIN: str(htnf)})
+        
+        except HTTPMethodNotAllowed as htna:
+            message = 'Not Implemented'
+            logger.warning('Method "{}" {}', request.method, message.lower())
+            response = json_response(status=501,
+                                     reason=message,
+                                     data={RSP_ERROR: message,
+                                           RSP_EXPLAIN: str(htna)})
         
         except JSONDecodeError as jde:
             logger.warning('cannot update settings, the {} request contains '
