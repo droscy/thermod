@@ -6,7 +6,8 @@ thermod (1.0.0~beta13-4) unstable; urgency=medium
 
 thermod (1.0.0~beta13-3) unstable; urgency=medium
 
-  * Update
+  * Fix temperatures outliers
+  * Change LED color components
 
  -- Simone Rossetto <simros85@gmail.com>  Sun, 24 Sep 2017 13:41:45 +0200
 

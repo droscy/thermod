@@ -26,12 +26,10 @@ import logging
 import argparse
 import signal
 import tempfile
-import lockfile
 import threading
 import asyncio
 import time
 
-from daemon import DaemonContext, pidfile
 from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
 
@@ -44,7 +42,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-10-19'
+__updated__ = '2017-11-03'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
@@ -59,10 +57,8 @@ parser = argparse.ArgumentParser(description='Thermod: programmable thermostat d
 parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(PROGRAM_VERSION))
 parser.add_argument('-C', '--config', action='store', default=None, help='read configuration from CONFIG file (full path)')
 parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
-parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground')
-parser.add_argument('-L', '--log', action='store', default=None, help='write log messages to LOG file (full path)')
-parser.add_argument('-P', '--pid', action='store', default='/run/thermod.pid', help='where to create PID file if required (full path)')
-parser.add_argument('--systemd', action='store_true', help='use only if started by systemd')
+parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground (log to console and start even if disabled in config)')
+parser.add_argument('-L', '--log', action='store', default=None, help='write log messages also to LOG file (full path)')
 args = parser.parse_args()
 
 # setting up logging system
@@ -72,19 +68,19 @@ logger.setLevel(logging.INFO)
 if args.debug:
     logger.setLevel(logging.DEBUG)
 
-if args.foreground and not args.systemd:
+if args.foreground:
     console = logging.StreamHandler(sys.stdout)
     console.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG,
                                            datefmt=common.LOGGER_FMT_TIME,
                                            style=common.LOGGER_FMT_STYLE))
     logger.addHandler(console)
-    logger.debug('executing in foreground, logging to console')
+    logger.debug('logging to console')
 else:
     syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
     syslog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_SYSLOG,
                                           style=common.LOGGER_FMT_STYLE))
     logger.addHandler(syslog)
-    logger.debug('executing in background, logging to syslog (daemon)')
+    logger.debug('logging to syslog (daemon section)')
 
 if args.log:
     logfile = None
@@ -197,21 +193,11 @@ try:
                                         settings.thermometer['t_raw'])
         
     elif settings.thermometer['script'] == 'PiAnalogZero':
-        # The PiAnalogZeroThermometer uses Thread and gpiozero.MCP3008 objects
-        # that have strange behaviours in case of python-daemon DaemonContext,
-        # they must be created/started *inside* the DaemonContext, not outside.
-        # So, in case of background launching with PiAnalogZeroThermometer, the
-        # thermometer object is created inside DaemonContext (see at the end
-        # of this file the same "if args.foreground or args.systemd").
-        if args.foreground or args.systemd:
-            thermometer = PiAnalogZeroThermometer(
-                                settings.thermometer['channels'],
-                                settings.thermometer['scale'],
-                                settings.thermometer['t_ref'],
-                                settings.thermometer['t_raw'])
-        else:
-            # here thermod is launched in background
-            thermometer = None
+        thermometer = PiAnalogZeroThermometer(settings.thermometer['channels'],
+                                              settings.thermometer['scale'],
+                                              settings.thermometer['t_ref'],
+                                              settings.thermometer['t_raw'],
+                                              settings.thermometer['stddev'])
     
     # An `elif` can be added with additional specific thermometer classes
     # once they will be created.
@@ -549,58 +535,12 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
 
 
 # main
-if args.foreground or args.systemd:
-    logger.debug('starting daemon in {}', (args.systemd and 'background by systemd' or 'foreground'))
-    
-    signal.signal(signal.SIGTERM, shutdown)
-    signal.signal(signal.SIGHUP, reload_timetable)
-    
-    thermostat_cycle(timetable, heating, thermometer, lock, asyncio.get_event_loop())
+logger.debug('starting daemon')
 
-else:
-    logger.debug('starting daemon in background')
-    
-    daemon = DaemonContext()
-    daemon.pidfile = pidfile.PIDLockFile(args.pid)
-    daemon.files_preserve = []
-    daemon.signal_map = {signal.SIGTERM: shutdown,
-                         signal.SIGHUP: reload_timetable}
-    
-    if args.log:
-        daemon.files_preserve.append(logfile.stream)
-    
-    if settings.thermometer['script'] == 'PiAnalogZero':
-        try:
-            daemon.files_preserve.append(MCP3008.spi.fileno())
-        except AttributeError:
-            # the thermometer is not using custom MCP3008 class
-            pass
-    
-    try:
-        with daemon:
-            if settings.thermometer['script'] == 'PiAnalogZero':
-                # The PiAnalogZeroThermometer must be created inside the
-                # DaemonContext in case of background execution due to strange
-                # behaviours of Thread and gpiozero.MCP3008 objects.
-                thermometer = PiAnalogZeroThermometer(
-                                    settings.thermometer['channels'],
-                                    settings.thermometer['scale'],
-                                    settings.thermometer['t_ref'],
-                                    settings.thermometer['t_raw'])
-            
-            thermostat_cycle(timetable, heating, thermometer, lock, asyncio.get_event_loop())
-    
-    except lockfile.LockFailed:
-        logger.critical('cannot create PID file {}', daemon.pidfile.path)
-        main_return_code = common.RET_CODE_PID_FILE_ERROR
-    
-    except lockfile.AlreadyLocked:
-        logger.critical('PID file {} is already locked', daemon.pidfile.path)
-        main_return_code = common.RET_CODE_PID_FILE_ERROR
-    
-    except lockfile.LockError:
-        logger.critical('unkown error writing PID file {}', daemon.pidfile.path)
-        main_return_code = common.RET_CODE_PID_FILE_ERROR
+signal.signal(signal.SIGTERM, shutdown)
+signal.signal(signal.SIGHUP, reload_timetable)
+
+thermostat_cycle(timetable, heating, thermometer, lock, asyncio.get_event_loop())
 
 
 # closing daemon

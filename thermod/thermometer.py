@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-10-20'
+__updated__ = '2017-11-03'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -125,10 +125,10 @@ class BaseThermometer(object):
         self._scale = scale
         self._calibrate = numpy.poly1d([1, 0])  # polynomial identity
         
-        if len(t_raw) >= 6:
+        if len(t_raw) >= 2:
             if len(t_ref) == len(t_raw):
                 logger.debug('performing thermometer calibration with t_ref={} and t_raw={}', t_ref, t_raw)
-                z = numpy.polyfit(t_raw, t_ref, 5)
+                z = numpy.polyfit(t_raw, t_ref, min(len(t_raw)-1, 5))  # we use at most a polynomial of 5th degree
                 self._calibrate = numpy.poly1d(z)
                 logger.debug('calibration completed')
             else:
@@ -404,7 +404,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
         @see http://rasp.io/analogzero/
         """
         
-        def __init__(self, channels, scale=BaseThermometer.DEGREE_CELSIUS, t_ref=[], t_raw=[], calibration=None):
+        def __init__(self, channels, scale=BaseThermometer.DEGREE_CELSIUS, t_ref=[], t_raw=[], stddev=2.0, calibration=None):
             """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
             
             @param channels the list of channels to read value from
@@ -412,6 +412,8 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             @param t_ref list of reference values for temperature calibration
             @param t_raw list of raw temperatures read by the thermometer
                 corresponding to values in `t_ref`
+            @param stddev standard deviation between temperatures to consider a
+                thermometer broken
             @param calibration e callable object to calibrate the temperature
                 (if both `t_ref` and `t_raw` are valid, this parameter is
                 ignored)
@@ -447,7 +449,9 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                 # of gpiozero package is in use.
                 logger.debug('PiAnalogZero thermometer is using gpiozero software bus to SPI device')
             
-            # Only the first time an ubnormal raw temperature is read a warning
+            self._stddev = stddev
+            
+            # Only the first time an abnormal raw temperature is read a warning
             # message is printed. This variable is used as a check for it.
             self._printed_warning_std = False
             
@@ -490,13 +494,13 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
             
             std = numpy.std(temperatures)
-            if std < 1.5 and self._printed_warning_std is True:
+            if std < self._stddev and self._printed_warning_std is True:
                 self._printed_warning_std = False
             
-            elif std >= 1.5 and self._printed_warning_std is False:
+            elif std >= self._stddev and self._printed_warning_std is False:
                 self._printed_warning_std = True
-                logger.warning('standard deviation of raw temperatures is {:.2f}, '
-                               'greater than maximum allowed value, the '
+                logger.warning('standard deviation of raw temperatures is {:.1f}, '
+                               'greater than maximum allowed value of {:.1f}, the '
                                'temperatures are {}'.format(std, temperatures))
             
             # the median exludes a possible single outlier
@@ -515,7 +519,8 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             while not self._stop.wait(6):
                 temp = self.realtime_raw_temperature
                 self._temperatures.append(temp)
-                logger.debug('added new realtime temperature {:.2f}', temp)
+                logger.debug('added new realtime temperature {:.2f} [{:.2f}]',
+                             temp, self._calibrate(temp))
         
         @property
         def raw_temperature(self):
