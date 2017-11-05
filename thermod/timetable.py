@@ -25,7 +25,6 @@ import logging
 import jsonschema
 import time
 import math
-import asyncio
 
 from copy import deepcopy
 from datetime import datetime
@@ -36,7 +35,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-10-20'
+__updated__ = '2017-11-04'
 __version__ = '1.8'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -906,7 +905,9 @@ class TimeTable(object):
             should_be_on = False
         
         else:  # checking against current temperature and timetable
-            target = self.target_temperature(target_time)
+            # adjust real target temp to take into account thermal inertia
+            target = self.target_temperature(target_time) - diff
+            
             ison = bool(heating_status)
             nowts = target_time.timestamp()
             grace = self._grace_time

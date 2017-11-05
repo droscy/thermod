@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-11-03'
+__updated__ = '2017-11-04'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -455,10 +455,10 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             # message is printed. This variable is used as a check for it.
             self._printed_warning_std = False
             
-            # Allocate the queue for the last 30 temperatures to be averaged. The
-            # value `30` covers a period of 3 minutes because the sleep time between
-            # two measures is 6 seconds: 6*30 = 180 seconds = 3 minutes.
-            self._temperatures = deque([self.realtime_raw_temperature], maxlen=30)
+            # Allocate the queue for the last 60 temperatures to be averaged. The
+            # value `60` covers a period of 6 minutes because the sleep time between
+            # two measures is 6 seconds: 6*60 = 360 seconds = 6 minutes.
+            self._temperatures = deque([self.realtime_raw_temperature], maxlen=60)
             
             # start averaging thread
             self._stop = Event()
@@ -527,13 +527,13 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             """Return the average of the last measured temperatures.
             
             The average is the way to reduce fluctuation in measurment. Precisely
-            the least 5 and the greatest 5 temperatures are excluded, even this
+            the least 10 and the greatest 10 temperatures are excluded, even this
             trick is to stabilize the returned value.
             """
             
             logger.debug('retriving current raw temperature')
             
-            skip = 5  # least and greatest temperatures to be excluded
+            skip = 10  # least and greatest temperatures to be excluded
             elements = len(self._temperatures)
             
             if elements < (2*skip + 1):

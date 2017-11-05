@@ -176,8 +176,8 @@
 					success: function(data)
 					{
 						$('#current-status').prop('value', (data['heating_status']==1 ? 'On' : 'Off'));
-						$('#current-temperature').prop('value', data['current_temperature'].toFixed(2));
-						$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(2) : 'n.a.'));
+						$('#current-temperature').prop('value', data['current_temperature'].toFixed(1));
+						$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(1) : 'n.a.'));
 					},
 					error: function(jqXHR, textStatus, errorThrown)
 					{
