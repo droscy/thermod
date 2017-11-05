@@ -1,0 +1,81 @@
+/*
+ * Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+ *
+ * This file is part of Thermod.
+ *
+ * Thermod is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Thermod is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
+ */
+ 
+/* global */
+h1 { font-size: 150%; margin: 0.5ex 0;}
+.ui-dialog { font-size: 90%; }
+
+#loading { display: none; }
+#loading-img
+{
+	position: fixed;
+	z-index: 1000;
+	top: 0;
+	left: 0;
+	height: 100%;
+	width: 100%;
+	background: url('images/wheel.gif') 50% 50% no-repeat;
+}
+
+body.loading { overflow: hidden; }
+body.loading #loading { display: block; }
+
+.clearer { clear: both; }
+
+/* header */
+#main { font-size: 90%; }
+#main ul { list-style-type: none; padding: 0px 1.5em; margin: 0.8em 0 0 0; }
+#main ul li { display: block; float: left; text-align: center; width: 8em; margin-bottom: 1.2em; }
+#main ul li label { display: block; width: 100%; }
+#main ul li input { cursor: default; }
+
+#target-status-li { margin-right: 2em; }
+#target-status-button { width: 7em; margin-top: 0.3ex; }
+#current-status { width: 4em; margin-top: 0.3ex; }
+#current-temperature { width: 4em; margin-top: 0.3ex; }
+#target-temperature { width: 4em; margin-top: 0.3ex; }
+
+#tabs { font-size: 90%; margin-top: 1em; }
+
+/* schedule */
+#schedule p { margin: 0 0 1ex 0; }
+#days { margin-bottom: 3ex; }
+#hours { margin-bottom: 1.5ex; }
+.hour-box { float: left; text-align: center; margin-bottom: 1.5ex; width: 4.8em; }
+.quarters-box { font-size: 58%; margin: 0.2ex; }
+.quarters-box label { margin-top: 0.5ex; }
+
+/* settings */
+#settings p { margin: 0 0 1.2ex 0; }
+#settings ul { list-style-type: none; padding-left: 20px; }
+#settings ul li { margin-bottom: 0.8ex; }
+#settings ul li label { float: left; width: 10ex; text-align: right; margin: 0.5ex 1ex 0 0; }
+#temperature-settings { margin: 0 0 2em 0; }
+#other-settings { margin: 0; }
+.set-temperatures, .set-other { float: left; text-align: center; }
+
+/* save */
+#buttons { font-size: 90%; padding: 1em 1.4em; background: #eee; margin-top: 1em; }
+#buttons p { margin: 0 0 1ex 0; }
+
+/* copyright */
+#copyright { margin: 1em auto; text-align: center; }
+#copyright p { margin: 0; padding: 0.2ex 0; font-size: 80%; color: #999999; }
+
+/* vim: set fileencoding=utf-8 tabstop=4: */
