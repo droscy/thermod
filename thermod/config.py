@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2017-11-03'
+__updated__ = '2017-11-10'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -191,6 +191,9 @@ def parse_main_settings(cfg):
             # thermometer instead of an external script.
             thermometer['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
             thermometer['stddev'] = cfg.getfloat('thermometer/PiAnalogZero', 'stddev', fallback=2.0)
+            thermometer['realint'] = cfg.getint('thermometer/PiAnalogZero', 'realint', fallback=3)
+            thermometer['avgtime'] = cfg.getint('thermometer/PiAnalogZero', 'avgtime', fallback=6)
+            thermometer['skipval'] = cfg.getfloat('thermometer/PiAnalogZero', 'skipval', fallback=0.33)
         
         # An `elif` can be added with additional specific thermometer classes
         # once they will be created.

@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-11-04'
+__updated__ = '2017-11-10'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -128,7 +128,7 @@ class BaseThermometer(object):
         if len(t_raw) >= 2:
             if len(t_ref) == len(t_raw):
                 logger.debug('performing thermometer calibration with t_ref={} and t_raw={}', t_ref, t_raw)
-                z = numpy.polyfit(t_raw, t_ref, min(len(t_raw)-1, 5))  # we use at most a polynomial of 5th degree
+                z = numpy.polyfit(t_raw, t_ref, 1)  # a linear interpolation is enough
                 self._calibrate = numpy.poly1d(z)
                 logger.debug('calibration completed')
             else:
@@ -404,7 +404,16 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
         @see http://rasp.io/analogzero/
         """
         
-        def __init__(self, channels, scale=BaseThermometer.DEGREE_CELSIUS, t_ref=[], t_raw=[], stddev=2.0, calibration=None):
+        def __init__(self,
+                     channels,
+                     scale=BaseThermometer.DEGREE_CELSIUS,
+                     t_ref=[],
+                     t_raw=[],
+                     stddev=2.0,
+                     realtime_interval=3,
+                     averaging_time=6,
+                     skipval=0.33,
+                     calibration=None):
             """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
             
             @param channels the list of channels to read value from
@@ -414,6 +423,14 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                 corresponding to values in `t_ref`
             @param stddev standard deviation between temperatures to consider a
                 thermometer broken
+            @param realtime_interval time interval (in seconds) between each
+                realtime temperature reading from thermometers
+            @param averaging_time the reported real temperature is the average
+                of all temperatures read during this time
+            @param skipval the percentage of temperatures to be skipped during
+                the average process, the half of this value from the greatest
+                temperatures and the other half form the lowest (this value
+                must be between 0 and 1)
             @param calibration e callable object to calibrate the temperature
                 (if both `t_ref` and `t_raw` are valid, this parameter is
                 ignored)
@@ -450,15 +467,19 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                 logger.debug('PiAnalogZero thermometer is using gpiozero software bus to SPI device')
             
             self._stddev = stddev
+            self._realtime_interval = realtime_interval  # seconds
+            self._averaging_time = averaging_time  # minutes
+            self._skipval = skipval
             
             # Only the first time an abnormal raw temperature is read a warning
             # message is printed. This variable is used as a check for it.
             self._printed_warning_std = False
             
-            # Allocate the queue for the last 60 temperatures to be averaged. The
-            # value `60` covers a period of 6 minutes because the sleep time between
-            # two measures is 6 seconds: 6*60 = 360 seconds = 6 minutes.
-            self._temperatures = deque([self.realtime_raw_temperature], maxlen=60)
+            # Allocate the queue for the last temperatures to be averaged. The
+            # lenght is computed considering the desired averaging time and
+            # the frequency of the raw samples.
+            self._temperatures = deque([self.realtime_raw_temperature],
+                                       maxlen=(self._averaging_time * 60 / self._realtime_interval))
             
             # start averaging thread
             self._stop = Event()
@@ -467,17 +488,28 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             
         
         def __repr__(self, *args, **kwargs):
-            return '<{module}.{cls}({channels!r}, {scale!r}, calibration={calib!r})>'.format(
+            return ('<{module}.{cls}({channels!r}, {scale!r}, '
+                    'stddev={stddev!r}, realtime_interval={realint!r}, '
+                    'averaging_time={avgtime!r} skipval={skipval!r}, '
+                    'calibration={calib!r})>'.format(
                         module=self.__module__,
                         cls=self.__class__.__name__,
                         channels=[adc.channel for adc in self._adc],
                         scale=self._scale,
+                        stddev=self._stddev,
+                        realint=self._realtime_interval,
+                        avgtime=self._averaging_time,
+                        skipval=self._skipval,
                         calib=self._calibrate)
         
         def __deepcopy__(self, memodict={}):
             """Return a deep copy of this PiAnalogZeroThermometer."""
             return self.__class__(channels=[adc.channel for adc in self._adc],
                                   scale=self._scale,
+                                  stddev=self._stddev,
+                                  realtime_interval=self._realtime_interval,
+                                  averaging_time=self._averaging_time,
+                                  skipval=self._skipval,
                                   calibration=self._calibrate)
         
         @property
@@ -516,7 +548,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             
             logger.debug('starting temperature updating cycle')
             
-            while not self._stop.wait(6):
+            while not self._stop.wait(self._realtime_interval):
                 temp = self.realtime_raw_temperature
                 self._temperatures.append(temp)
                 logger.debug('added new realtime temperature {:.2f} [{:.2f}]',
@@ -524,19 +556,19 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
         
         @property
         def raw_temperature(self):
-            """Return the average of the last measured temperatures.
+            """Return a "weighted"" average of the last measured temperatures.
             
-            The average is the way to reduce fluctuation in measurment. Precisely
-            the least 10 and the greatest 10 temperatures are excluded, even this
-            trick is to stabilize the returned value.
+            The average is computed excluding some greatest and lowest
+            temperatures in the `self._temperatures` queue using `self._skipval`
+            to compute how many temperatures to exlude.
             """
             
             logger.debug('retriving current raw temperature')
             
-            skip = 10  # least and greatest temperatures to be excluded
+            skip = int(round(self._temperatures.maxlen * self._skipval / 2, 0))  # least and greatest temperatures to be excluded
             elements = len(self._temperatures)
             
-            if elements < (2*skip + 1):
+            if elements < self._temperatures.maxlen:
                 shortened = self._temperatures
             
             else:
