@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-11-10'
+__updated__ = '2017-11-12'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -123,7 +123,6 @@ class BaseThermometer(object):
                      ('celsius' if scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'))
         
         self._scale = scale
-        self._calibrate = numpy.poly1d([1, 0])  # polynomial identity
         
         if len(t_raw) >= 2:
             if len(t_ref) == len(t_raw):
@@ -140,6 +139,7 @@ class BaseThermometer(object):
             self._calibrate = calibration
         else:
             logger.debug('calibration disabled due to t_raw list empty or too small')
+            self._calibrate = numpy.poly1d([1, 0])  # polynomial identity
     
     def __repr__(self, *args, **kwargs):
         return '<{}.{}({!r}, calibration={!r})>'.format(self.__module__,
@@ -479,7 +479,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             # lenght is computed considering the desired averaging time and
             # the frequency of the raw samples.
             self._temperatures = deque([self.realtime_raw_temperature],
-                                       maxlen=(self._averaging_time * 60 / self._realtime_interval))
+                                       maxlen=int(self._averaging_time * 60 / self._realtime_interval))
             
             # start averaging thread
             self._stop = Event()
@@ -500,7 +500,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                         realint=self._realtime_interval,
                         avgtime=self._averaging_time,
                         skipval=self._skipval,
-                        calib=self._calibrate)
+                        calib=self._calibrate))
         
         def __deepcopy__(self, memodict={}):
             """Return a deep copy of this PiAnalogZeroThermometer."""

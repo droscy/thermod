@@ -25,7 +25,7 @@ Index: thermod/etc/thermod.conf
  # the value PiAnalogZero if the temperature is retrieved from an AnalogZero
  # board connected to a Raspberry Pi.
 -# See `samples` folder for an example script.
-+# See /usr/share/doc/thermod/samples folder for some example scripts.
++# See /usr/share/doc/thermod/samples folder for an example script.
  thermometer = /etc/thermod/get-temperature
  
  # Degree scale of the thermometer. Two values are valid: celsius or fahrenheit.

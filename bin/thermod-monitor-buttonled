@@ -30,9 +30,9 @@ from thermod import ThermodStatus
 from gpiozero import Button, RGBLED
 from threading import Timer, Lock
 
-__version__ = '0.0.0a5'
+__version__ = '0.0.0a6'
 __date__ = '2017-05-12'
-__updated__ = '2017-09-24'
+__updated__ = '2017-11-12'
 
 
 # default LED colors
@@ -175,7 +175,7 @@ class ButtonLedMonitor(object):
                     # this is the first press, we check the current status and
                     # we update the temporary new status
                     if self._status == 'auto':
-                        self._new_status = 'off'
+                        self._new_status = 'tmax'
                     else:
                         self._new_status = 'auto'
                 
@@ -187,14 +187,14 @@ class ButtonLedMonitor(object):
                         self._timer = None
                     
                     if self._new_status == 'auto':
-                        self._new_status = 'off'
-                    elif self._new_status == 'off':
-                        self._new_status = 't0'
-                    elif self._new_status == 't0':
-                        self._new_status = 'tmin'
-                    elif self._new_status == 'tmin':
                         self._new_status = 'tmax'
                     elif self._new_status == 'tmax':
+                        self._new_status = 'off'
+                    elif self._new_status == 'off':
+                        self._new_status = 'tmin'
+                    elif self._new_status == 'tmin':
+                        self._new_status = 't0'
+                    elif self._new_status == 't0':
                         self._new_status = 'auto'
                 
                 self._led.color = get_color(self._new_status)

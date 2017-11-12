@@ -1,3 +1,9 @@
+thermod (1.0.0~beta14-1) unstable; urgency=medium
+
+  * New upstream version with more custom parameters
+
+ -- Simone Rossetto <simros85@gmail.com>  Fri, 10 Nov 2017 12:53:57 +0100
+
 thermod (1.0.0~beta13-4) unstable; urgency=medium
 
   * Change munin plugin

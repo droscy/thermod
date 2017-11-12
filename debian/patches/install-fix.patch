@@ -2,14 +2,13 @@ Index: thermod/setup.py
 ===================================================================
 --- thermod.orig/setup.py
 +++ thermod/setup.py
-@@ -36,14 +36,14 @@ setup(name='thermod',
+@@ -36,13 +36,13 @@ setup(name='thermod',
        url='TODO',
        license = 'GPL-3.0+',
        packages=['thermod'],
 -      scripts=['bin/thermod'],
 +      #scripts=['bin/thermod'],
-       install_requires=['python-daemon >= 2.0.5',
-                         'jsonschema >= 2.3.0',
+       install_requires=['jsonschema >= 2.3.0',
                          'lockfile >= 0.12.2',
                          'aiohttp >= 1.2.0',
                          'numpy >= 1.8.0'],

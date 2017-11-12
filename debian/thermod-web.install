@@ -1,2 +1,4 @@
 web/index.php usr/share/thermod/www/
+web/thermod-web.css usr/share/thermod/www/
+web/thermod-web.js usr/share/thermod/www/
 web/images/wheel.gif usr/share/thermod/www/images/
