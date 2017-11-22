@@ -21,18 +21,16 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import copy
-#import json
 import time
 import locale
 import unittest
 import tempfile
 import threading
 from jsonschema import ValidationError
-#from json.decoder import JSONDecodeError
 from datetime import datetime, timedelta
 from thermod import timetable, TimeTable, ShouldBeOn, JsonValueError, utils, BaseHeating, ThermodStatus
 
-__updated__ = '2017-10-19'
+__updated__ = '2017-11-22'
 
 
 def fill_timetable(tt):
@@ -87,8 +85,8 @@ class TestTimeTable(unittest.TestCase):
     
     def test_filepath(self):
         # empty tiletable
-        self.assertRaises(RuntimeError,self.timetable.reload)
-        self.assertRaises(RuntimeError,self.timetable.save)
+        self.assertRaises(RuntimeError, self.timetable.reload)
+        self.assertRaises(RuntimeError, self.timetable.save)
         
         # non existing file
         with self.assertRaises(FileNotFoundError):
@@ -327,6 +325,19 @@ class TestTimeTable(unittest.TestCase):
         self.assertNotEqual(self.timetable, tt2)
     
     
+    def test_inequality_for_mode(self):
+        tt = TimeTable(mode=2)
+        
+        fill_timetable(self.timetable)
+        fill_timetable(tt)
+        
+        self.assertNotEqual(self.timetable, tt)
+        
+        # now change to equal
+        tt._mode = 1
+        self.assertEqual(self.timetable, tt)
+    
+    
     def test_update(self):
         # TODO this test is not reliable, need improvments or revisitation
         self.assertRaises(JsonValueError, self.timetable.update, 'invalid', 10, 0, timetable.JSON_TMAX_STR)
@@ -336,57 +347,6 @@ class TestTimeTable(unittest.TestCase):
         self.assertRaises(JsonValueError, self.timetable.update, 4, 26, 2, timetable.JSON_TMIN_STR)
         self.assertRaises(JsonValueError, self.timetable.update, 7, 11, 1, 'invalid')
         self.assertRaises(JsonValueError, self.timetable.update, 4, 11, 'invalid', timetable.JSON_TMAX_STR)
-    
-    
-    #def test_update_day(self):
-    #    fill_timetable(self.timetable)
-    #    
-    #    data = {'saturday': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
-    #                         'h01': [1,1,1,1],     'h13': [13,13,13,13],
-    #                         'h02': [2,2,2,2],     'h14': [14,14,14,14],
-    #                         'h03': [3,3,3,3],     'h15': [15,15,15,15],
-    #                         'h04': [4,4,4,4],     'h16': [16,16,16,16],
-    #                         'h05': [5,5,5,5],     'h17': [17,17,17,17],
-    #                         'h06': [6,6,6,6],     'h18': [18,18,18,18],
-    #                         'h07': [7,7,7,7],     'h19': [19,19,19,19],
-    #                         'h08': [8,8,8,8],     'h20': [20,20,20,20],
-    #                         'h09': [9,9,9,9],     'h21': [21,21,21,21],
-    #                         'h10': [10,10,10,10], 'h22': [22,22,22,22],
-    #                         'h11': [11,11,11,11], 'h23': [23,23,23,23]},
-    #            
-    #            '3': {'h00': [0,0,0,0],     'h12': [12,12,12,12],
-    #                  'h01': [1,1,1,1],     'h13': [13,13,13,13],
-    #                  'h02': [2,2,2,2],     'h14': [14,14,14,14],
-    #                  'h03': [3,3,3,3],     'h15': [15,15,15,15],
-    #                  'h04': [4,4,4,4],     'h16': [16,16,16,16],
-    #                  'h05': [5,5,5,5],     'h17': [17,17,17,17],
-    #                  'h06': [6,6,6,6],     'h18': [18,18,18,18],
-    #                  'h07': [7,7,7,7],     'h19': [19,19,19,19],
-    #                  'h08': [8,8,8,8],     'h20': [20,20,20,20],
-    #                  'h09': [9,9,9,9],     'h21': [21,21,21,21],
-    #                  'h10': [10,10,10,10], 'h22': [22,22,22,22],
-    #                  'h11': [11,11,11,11], 'h23': [23,23,23,23]}}
-    #    
-    #    json_data = json.dumps(data)
-    #    self.timetable.update_days(json_data)
-    #    
-    #    day6 = utils.json_get_day_name(6)
-    #    day3 = utils.json_get_day_name(3)
-    #    state = self.timetable.__getstate__()
-    #    
-    #    for h in range(24):
-    #        hour = utils.json_format_hour(h)
-    #        t1_6 = utils.temperature_to_float(state[timetable.JSON_TIMETABLE][day6][hour])
-    #        t1_3 = utils.temperature_to_float(state[timetable.JSON_TIMETABLE][day3][hour])
-    #        t2 = utils.temperature_to_float(h)
-    #        self.assertEqual(t1_6, t2)
-    #        self.assertEqual(t1_3, t2)
-    #    
-    #    self.assertRaises(ValidationError, self.timetable.update_days, json.dumps({'monday': {'00': [0,0,0]}}))
-    #    self.assertRaises(JsonValueError, self.timetable.update_days, json.dumps({'00': data['saturday']}))
-    #    self.assertRaises(JsonValueError, self.timetable.update_days, json.dumps(data['saturday']['h15']))
-    #    self.assertRaises(JSONDecodeError, self.timetable.update_days, '{invalid}')
-    #    self.assertRaises(TypeError, self.timetable.update_days, data)
     
     
     def test_locale(self):
@@ -585,6 +545,79 @@ class TestTimeTable(unittest.TestCase):
         self.assertFalse(self.timetable.should_the_heating_be_on(20.6, self.heating.status))
         self.assertTrue(self.timetable.should_the_heating_be_on(20.5, self.heating.status))
         self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
+    
+    
+    def test_timetable_06b(self):  # the same of test 06 with mode==2
+        fill_timetable(self.timetable)
+        self.timetable._mode = 2
+        
+        now = datetime.now()
+        day = now.strftime('%w')
+        hour = utils.json_format_hour(now.hour)
+        quarter = int(now.minute // 15)
+        
+        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
+        
+        # check if the heating should be on
+        self.assertTrue(self.timetable.should_the_heating_be_on(19, self.heating.status))
+        
+        # virtually switching on and set internal state
+        self.heating.switch_on()
+        
+        # the temperature start increasing
+        self.assertTrue(self.timetable.should_the_heating_be_on(19.5, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.0, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.9, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.0, self.heating.status))  # off at target
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.5, self.heating.status))
+        
+        # virtually switching off and set internal state
+        self.heating.switch_off()
+        
+        # the temperature start decreasing
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.0, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20.5, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20.1, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.0, self.heating.status))  # on at target-2*diff
+        self.assertTrue(self.timetable.should_the_heating_be_on(19.5, self.heating.status))
+    
+    
+    def test_timetable_06c(self):  # the same of test 06 with mode==3
+        fill_timetable(self.timetable)
+        self.timetable._mode = 3
+        
+        now = datetime.now()
+        day = now.strftime('%w')
+        hour = utils.json_format_hour(now.hour)
+        quarter = int(now.minute // 15)
+        
+        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
+        
+        # check if the heating should be on
+        self.assertTrue(self.timetable.should_the_heating_be_on(19, self.heating.status))
+        
+        # virtually switching on and set internal state
+        self.heating.switch_on()
+        
+        # the temperature start increasing
+        self.assertTrue(self.timetable.should_the_heating_be_on(19.5, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.0, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.4, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20.5, self.heating.status))  # off at target-diff
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.0, self.heating.status))
+        
+        # virtually switching off and set internal state
+        self.heating.switch_off()
+        
+        # the temperature start decreasing
+        self.assertFalse(self.timetable.should_the_heating_be_on(21.0, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20.5, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20.1, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.0, self.heating.status))  # on at target-2*diff
+        self.assertTrue(self.timetable.should_the_heating_be_on(19.5, self.heating.status))
     
     
     def test_timetable_07(self):

@@ -35,8 +35,8 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-11-04'
-__version__ = '1.8'
+__updated__ = '2017-11-22'
+__version__ = '1.9b1'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -155,7 +155,7 @@ class ShouldBeOn(int):
 class TimeTable(object):
     """Represent the timetable to control the heating."""
     
-    def __init__(self, filepath=None):
+    def __init__(self, filepath=None, mode=1):
         """Init the timetable.
         
         The timetable can be initialized empty, if `filepath` is `None`,
@@ -164,6 +164,8 @@ class TimeTable(object):
 
         @param filepath full path to a JSON file that contains all the
             informations to setup the timetable
+        @param mode the working mode regarding switch-on and switch-off
+            temperatures due to thermal inertia
         
         @see TimeTable.reload() for possible exceptions
         """
@@ -174,11 +176,9 @@ class TimeTable(object):
         self._temperatures = {}
         self._timetable = {}
         
+        self._mode = mode
         self._differential = 0.5
         self._grace_time = float('+Inf')  # disabled by default
-        
-        #self._lock = lock
-        #"""Provide exclusive access to internal settings."""
         
         self._has_been_validated = False
         """Used to speedup validation.
@@ -229,18 +229,20 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return '<{module}.{cls}({filepath!r})>'.format(
+        return '<{module}.{cls}({filepath!r}, {mode!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
-                    filepath=self.filepath)
+                    filepath=self.filepath,
+                    mode=self._mode)
     
     
     def __eq__(self, other):
         """Check if two TimeTable objects have the same settings.
         
         The check is performed only on `status`, main `temperatures`,
-        `timetable`, `differential` value and `grace time` because the other
-        attributes are relative to the specific usage of the TimeTable object.
+        `timetable`, `differential`, `grace time` and `mode` values
+        because the other attributes are relative to the specific
+        usage of the TimeTable object.
         
         @param other the other TimeTable to be compared
         """
@@ -250,6 +252,7 @@ class TimeTable(object):
                         and (self._status == other._status)
                         and (self._temperatures == other._temperatures)
                         and (self._timetable == other._timetable)
+                        and (self._mode == other._mode)
                         and (self._differential == other._differential)
                         and (self._grace_time == other._grace_time))
         
@@ -267,6 +270,7 @@ class TimeTable(object):
         new._status = self._status
         new._temperatures = self._temperatures
         new._timetable = self._timetable
+        new._mode = self._mode
         new._differential = self._differential
         new._grace_time = self._grace_time
         
@@ -287,6 +291,7 @@ class TimeTable(object):
         new._status = self._status
         new._temperatures = deepcopy(self._temperatures)
         new._timetable = deepcopy(self._timetable)
+        new._mode = self._mode
         new._differential = self._differential
         new._grace_time = self._grace_time
         
@@ -892,7 +897,7 @@ class TimeTable(object):
         
         target_time = datetime.now()
         
-        target = None
+        realtgt = None
         current = self.degrees(current_temperature)
         diff = self.degrees(self._differential)
         logger.debug('status: {}, current_temperature: {}, differential: {}',
@@ -905,8 +910,25 @@ class TimeTable(object):
             should_be_on = False
         
         else:  # checking against current temperature and timetable
-            # adjust real target temp to take into account thermal inertia
-            target = self.target_temperature(target_time) - diff
+            
+            # the real target temperature get from timetable
+            realtgt = self.target_temperature(target_time)
+            
+            # The working mode simply adjusts the real target temperature and
+            # differential values to take into account thermal inertia.
+            if self._mode == 1:
+                # switch on at target-diff, switch off at target+diff
+                target = realtgt
+            elif self._mode == 2:
+                # switch on at target-2*diff, switch off at target
+                target = realtgt - diff
+            elif self._mode == 3:
+                # switch on at target-2*diff, switch off at target-diff
+                diff /= 2
+                target = realtgt - 3*diff
+            else:
+                logger.warning('invalid working mode "{}", fallback to default mode "1"', self._mode)
+                target = realtgt
             
             ison = bool(heating_status)
             nowts = target_time.timestamp()
@@ -945,6 +967,6 @@ class TimeTable(object):
                                         self._status,
                                         heating_status,
                                         current,
-                                        target))
+                                        realtgt))
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

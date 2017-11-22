@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2017-11-10'
+__updated__ = '2017-11-16'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -43,7 +43,7 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
                      os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
 
 
-Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
+Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval', 'mode'
                                    'heating', 'thermometer', 'host', 'port',
                                    'email', 'error_code'])
 """Tuple used to transfer settings from config file to main daemon."""
@@ -141,6 +141,7 @@ def parse_main_settings(cfg):
         debug = cfg.getboolean('global', 'debug')
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
+        mode = cfg.getint('global', 'mode')
         
         logger.debug('parsing heating settings')
         heating = {'manager': cfg.get('heating', 'heating')}
@@ -257,7 +258,8 @@ def parse_main_settings(cfg):
         error_code = common.RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return Settings(enabled, debug, tt_file, interval, heating, thermometer, host, port, email, error_code)
-
+    return Settings(enabled, debug, tt_file, interval, mode,
+                    heating, thermometer, host, port,
+                    email, error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
