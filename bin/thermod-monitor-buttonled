@@ -36,7 +36,7 @@ from gpiozero import Button, RGBLED
 from threading import Timer, Lock
 from logging.handlers import SysLogHandler
 
-__version__ = '1.0.0b1'
+__version__ = '1.0.0b2'
 __date__ = '2017-05-12'
 __updated__ = '2017-11-26'
 
@@ -258,18 +258,16 @@ if args.foreground:
                                            datefmt=LOGGER_FMT_TIME,
                                            style=LOGGER_FMT_STYLE))
     logger.addHandler(console)
-    logger.debug('logging to console')
 else:
     syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
     syslog.setFormatter(logging.Formatter(fmt=LOGGER_FMT_MSG_SYSLOG,
                                           style=LOGGER_FMT_STYLE))
     logger.addHandler(syslog)
-    logger.debug('logging to syslog (daemon section)')
 
 
 with ButtonLedMonitor(args.red, args.green, args.blue, args.button, args.host, args.port) as monitor:
     try:
-        logger.info('Thermod Button+LED monitor started')
+        logger.info('Thermod Button+LED monitor v{} started', __version__)
         
         try:
             logger.debug('start first connection to Thermod')
