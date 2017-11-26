@@ -25,15 +25,27 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import signal
 import argparse
 import requests
+import time
+import logging
+import sys
 
 from thermod import ThermodStatus
+from thermod.common import LogStyleAdapter, LOGGER_BASE_NAME, LOGGER_FMT_MSG, \
+    LOGGER_FMT_TIME, LOGGER_FMT_STYLE, LOGGER_FMT_MSG_SYSLOG
 from gpiozero import Button, RGBLED
 from threading import Timer, Lock
+from logging.handlers import SysLogHandler
 
-__version__ = '0.0.0a6'
+__version__ = '1.0.0b1'
 __date__ = '2017-05-12'
-__updated__ = '2017-11-12'
+__updated__ = '2017-11-26'
 
+# TODO capire come interrompere una get in corso quando si ha il SIGTERM
+
+
+# setting up logging system
+logger = LogStyleAdapter(logging.getLogger('{}.buttonled'.format(LOGGER_BASE_NAME)))
+logger.setLevel(logging.INFO)
 
 # default LED colors
 LED_COLOR_BLACK = (0, 0, 0)
@@ -43,8 +55,11 @@ LED_COLOR_GREEN = (0, 0.01, 0)
 LED_COLOR_BLUE = (0, 0.01, 0.2)
 LED_COLOR_CYAN = (0, 0.08, 0.1)
 
+
 def get_color(status):
     """Convert a Thermod status to its corresponding LED color."""
+    
+    logger.debug('converting status with colour code')
     
     if status == 'auto':
         color = LED_COLOR_GREEN
@@ -112,15 +127,20 @@ class ButtonLedMonitor(object):
     
     def update_status(self, longpolling=True):
         try:
+            logger.debug('{} Thermod status', ('longpolling' if longpolling else 'updating monitor with'))
+            
             rsp = self._session.get('{}/{}'.format(self._request_url, ('monitor' if longpolling else 'status')))
             rsp.raise_for_status()  # check error status code
             
+            logger.debug('processing response data')
             jrsp = rsp.json()
             status = ThermodStatus(**jrsp)
             
             color = get_color(status.status)
             
             with self._lock:
+                logger.debug('updating LED colour')
+                
                 # If a change isn't happening (thus the lock is not acquired)
                 # we update the led, otherwise we skip this step.
                 if self._changing_status.acquire(blocking=False):
@@ -146,7 +166,6 @@ class ButtonLedMonitor(object):
                             on_color=LED_COLOR_RED,
                             off_color=LED_COLOR_YELLOW)
             
-            # TODO completare gestione qui o farlo esternamente
             raise
     
     def _save_new_status(self, press_id):
@@ -154,14 +173,9 @@ class ButtonLedMonitor(object):
             # If this is the last started Timer then update the status
             # otherwise do nothing.
             if press_id == self._press_id:
+                logger.info('updating Thermod with new status "{}"', self._new_status)
                 try:
                     self._led.off()
-                    # local update is too fast, blink is not visible
-                    #self._led.blink(on_time=0.4,
-                    #                off_time=0.2,
-                    #                on_color=get_color(self._new_status),
-                    #                off_color=LED_COLOR_BLACK)
-                    
                     rsp = self._session.post('{}/settings'.format(self._request_url),
                                              data={'status': self._new_status})
                 finally:
@@ -172,16 +186,20 @@ class ButtonLedMonitor(object):
         with self._lock:
             try:
                 if self._changing_status.acquire(blocking=False):
-                    # this is the first press, we check the current status and
-                    # we update the temporary new status
+                    logger.debug('button pressed for first time')
+                    
+                    # This is the first press, we check the current status and
+                    # we update the temporary new status.
                     if self._status == 'auto':
                         self._new_status = 'tmax'
                     else:
                         self._new_status = 'auto'
                 
                 else:
-                    # this is a sequential press, we clear the timer, we check
-                    # the temporary new status and we update itself
+                    logger.debug('button pressed')
+                    
+                    # This is a sequential press, we clear the timer, we check
+                    # the temporary new status and we update itself.
                     if self._timer:
                         self._timer.cancel()
                         self._timer = None
@@ -205,18 +223,21 @@ class ButtonLedMonitor(object):
                 self._timer.start()
 
 
-# shoutdown check
+# shoutdown check and return code
 running = True
+main_return_code = 0
 
-def shutdown(signum=None, frame=None):
-    global running
+def shutdown(signum=None, frame=None, exitcode=0):
+    global running, main_return_code
+    logger.info('shutdown requested')
     running = False
+    main_return_code = exitcode
 
 signal.signal(signal.SIGTERM, shutdown)
 
 
 # main
-parser = argparse.ArgumentParser(description='Thermod Button+LED ButtonLedMonitor')
+parser = argparse.ArgumentParser(description='Thermod Button+LED Monitor')
 parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(__version__))
 parser.add_argument('-r', '--red', action='store', type=int, default=17, metavar='PIN', help='pin number for red led')
 parser.add_argument('-g', '--green', action='store', type=int, default=27, metavar='PIN', help='pin number for green led')
@@ -224,16 +245,63 @@ parser.add_argument('-b', '--blue', action='store', type=int, default=22, metava
 parser.add_argument('-u', '--button', action='store', type=int, default=5, metavar='PIN', help='pin number for control button')
 parser.add_argument('-H', '--host', action='store', default='localhost', help='daemon socket host name')
 parser.add_argument('-P', '--port', action='store', type=int, default=4344, help='daemon socket port')
+parser.add_argument('-D', '--debug', action='store_true', help='start the monitor in debug mode')
+parser.add_argument('-F', '--foreground', action='store_true', help='start the monitor in foreground (log to console)')
 args = parser.parse_args()
 
-# TODO inserire eccezioni
-# TODO testare funzionamento completo
-# TODO capire come interrompere una get in corso quando si ha il SIGTERM
+if args.debug:
+    logger.setLevel(logging.DEBUG)
+
+if args.foreground:
+    console = logging.StreamHandler(sys.stdout)
+    console.setFormatter(logging.Formatter(fmt=LOGGER_FMT_MSG,
+                                           datefmt=LOGGER_FMT_TIME,
+                                           style=LOGGER_FMT_STYLE))
+    logger.addHandler(console)
+    logger.debug('logging to console')
+else:
+    syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
+    syslog.setFormatter(logging.Formatter(fmt=LOGGER_FMT_MSG_SYSLOG,
+                                          style=LOGGER_FMT_STYLE))
+    logger.addHandler(syslog)
+    logger.debug('logging to syslog (daemon section)')
+
+
 with ButtonLedMonitor(args.red, args.green, args.blue, args.button, args.host, args.port) as monitor:
-    monitor.update_status(False)
+    try:
+        logger.info('Thermod Button+LED monitor started')
+        
+        try:
+            logger.debug('start first connection to Thermod')
+            monitor.update_status(False)
+        
+        except (requests.ConnectionError, requests.Timeout) as e:
+            # do nothing, continue and go to sleep
+            logger.error('errore while connecting to Thermod: {}', e)
+            pass
+        
+        logger.debug('starting main cycle')
+        
+        while running:
+            try:
+                monitor.update_status()
+            
+            except ValueError as ve:
+                logger.warning('invalid value returned from Thermod: {}', ve)
+            
+            except requests.RequestException as e:
+                logger.warning('error while communicating with Thermod: {}', e)
+                time.sleep(10)
     
-    while running:
-        print('.')
-        monitor.update_status()
+    except Exception as e:
+        logger.critical('unknown error: {}', e)
+        main_return_code = 1
+    
+    except KeyboardInterrupt:
+        logger.debug('shutdown requested by keyboard interrupt')
+        shutdown()
+
+logger.info('closing monitor with return code {}', main_return_code)
+exit(main_return_code)
 
 # vim: syntax=python fileencoding=utf-8
