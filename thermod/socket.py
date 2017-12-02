@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-10-25'
-__version__ = '2.1~beta3'
+__updated__ = '2017-12-02'
+__version__ = '2.1~beta4'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -106,6 +106,11 @@ class ControlSocket(Thread):
     
     def run(self):
         loop = self.app.loop
+        
+        # asyncio requires to set the event loop in other threads, otherwise a
+        # RuntimeError is rised with "There is no current event loop in thread".
+        asyncio.set_event_loop(loop)
+        
         loop.run_until_complete(self.app.startup())
         handler = self.app.make_handler()
         
@@ -171,6 +176,10 @@ def _last_mod_hdr(last_mod_time):
 
 async def exceptions_middleware(app, handler):
     """Handle exceptions raised during HTTP requests."""
+    
+    # TODO upgrade to the new style of Middlewares
+    # https://aiohttp.readthedocs.io/en/stable/web.html#middlewares
+    # this old style is deprecated sync version 2.3 of aiohttp.
     
     async def exceptions_handler(request):
         logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
