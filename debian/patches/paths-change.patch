@@ -1,7 +1,5 @@
-Index: thermod/etc/thermod.conf
-===================================================================
---- thermod.orig/etc/thermod.conf
-+++ thermod/etc/thermod.conf
+--- a/etc/thermod.conf
++++ b/etc/thermod.conf
 @@ -8,7 +8,7 @@
  [global]
  enabled = false
@@ -9,9 +7,9 @@ Index: thermod/etc/thermod.conf
 -timetable = /etc/thermod/timetable.json
 +timetable = /var/lib/thermod/timetable.json
  interval = 30
+ mode = 2
  
- [heating]
-@@ -20,7 +20,7 @@ heating = scripts
+@@ -21,7 +21,7 @@
  [heating/scripts]
  # Full path to heating scripts. One script to switch on the heating, one to
  # switch if off and the last one to query the current status.
@@ -20,7 +18,7 @@ Index: thermod/etc/thermod.conf
  # Required only if `heating` setting is set to 'scripts'.
  switchon = /etc/thermod/switch-heating --on -j -s -q
  switchoff = /etc/thermod/switch-heating --off -j -s -q
-@@ -40,7 +40,7 @@ switch_on_level = low
+@@ -41,7 +41,7 @@
  # Full path to an external script (that return the current temperature) or
  # the value PiAnalogZero if the temperature is retrieved from an AnalogZero
  # board connected to a Raspberry Pi.
@@ -29,10 +27,8 @@ Index: thermod/etc/thermod.conf
  thermometer = /etc/thermod/get-temperature
  
  # Degree scale of the thermometer. Two values are valid: celsius or fahrenheit.
-Index: thermod/web/index.php
-===================================================================
---- thermod.orig/web/index.php
-+++ thermod/web/index.php
+--- a/web/index.php
++++ b/web/index.php
 @@ -25,7 +25,7 @@
  	 * the webserver configuration while $HOST and $PORT must be left empty.
  	 * If no webserver is used, $PATH must be left empty and $HOST and $PORT

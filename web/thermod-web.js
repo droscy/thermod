@@ -18,7 +18,7 @@
  */
 
 // thermod settings
-var settings;  
+var settings;
 
 // map tmax temperature to 'heating on' in hours/quarters buttons
 function is_on(temp)
@@ -211,7 +211,7 @@ $(function()
 			}
 		}
 	});
-	
+
 	$('#save').button({disabled: true});
 
 	$("#dialog").dialog(

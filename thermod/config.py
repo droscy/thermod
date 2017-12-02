@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2017-11-16'
+__updated__ = '2017-12-02'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -52,7 +52,7 @@ Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval', 'm
 def read_config_file(config_files=None):
     """Search and read main configuration file.
     
-    @params config_files a list of possible path for configuration file
+    @param config_files a list of possible path for configuration file
     @return a tuple with a configparser.ConfigParser object and an error code
         that can be used as POSIX return value (if no error occurred the error
         code is 0)
@@ -123,7 +123,7 @@ def read_config_file(config_files=None):
 def parse_main_settings(cfg):
     """Parse configuration settings previously read.
     
-    @params cfg configparser.ConfigParser object to parse data from
+    @param cfg configparser.ConfigParser object to parse data from
     
     @return `thermod.utils.Settings` tuple with the main settings and an error
         code that can be used as POSIX return value (if no error occurred the
