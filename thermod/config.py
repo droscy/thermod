@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2017-12-02'
+__updated__ = '2017-12-03'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -43,7 +43,7 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
                      os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
 
 
-Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval', 'mode'
+Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval', 'mode',
                                    'heating', 'thermometer', 'host', 'port',
                                    'email', 'error_code'])
 """Tuple used to transfer settings from config file to main daemon."""

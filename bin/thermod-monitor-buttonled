@@ -38,9 +38,11 @@ from logging.handlers import SysLogHandler
 
 __version__ = '1.0.0b2'
 __date__ = '2017-05-12'
-__updated__ = '2017-11-26'
+__updated__ = '2017-12-03'
 
 # TODO capire come interrompere una get in corso quando si ha il SIGTERM
+# TODO gestire lo stato ON almeno a livello di LED
+# TODO rivedere i colori per farli più "logici"
 
 
 # setting up logging system

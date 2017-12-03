@@ -35,8 +35,8 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-11-22'
-__version__ = '1.9b1'
+__updated__ = '2017-12-03'
+__version__ = '1.9b2'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -379,7 +379,7 @@ class TimeTable(object):
         logger.debug('new internal state set')
     
     
-    def _validate(self, force=False):
+    def _validate(self):
         """Validate the internal settings.
         
         A full validation is performed only if `TimeTable._has_been_validated`

@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-12-02'
-__version__ = '2.1~beta4'
+__updated__ = '2017-12-03'
+__version__ = '2.1b4'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
