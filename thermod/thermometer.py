@@ -533,7 +533,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                 self._printed_warning_std = True
                 logger.warning('standard deviation of raw temperatures is {:.1f}, '
                                'greater than maximum allowed value of {:.1f}, the '
-                               'temperatures are {}'.format(std, temperatures))
+                               'temperatures are {}'.format(std, self._stddev, temperatures))
             
             # the median exludes a possible single outlier
             return round(numpy.median(temperatures), 2)  # additional decimal are meaningless
