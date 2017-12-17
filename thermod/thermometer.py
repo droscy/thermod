@@ -27,7 +27,7 @@ import numpy
 
 from copy import deepcopy
 from json.decoder import JSONDecodeError
-from threading import Thread, Event
+from asyncio import CancelledError, get_event_loop, sleep
 from collections import deque
 
 from .utils import check_script
@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-11-12'
+__updated__ = '2017-12-17'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -413,7 +413,8 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                      realtime_interval=3,
                      averaging_time=6,
                      skipval=0.33,
-                     calibration=None):
+                     calibration=None,
+                     loop=None):
             """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
             
             @param channels the list of channels to read value from
@@ -434,6 +435,9 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             @param calibration e callable object to calibrate the temperature
                 (if both `t_ref` and `t_raw` are valid, this parameter is
                 ignored)
+            @param loop the asynchronous loop to be used (if it is `None` the
+                default loop as retrieved with `asyncio.get_event_loop()` is
+                used)
             
             @exception ValueError if no channels provided or channels out of range [0,7]
             @exception ThermometerError if the module `gpiozero' cannot be imported
@@ -481,17 +485,15 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             self._temperatures = deque([self.realtime_raw_temperature],
                                        maxlen=int(self._averaging_time * 60 / self._realtime_interval))
             
-            # start averaging thread
-            self._stop = Event()
-            self._averaging_thread = Thread(target=self._update_temperatures, daemon=True)
-            self._averaging_thread.start()
-            
+            # start averaging task
+            self._loop = (loop if loop is not None else get_event_loop())
+            self._averaging_task = self._loop.create_task(self._update_temperatures())
         
         def __repr__(self, *args, **kwargs):
             return ('<{module}.{cls}({channels!r}, {scale!r}, '
                     'stddev={stddev!r}, realtime_interval={realint!r}, '
-                    'averaging_time={avgtime!r} skipval={skipval!r}, '
-                    'calibration={calib!r})>'.format(
+                    'averaging_time={avgtime!r}, skipval={skipval!r}, '
+                    'calibration={calib!r}, loop={loop!r})>'.format(
                         module=self.__module__,
                         cls=self.__class__.__name__,
                         channels=[adc.channel for adc in self._adc],
@@ -500,7 +502,8 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                         realint=self._realtime_interval,
                         avgtime=self._averaging_time,
                         skipval=self._skipval,
-                        calib=self._calibrate))
+                        calib=self._calibrate,
+                        loop=self._loop))
         
         def __deepcopy__(self, memodict={}):
             """Return a deep copy of this PiAnalogZeroThermometer."""
@@ -510,7 +513,8 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                                   realtime_interval=self._realtime_interval,
                                   averaging_time=self._averaging_time,
                                   skipval=self._skipval,
-                                  calibration=self._calibrate)
+                                  calibration=self._calibrate,
+                                  loop=self._loop)
         
         @property
         def realtime_raw_temperature(self):
@@ -538,7 +542,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             # the median exludes a possible single outlier
             return round(numpy.median(temperatures), 2)  # additional decimal are meaningless
         
-        def _update_temperatures(self):
+        async def _update_temperatures(self):
             """Start a cycle to update the list of last measured temperatures.
             
             This method should be run in a separate thread in order to keep
@@ -548,11 +552,17 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             
             logger.debug('starting temperature updating cycle')
             
-            while not self._stop.wait(self._realtime_interval):
-                temp = self.realtime_raw_temperature
-                self._temperatures.append(temp)
-                logger.debug('added new realtime temperature {:.2f} [{:.2f}]',
-                             temp, self._calibrate(temp))
+            try:
+                while True:
+                    temp = self.realtime_raw_temperature
+                    self._temperatures.append(temp)
+                    logger.debug('added new realtime temperature {:.2f} [{:.2f}]', temp, self._calibrate(temp))
+                    
+                    await sleep(self._realtime_interval, loop=self._loop)
+            
+            except CancelledError:
+                logger.debug('stopped temperature updating cycle')
+                raise  # required to signal the end of the task
         
         @property
         def raw_temperature(self):
@@ -581,8 +591,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
         def __del__(self):
             """Stop the temperature-averaging thread."""
             # cannot use logger here, the logger could be already unloaded
-            self._stop.set()
-            self._averaging_thread.join(10)
+            self._averaging_task.cancel()
             
             for adc in self._adc:
                 adc.close()

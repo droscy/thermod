@@ -24,7 +24,7 @@ import logging
 import asyncio
 import jsonschema
 
-from threading import Thread, Condition
+#from threading import Thread, Condition
 from json.decoder import JSONDecodeError
 from aiohttp.web import Application, json_response, HTTPNotFound, HTTPMethodNotAllowed
 from email.utils import formatdate
@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-12-03'
-__version__ = '2.1b4'
+__updated__ = '2017-12-17'
+__version__ = '2.2b1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -80,15 +80,16 @@ class ClientAddressLogAdapter(logging.LoggerAdapter):
         self.logger.log(level, '{} {}'.format(self.client_address, msg), *args, **kwargs)
 
 
-class ControlSocket(Thread):
-    """Start a HTTP server ready to receive commands in a separate thread."""
+class ControlSocket(object):
+    """Create a asynchronous HTTP server ready to receive commands."""
+
+    # TODO rivedere i test di questa classe
     
     def __init__(self, timetable, heating, thermometer, host, port, lock, loop):
-        baselogger.debug('initializing ControlSocket')
-        super().__init__(name='ThermodControlSocket')
+        baselogger.debug('initializing control socket')
         
-        if not isinstance(lock, Condition):
-            raise TypeError('the lock in ControlSocket must be a threading.Condition object')
+        if not isinstance(lock, asyncio.Condition):
+            raise TypeError('the lock in ControlSocket must be an asyncio.Condition object')
         
         self.app = Application(middlewares=[exceptions_middleware], loop=loop)
         self.host = host
@@ -103,43 +104,32 @@ class ControlSocket(Thread):
         
         self.app.router.add_get('/{action}', GET_handler)
         self.app.router.add_post('/{action}', POST_handler)
+        
+        baselogger.debug('control socket initialized')
     
-    def run(self):
+    def start(self):
+        """Start the internal HTTP server."""
+        baselogger.debug('starting control socket')
         loop = self.app.loop
-        
-        # asyncio requires to set the event loop in other threads, otherwise a
-        # RuntimeError is rised with "There is no current event loop in thread".
-        asyncio.set_event_loop(loop)
-        
         loop.run_until_complete(self.app.startup())
-        handler = self.app.make_handler()
-        
-        srv = loop.run_until_complete(loop.create_server(handler, self.host, self.port))
+        self.handler = self.app.make_handler()
+        self.srv = loop.run_until_complete(loop.create_server(self.handler, self.host, self.port))
         baselogger.info('control socket listening on {}:{}', self.host, self.port)
-        
-        try:
-            loop.run_forever()
-        
-        except:
-            # TODO gestire le eccezioni
-            raise
-        
-        finally:
-            # TODO mettere messaggi di debug
-            srv.close()
-            loop.run_until_complete(srv.wait_closed())
-            loop.run_until_complete(self.app.shutdown())
-            loop.run_until_complete(handler.shutdown(6))
-            loop.run_until_complete(self.app.cleanup())
-        
-        loop.close()
     
     def stop(self):
         """Stop the internal HTTP server."""
-        self.app.loop.stop()
+        baselogger.debug('stopping control socket')
+        self.srv.close()
+        
+        loop = self.app.loop
+        loop.run_until_complete(self.srv.wait_closed())
+        loop.run_until_complete(self.app.shutdown())
+        loop.run_until_complete(self.handler.shutdown(6))
+        loop.run_until_complete(self.app.cleanup())
+        
         baselogger.info('control socket halted')
     
-    def update_monitors(self, status):
+    async def update_monitors(self, status):
         """Send new status to every connected monitor.
         
         The new status must be a subclass of `thermod.common.ThermodStatus`
@@ -159,7 +149,7 @@ class ControlSocket(Thread):
         count = 0
         while not self.app['monitors'].empty():
             try:
-                self.app['monitors'].get_nowait().set_result(status)
+                await self.app['monitors'].get().set_result(status)
                 baselogger.debug('monitor {} updated'.format(count))
             
             except asyncio.InvalidStateError:
@@ -391,7 +381,7 @@ async def GET_handler(request):
         await request.app['monitors'].put(future)
         
         logger.debug('waiting for timetable status change')
-        status = await asyncio.wait_for(future, timeout=None, loop=request.app.loop)
+        status = await future
         
         # TODO feature request: create a specific class to trasfer data to
         # monitors in order to improve monitors' functionalities.

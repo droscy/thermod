@@ -26,12 +26,12 @@ import logging
 import argparse
 import signal
 import tempfile
-import threading
 import asyncio
 import time
 
 from logging.handlers import SysLogHandler, SMTPHandler
 from jsonschema import ValidationError
+from async_timeout import timeout
 
 from thermod import common, config
 from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus
@@ -42,13 +42,14 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-11-16'
+__updated__ = '2017-12-17'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
 # TODO creare manpage per questo file
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
 # TODO fare client testuale
+# TODO inserire controllo su variazioni repentine di temperatura
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK
@@ -161,8 +162,11 @@ if debug:
 try:
     logger.debug('creating base objects')
     
+    # the main event loop
+    main_loop = asyncio.get_event_loop()
+    
     # the main lock
-    lock = threading.Condition()
+    masterlock = asyncio.Condition(loop=main_loop)
     
     # the timetable
     timetable = TimeTable(settings.tt_file, settings.mode)
@@ -200,7 +204,8 @@ try:
                                               settings.thermometer['t_raw'],
                                               settings.thermometer['stddev'],
                                               settings.thermometer['realint'],
-                                              settings.thermometer['avgtime'])
+                                              settings.thermometer['avgtime'],
+                                              loop=main_loop)
     
     # An `elif` can be added with additional specific thermometer classes
     # once they will be created.
@@ -208,6 +213,12 @@ try:
         # The execution should not arrive here because the settings are
         # already checked inside common.parse_main_settings() function.
         raise RuntimeError('invalid thermometer configuration')
+    
+    # the control socket
+    # TODO controllare gli errori possibili alla creazione del socket asyncrono
+    socket = ControlSocket(timetable, heating, thermometer,
+                           settings.host, settings.port,
+                           masterlock, main_loop)
 
 except ScriptError as se:
     main_return_code = common.RET_CODE_SCRIPT_INIT_ERR
@@ -222,8 +233,8 @@ except PermissionError as pe:
     logger.critical('cannot read timetable file `{}`', settings.tt_file)
 
 except OSError as oe:
-    main_return_code = common.RET_CODE_TT_OTHER_ERR
-    logger.critical('error accessing timetable file `{}`: {}', settings.tt_file, oe)
+    main_return_code = common.RET_CODE_OS_INIT_ERR
+    logger.critical('error during creation of base objects: {}', oe)
 
 except ValueError as ve:
     main_return_code = common.RET_CODE_TT_INVALID_SYNTAX
@@ -263,23 +274,25 @@ finally:
 
 
 def shutdown(signum=None, frame=None, exitcode=common.RET_CODE_OK):
-    global enabled, main_return_code
-    
+    global enabled, main_return_code, masterlock
+
     logger.info('shutdown requested')
-    with lock:
+    with masterlock:
         enabled = False
-        lock.notify_all()
-    
+        masterlock.notify_all()
+
     # setting the global return code
     main_return_code = exitcode
 
 
 def reload_timetable(signum=None, frame=None):
+    global masterlock
+    
     logger.info('timetable reload requested')
-    with lock:
+    with masterlock:
         try:
             timetable.reload()
-            lock.notify_all()
+            masterlock.notify_all()
         
         except OSError as oe:
             logger.warning('cannot reload timetable file `{}`, old settings '
@@ -299,7 +312,7 @@ def reload_timetable(signum=None, frame=None):
                            'remain unchanged: {}', e)
 
 
-def thermostat_cycle(timetable, heating, thermometer, lock, loop):
+async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
     """The main cycle of temperature checking.
     
     Periodically checks the temperature and switch on/off the heating
@@ -313,28 +326,7 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
     
     global main_return_code
     logger.info('daemon started ({})', PROGRAM_VERSION)
-    
-    try:
-        # starting control socket
-        socket = ControlSocket(timetable, heating, thermometer,
-                               settings.host, settings.port,
-                               lock, loop)
-        socket.start()
-    
-    # TODO controllare gli errori con il nuovo socket asyncrono
-    except OSError as oe:
-        # probably the socket address is already in use
-        logger.critical('cannot start control socket: {}', oe)
-        main_return_code = common.RET_CODE_SOCKET_PORT_ERR
-    
-    except Exception as e:
-        logger.critical('cannot start control socket: {}', e, exc_info=True)
-        main_return_code = common.RET_CODE_SOCKET_START_ERR
-
-    except KeyboardInterrupt:
-        main_return_code = common.RET_CODE_KEYB_INTERRUPT
-    
-    else:
+    if True:  # TODO togliere questo if, serve solo per formattare correttamente
         try:
             logger.info('the heating is currently {}', (heating.is_on() and 'ON' or 'OFF'))
             
@@ -442,17 +434,24 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                         newstatus = should_be_on.status._replace(heating_status=heating.status)
                     
                     finally:  # we update all connected monitors
-                        socket.update_monitors(newstatus)
+                        loop.create_task(socket.update_monitors(newstatus))
                     
                     # A shutdown may have been requested before reaching
                     # this point and in such situation we don't have to
                     # wait for a notify, simply go on and exit the cycle.
                     if enabled:
-                        # We suspend the process and wait to recheck the temperature.
-                        # The 'wait' method returns False on timeout, thus we
-                        # negate it to have cycle_timeout equal True when a
-                        # timeout has occurred.
-                        cycle_timeout = not lock.wait(settings.interval)
+                        # We suspend the process and wait to check again the
+                        # temperature. The wait is wrapped in a timeout to force
+                        # a check at least any `settings.interval` seconds.
+                        try:
+                            async with timeout(settings.interval, loop):
+                                await lock.wait()
+                        
+                        except asyncio.TimeoutError:
+                            cycle_timeout = True
+                        
+                        else:
+                            cycle_timeout = False
             
             
             except Exception as e:
@@ -464,76 +463,6 @@ def thermostat_cycle(timetable, heating, thermometer, lock, loop):
             except KeyboardInterrupt:
                 shutdown(exitcode=common.RET_CODE_KEYB_INTERRUPT)
     
-    finally:    
-        logger.debug('stopping daemon')
-        
-        try:
-            with lock:
-                socket.stop()
-                socket.join(10)
-        
-        except NameError:
-            # The socket doesn't exist because and error has occurred during
-            # its creation, the error has already been logged so we simply
-            # ignore this exception. Or, maybe, a KeyboardInterrupt has been
-            # raised just before the creation of the socket and the socket
-            # still doesn't exist.
-            pass
-        
-        except RuntimeError:
-            # Probably this exception is raised by the join() method because
-            # an error has occurred during socket starting. The error has
-            # already been logged and we simply ignore this exception.
-            pass
-        
-        except Exception as e:
-            logger.error('unexpected error stopping control socket: {}', e, exc_info=True)
-            
-            # We set a new exit code only if this is the first error
-            # otherwise we leave the original error exit code.
-            if main_return_code == common.RET_CODE_OK:
-                main_return_code = common.RET_CODE_SOCKET_STOP_ERR
-        
-        except KeyboardInterrupt:
-            # We are already shutting down, no other operations required
-            pass
-        
-        try:
-            if heating.is_on():
-                heating.switch_off()
-                logger.info('heating switched OFF')
-        
-        except ScriptError as se:
-            logger.warning('the script `{}` reported the following error '
-                           'while shutting down the daemon: {}', se.script, se)
-            
-            # We set a new exit code only if this is the first error
-            # otherwise we leave the original error exit code.
-            if main_return_code == common.RET_CODE_OK:
-                main_return_code = common.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
-        
-        except HeatingError as he:
-            logger.warning('error from heating while shutting down the '
-                           'daemon: {}', he)
-            
-            # We set a new exit code only if this is the first error
-            # otherwise we leave the original error exit code.
-            if main_return_code == common.RET_CODE_OK:
-                main_return_code = common.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
-        
-        except Exception as e:
-            logger.error('error in switching off the heating during '
-                         'daemon shutdown: {}', e, exc_info=True)
-            
-            # We set a new exit code only if this is the first error
-            # otherwise we leave the original error exit code.
-            if main_return_code == common.RET_CODE_OK:
-                main_return_code = common.RET_CODE_SHUTDOWN_OTHER_ERR
-        
-        except KeyboardInterrupt:
-            # We are already shutting down, no other operations required
-            pass
-    
     logger.info('daemon stopped')
 
 
@@ -543,7 +472,99 @@ logger.debug('starting daemon')
 signal.signal(signal.SIGTERM, shutdown)
 signal.signal(signal.SIGHUP, reload_timetable)
 
-thermostat_cycle(timetable, heating, thermometer, lock, asyncio.get_event_loop())
+#main_task = main_loop.create_task(thermostat_cycle(timetable, heating, thermometer, masterlock, main_loop))
+
+# start control socket
+try:
+    with masterlock:
+        socket.start()
+
+except OSError as oe:
+    # probably the socket address is already in use
+    logger.critical('cannot start control socket: {}', oe)
+    main_return_code = common.RET_CODE_SOCKET_PORT_ERR
+
+except Exception as e:
+    logger.critical('cannot start control socket: {}', e, exc_info=True)
+    main_return_code = common.RET_CODE_SOCKET_START_ERR
+
+except KeyboardInterrupt:
+    main_return_code = common.RET_CODE_KEYB_INTERRUPT
+
+else:
+    main_return_code = common.RET_CODE_OK
+
+finally:
+    if main_return_code != common.RET_CODE_OK:
+        logger.info('closing daemon with return code {}', main_return_code)
+        exit(main_return_code)
+
+# run the loop
+try:
+    logger.debug('starting main event loop')
+    main_loop.run_until_complete(thermostat_cycle(timetable, heating, thermometer, masterlock, main_loop))
+
+# TODO verificare quali altre eccezioni potrebbero verificarsi
+finally:
+    logger.debug('finalizing daemon shutdown')
+    
+    # stop the socket
+    try:
+        with masterlock:
+            socket.stop()
+    
+    except Exception as e:
+        logger.error('unexpected error stopping control socket: {}', e, exc_info=True)
+        
+        # We set a new exit code only if this is the first error
+        # otherwise we leave the original error exit code.
+        if main_return_code == common.RET_CODE_OK:
+            main_return_code = common.RET_CODE_SOCKET_STOP_ERR
+    
+    except KeyboardInterrupt:
+        # We are already shutting down, no other operations required
+        pass
+    
+    # switch off the heating
+    try:
+        if heating.is_on():
+            heating.switch_off()
+            logger.info('heating switched OFF')
+    
+    except ScriptError as se:
+        logger.warning('the script `{}` reported the following error '
+                       'while shutting down the daemon: {}', se.script, se)
+        
+        # We set a new exit code only if this is the first error
+        # otherwise we leave the original error exit code.
+        if main_return_code == common.RET_CODE_OK:
+            main_return_code = common.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
+    
+    except HeatingError as he:
+        logger.warning('error from heating while shutting down the '
+                       'daemon: {}', he)
+        
+        # We set a new exit code only if this is the first error
+        # otherwise we leave the original error exit code.
+        if main_return_code == common.RET_CODE_OK:
+            main_return_code = common.RET_CODE_SHUTDOWN_SWITCHOFF_ERR
+    
+    except Exception as e:
+        logger.error('error switching off the heating during '
+                     'daemon shutdown: {}', e, exc_info=True)
+        
+        # We set a new exit code only if this is the first error
+        # otherwise we leave the original error exit code.
+        if main_return_code == common.RET_CODE_OK:
+            main_return_code = common.RET_CODE_SHUTDOWN_OTHER_ERR
+    
+    except KeyboardInterrupt:
+        # We are already shutting down, no other operations required
+        pass
+    
+    # close the main loop
+    logger.debug('closing main event loop')
+    main_loop.close()
 
 
 # closing daemon
