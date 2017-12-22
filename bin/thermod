@@ -51,6 +51,9 @@ __updated__ = '2017-12-17'
 # TODO fare client testuale
 # TODO inserire controllo su variazioni repentine di temperatura
 
+# TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
+# per eseguire in modo asincrono le chiamate agli script esterne
+
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK
 
@@ -471,8 +474,6 @@ logger.debug('starting daemon')
 
 signal.signal(signal.SIGTERM, shutdown)
 signal.signal(signal.SIGHUP, reload_timetable)
-
-#main_task = main_loop.create_task(thermostat_cycle(timetable, heating, thermometer, masterlock, main_loop))
 
 # start control socket
 try:

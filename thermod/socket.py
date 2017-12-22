@@ -24,7 +24,6 @@ import logging
 import asyncio
 import jsonschema
 
-#from threading import Thread, Condition
 from json.decoder import JSONDecodeError
 from aiohttp.web import Application, json_response, HTTPNotFound, HTTPMethodNotAllowed
 from email.utils import formatdate
@@ -38,8 +37,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-12-17'
-__version__ = '2.2b1'
+__updated__ = '2017-12-18'
+__version__ = '2.2b2'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -149,8 +148,12 @@ class ControlSocket(object):
         count = 0
         while not self.app['monitors'].empty():
             try:
-                await self.app['monitors'].get().set_result(status)
-                baselogger.debug('monitor {} updated'.format(count))
+                future = await self.app['monitors'].get()
+                if not future.cancelled():
+                    future.set_result(status)
+                    baselogger.debug('monitor {} updated'.format(count))
+                else:
+                    baselogger.debug('monitor {} disconnected'.format(count))
             
             except asyncio.InvalidStateError:
                 baselogger.debug('cannot update monitor {} because the client '
@@ -323,7 +326,7 @@ async def GET_handler(request):
     elif action in REQ_PATH_SETTINGS:
         logger.debug('preparing response with Thermod settings')
         
-        with lock:
+        async with lock:
             settings = timetable.settings()
             last_updt = timetable.last_update_timestamp()
         
@@ -335,7 +338,7 @@ async def GET_handler(request):
         logger.debug('preparing response with Thermod current status')
         
         try:
-            with lock:
+            async with lock:
                 last_updt = time.time()
                 status = ThermodStatus(last_updt,
                                        timetable.status,
@@ -377,7 +380,7 @@ async def GET_handler(request):
     
     elif action in REQ_PATH_MONITOR:
         logger.debug('enqueuing new long-polling monitor request')
-        future = asyncio.Future(loop=request.app.loop)
+        future = request.app.loop.create_future()
         await request.app['monitors'].put(future)
         
         logger.debug('waiting for timetable status change')
@@ -442,7 +445,7 @@ async def POST_handler(request):
         postvars = await request.post()
         logger.debug('POST variables: {}', postvars)
         
-        with lock:
+        async with lock:
             # Saving timetable state for a manual restore in case of
             # errors during saving to filesystem or in case of errors
             # updating more than one single setting.

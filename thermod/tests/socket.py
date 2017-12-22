@@ -34,45 +34,69 @@ from thermod import TimeTable, BaseHeating, ControlSocket, utils, common, timeta
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-10-25'
+__updated__ = '2017-12-22'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/status'
 
 
-class TestSocket(unittest.TestCase):
-    """Test cases for `thermod.socket` module."""
-
-    def setUp(self):
+class SocketThread(threading.Thread):
+    """Thread to execut the socket and its loop"""
+    
+    def __init__(self, timetable, heating, thermometer, lock):
+        super().__init__()
+        self.timetable = timetable
+        self.heating = heating
+        self.thermometer = thermometer
+        self.lock = lock
+    
+    def run(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.lock = threading.Condition()
+        
+        self.socket = ControlSocket(self.timetable,
+                                    self.heating,
+                                    self.thermometer,
+                                    common.SOCKET_DEFAULT_HOST,
+                                    common.SOCKET_DEFAULT_PORT,
+                                    self.lock,
+                                    self.loop)
+        self.socket.start()
+        
+        try:
+            self.loop.run_forever()
+        
+        finally:
+            self.socket.stop()
+            self.loop.close()
+    
+    def stop(self):
+        self.loop.stop()
+
+class TestSocket(unittest.TestCase):
+    """Test cases for `thermod.socket` module."""
+    
+    def setUp(self):
+        self.lock = asyncio.Condition()
         
         self.timetable = TimeTable()
         fill_timetable(self.timetable)
-        
         self.timetable.filepath = os.path.join(tempfile.gettempdir(), 'timetable.json')
         self.timetable.save()
         
         self.heating = BaseHeating()
         self.thermometer = FakeThermometer()
         
-        self.control_socket = ControlSocket(self.timetable,
-                                            self.heating,
-                                            self.thermometer,
-                                            common.SOCKET_DEFAULT_HOST,
-                                            common.SOCKET_DEFAULT_PORT,
-                                            self.lock,
-                                            self.loop)
-        self.control_socket.start()
+        self.socket = SocketThread(self.timetable, self.heating, self.thermometer, self.lock)
+        self.socket.start()
         time.sleep(1)
-   
-
+    
+    
     def tearDown(self):
-        self.control_socket.stop()
-        self.control_socket.join()
+        self.socket.stop()
+        self.socket.join()
         os.remove(self.timetable.filepath)
-
-
+    
+    
     def test_get_settings(self):
         # wrong url
         wrong = requests.get('http://localhost:4344/wrong')
@@ -89,8 +113,8 @@ class TestSocket(unittest.TestCase):
         tt = TimeTable()
         tt.__setstate__(settings)
         self.assertEqual(self.timetable, tt)
-
-
+    
+    
     def test_get_heating(self):
         # wrong url
         wrong = requests.get('http://localhost:4344/wrong')

@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-12-17'
+__updated__ = '2017-12-18'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -545,7 +545,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
         async def _update_temperatures(self):
             """Start a cycle to update the list of last measured temperatures.
             
-            This method should be run in a separate thread in order to keep
+            This method should be run in a separate task in order to keep
             the list `self._temperatures` always updated with the last measured
             temperatures.
             """
