@@ -24,6 +24,7 @@ import shlex
 import logging
 import subprocess
 import numpy
+import builtins
 
 from copy import deepcopy
 from json.decoder import JSONDecodeError
@@ -33,20 +34,24 @@ from collections import deque
 from .utils import check_script
 from .common import ScriptError, LogStyleAdapter
 
-try:
-    # Try importing spidev or gpiozero module.
-    # If succeded spcific classes for Raspberry Pi are defined, otherwise
-    # fake classes are created at the end of this file.
-    from spidev import SpiDev
-except ImportError:
-    SpiDev = False
+# If the builtins variable '_fake_RPi_for_testing' is defined, fake
+# implementation for MCP3008 class is defined in order to test Raspberry Pi
+# thermometer without requiring the real hardware. If that variable is not
+# defined we try to import either spidev or gpiozero modules to access the
+# hardware interfaces, in case of failure empty classes (that rise an exception)
+# are created at the end of this file.
+if not hasattr(builtins, '_fake_RPi_for_testing'):
     try:
-        from gpiozero import MCP3008
+        from spidev import SpiDev
     except ImportError:
-        MCP3008 = False
+        SpiDev = False
+        try:
+            from gpiozero import MCP3008
+        except ImportError:
+            MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-12-18'
+__updated__ = '2017-12-23'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -333,7 +338,31 @@ class ScriptThermometer(BaseThermometer):
         return t
 
 
-if SpiDev:
+if hasattr(builtins, '_fake_RPi_for_testing'):
+    logger.debug('_fake_RPi_for_testing defined, creating fake MCP3008 implementation')
+    
+    class _Device(object):
+        def __init__(self):
+            self.max_speed_hz = None
+    
+    class _SpiDev(object):
+        def __init__(self, device):
+            self._device = device
+    
+    class MCP3008(object):
+        _spi = _SpiDev(_Device())
+        
+        def __init__(self, channel):
+            self.channel = channel
+        
+        @property
+        def value(self):
+            return 0.691310697  # 20°C
+        
+        def close(self):
+            pass
+
+elif SpiDev:
     logger.debug('spidev module imported, defining custom MCP3008 class')
     
     class _MCP3008(object):
@@ -539,7 +568,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
                                'greater than maximum allowed value of {:.1f}, the '
                                'temperatures are {}'.format(std, self._stddev, temperatures))
             
-            # the median exludes a possible single outlier
+            # the median excludes a possible single outlier
             return round(numpy.median(temperatures), 2)  # additional decimal are meaningless
         
         async def _update_temperatures(self):
@@ -570,7 +599,7 @@ if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
             
             The average is computed excluding some greatest and lowest
             temperatures in the `self._temperatures` queue using `self._skipval`
-            to compute how many temperatures to exlude.
+            to compute how many temperatures to exclude.
             """
             
             logger.debug('retriving current raw temperature')
