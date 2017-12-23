@@ -24,31 +24,24 @@ import shlex
 import logging
 import subprocess
 import numpy
-import builtins
 
 from copy import deepcopy
 from json.decoder import JSONDecodeError
 from asyncio import CancelledError, get_event_loop, sleep
 from collections import deque
 
+from . import config
 from .utils import check_script
 from .common import ScriptError, LogStyleAdapter
 
-# If the builtins variable '_fake_RPi_for_testing' is defined, fake
-# implementation for MCP3008 class is defined in order to test Raspberry Pi
-# thermometer without requiring the real hardware. If that variable is not
-# defined we try to import either spidev or gpiozero modules to access the
-# hardware interfaces, in case of failure empty classes (that rise an exception)
-# are created at the end of this file.
-if not hasattr(builtins, '_fake_RPi_for_testing'):
+try:
+    from spidev import SpiDev
+except ImportError:
+    SpiDev = False
     try:
-        from spidev import SpiDev
+        from gpiozero import MCP3008
     except ImportError:
-        SpiDev = False
-        try:
-            from gpiozero import MCP3008
-        except ImportError:
-            MCP3008 = False
+        MCP3008 = False
 
 __date__ = '2016-02-04'
 __updated__ = '2017-12-23'
@@ -338,32 +331,8 @@ class ScriptThermometer(BaseThermometer):
         return t
 
 
-if hasattr(builtins, '_fake_RPi_for_testing'):
-    logger.debug('_fake_RPi_for_testing defined, creating fake MCP3008 implementation')
-    
-    class _Device(object):
-        def __init__(self):
-            self.max_speed_hz = None
-    
-    class _SpiDev(object):
-        def __init__(self, device):
-            self._device = device
-    
-    class MCP3008(object):
-        _spi = _SpiDev(_Device())
-        
-        def __init__(self, channel):
-            self.channel = channel
-        
-        @property
-        def value(self):
-            return 0.691310697  # 20°C
-        
-        def close(self):
-            pass
-
-elif SpiDev:
-    logger.debug('spidev module imported, defining custom MCP3008 class')
+if SpiDev:
+    # spidev module imported, defining a custom MCP3008 class
     
     class _MCP3008(object):
         """Custom lighter implementation of MCP3008 A/D converter.
@@ -415,226 +384,247 @@ elif SpiDev:
     """Replacement of `gpiozero.MPC3008` class interface."""
 
 
-if MCP3008:  # either custom MCP3008 or gpiozero.MCP3008 are defined
-    # IMPORTANT: for any new classes defined here, a fake one must be defined
-    # in else section!
-    
-    logger.debug('defining specific classes for Raspberry Pi thermometer')
+# Fake classes for testing RPi board without the real hardware
+class _fake_RPi_Device(object):
+    def __init__(self):
+        self.max_speed_hz = None
 
-    # TODO inserire documentazione su come creare questa board con TMP36 e su
-    # come viene misurata la temperatura prendendo la mediana dei valori.
-    class PiAnalogZeroThermometer(BaseThermometer):
-        """Read temperature from a Raspberry Pi AnalogZero board in celsius degree.
+class _fake_RPi_SpiDev(object):
+    _device = _fake_RPi_Device()
+
+class _fake_RPi_MCP3008(object):
+    _spi = _fake_RPi_SpiDev()
+    
+    def __init__(self, channel):
+        self.channel = channel
+    
+    @property
+    def value(self):
+        return 0.691310697  # 20°C
+    
+    def close(self):
+        pass
+
+
+# TODO inserire documentazione su come creare questa board con TMP36 e su
+# come viene misurata la temperatura prendendo la mediana dei valori.
+class PiAnalogZeroThermometer(BaseThermometer):
+    """Read temperature from a Raspberry Pi AnalogZero board in celsius degree.
+    
+    If a single channel is provided during object creation, it's value is used
+    as temperature, if more than one channel is provided, the current
+    temperature is computed getting the median value of all channels.
+    
+    @see http://rasp.io/analogzero/
+    """
+    
+    def __init__(self,
+                 channels,
+                 scale=BaseThermometer.DEGREE_CELSIUS,
+                 t_ref=[],
+                 t_raw=[],
+                 stddev=2.0,
+                 realtime_interval=3,
+                 averaging_time=6,
+                 skipval=0.33,
+                 calibration=None,
+                 loop=None):
+        """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
         
-        If a single channel is provided during object creation, it's value is used
-        as temperature, if more than one channel is provided, the current
-        temperature is computed getting the median value of all channels.
+        @param channels the list of channels to read value from
+        @param scale degree scale to be used
+        @param t_ref list of reference values for temperature calibration
+        @param t_raw list of raw temperatures read by the thermometer
+            corresponding to values in `t_ref`
+        @param stddev standard deviation between temperatures to consider a
+            thermometer broken
+        @param realtime_interval time interval (in seconds) between each
+            realtime temperature reading from thermometers
+        @param averaging_time the reported real temperature is the average
+            of all temperatures read during this time
+        @param skipval the percentage of temperatures to be skipped during
+            the average process, the half of this value from the greatest
+            temperatures and the other half form the lowest (this value
+            must be between 0 and 1)
+        @param calibration e callable object to calibrate the temperature
+            (if both `t_ref` and `t_raw` are valid, this parameter is
+            ignored)
+        @param loop the asynchronous loop to be used (if it is `None` the
+            default loop as retrieved with `asyncio.get_event_loop()` is
+            used)
         
-        @see http://rasp.io/analogzero/
+        @exception ValueError if no channels provided or channels out of range [0,7]
+        @exception ThermometerError if the module `gpiozero' cannot be imported
         """
         
-        def __init__(self,
-                     channels,
-                     scale=BaseThermometer.DEGREE_CELSIUS,
-                     t_ref=[],
-                     t_raw=[],
-                     stddev=2.0,
-                     realtime_interval=3,
-                     averaging_time=6,
-                     skipval=0.33,
-                     calibration=None,
-                     loop=None):
-            """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
-            
-            @param channels the list of channels to read value from
-            @param scale degree scale to be used
-            @param t_ref list of reference values for temperature calibration
-            @param t_raw list of raw temperatures read by the thermometer
-                corresponding to values in `t_ref`
-            @param stddev standard deviation between temperatures to consider a
-                thermometer broken
-            @param realtime_interval time interval (in seconds) between each
-                realtime temperature reading from thermometers
-            @param averaging_time the reported real temperature is the average
-                of all temperatures read during this time
-            @param skipval the percentage of temperatures to be skipped during
-                the average process, the half of this value from the greatest
-                temperatures and the other half form the lowest (this value
-                must be between 0 and 1)
-            @param calibration e callable object to calibrate the temperature
-                (if both `t_ref` and `t_raw` are valid, this parameter is
-                ignored)
-            @param loop the asynchronous loop to be used (if it is `None` the
-                default loop as retrieved with `asyncio.get_event_loop()` is
-                used)
-            
-            @exception ValueError if no channels provided or channels out of range [0,7]
-            @exception ThermometerError if the module `gpiozero' cannot be imported
-            """
-            
-            super().__init__(scale, t_ref, t_raw, calibration)
-            
-            if len(channels) == 0:
-                raise ValueError('missing input channel for PiAnalogZero thermometer')
-            
-            for c in channels:
-                if c < 0 or c > 7:
-                    raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
-            
-            self._vref = ((3.32/(3.32+7.5))*3.3*1000)
-            
-            logger.debug('init A/D converter with channels {}', channels)
-            self._adc = [MCP3008(channel=c) for c in channels]
-            
-            # Set max comunication speed with the SPI device.
-            # It's enough to set only for first MCP3008 object because every
-            # MCP3008 object share the same SPI device (both mine and gpiozero
-            # implementations). From my tests I have stated that 15200 Hz is
-            # the best frequency to read temperature from TMP36 thermometer
-            # connected through a MCP3008 A/D converter.
-            try:
-                self._adc[0]._spi._device.max_speed_hz = 15200
-            except AttributeError:
-                # Cannot set a custom communication speed because software bus
-                # of gpiozero package is in use.
-                logger.debug('PiAnalogZero thermometer is using gpiozero software bus to SPI device')
-            
-            self._stddev = stddev
-            self._realtime_interval = realtime_interval  # seconds
-            self._averaging_time = averaging_time  # minutes
-            self._skipval = skipval
-            
-            # Only the first time an abnormal raw temperature is read a warning
-            # message is printed. This variable is used as a check for it.
-            self._printed_warning_std = False
-            
-            # Allocate the queue for the last temperatures to be averaged. The
-            # lenght is computed considering the desired averaging time and
-            # the frequency of the raw samples.
-            self._temperatures = deque([self.realtime_raw_temperature],
-                                       maxlen=int(self._averaging_time * 60 / self._realtime_interval))
-            
-            # start averaging task
-            self._loop = (loop if loop is not None else get_event_loop())
-            self._averaging_task = self._loop.create_task(self._update_temperatures())
+        super().__init__(scale, t_ref, t_raw, calibration)
         
-        def __repr__(self, *args, **kwargs):
-            return ('<{module}.{cls}({channels!r}, {scale!r}, '
-                    'stddev={stddev!r}, realtime_interval={realint!r}, '
-                    'averaging_time={avgtime!r}, skipval={skipval!r}, '
-                    'calibration={calib!r}, loop={loop!r})>'.format(
-                        module=self.__module__,
-                        cls=self.__class__.__name__,
-                        channels=[adc.channel for adc in self._adc],
-                        scale=self._scale,
-                        stddev=self._stddev,
-                        realint=self._realtime_interval,
-                        avgtime=self._averaging_time,
-                        skipval=self._skipval,
-                        calib=self._calibrate,
-                        loop=self._loop))
+        if len(channels) == 0:
+            raise ValueError('missing input channel for PiAnalogZero thermometer')
         
-        def __deepcopy__(self, memodict={}):
-            """Return a deep copy of this PiAnalogZeroThermometer."""
-            return self.__class__(channels=[adc.channel for adc in self._adc],
-                                  scale=self._scale,
-                                  stddev=self._stddev,
-                                  realtime_interval=self._realtime_interval,
-                                  averaging_time=self._averaging_time,
-                                  skipval=self._skipval,
-                                  calibration=self._calibrate,
-                                  loop=self._loop)
+        for c in channels:
+            if c < 0 or c > 7:
+                raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
         
-        @property
-        def realtime_raw_temperature(self):
-            """The current raw temperature as measured by physical thermometer.
+        self._vref = ((3.32/(3.32+7.5))*3.3*1000)
+
+        # If MCP3008 is not defined, we are not on Raspberry Pi or neither
+        # spidev nor gpiozero modules are available in the system.
+        if 'MCP3008' in globals():
+            logger.debug('modules spidev and gpiozero not found, probably '
+                         'the running system is not a Raspberry Pi')
             
-            If more than one channel is provided during object creation, the
-            returned temperature is the median value of all channels.
-            
-            A standard deviation between all values is also used to exclude from
-            the computation broken physical thermometers.
-            """
-            
-            temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
-            
-            std = numpy.std(temperatures)
-            if std < self._stddev and self._printed_warning_std is True:
-                self._printed_warning_std = False
-            
-            elif std >= self._stddev and self._printed_warning_std is False:
-                self._printed_warning_std = True
-                logger.warning('standard deviation of raw temperatures is {:.1f}, '
-                               'greater than maximum allowed value of {:.1f}, the '
-                               'temperatures are {}'.format(std, self._stddev, temperatures))
-            
-            # the median excludes a possible single outlier
-            return round(numpy.median(temperatures), 2)  # additional decimal are meaningless
-        
-        async def _update_temperatures(self):
-            """Start a cycle to update the list of last measured temperatures.
-            
-            This method should be run in a separate task in order to keep
-            the list `self._temperatures` always updated with the last measured
-            temperatures.
-            """
-            
-            logger.debug('starting temperature updating cycle')
-            
-            try:
-                while True:
-                    temp = self.realtime_raw_temperature
-                    self._temperatures.append(temp)
-                    logger.debug('added new realtime temperature {:.2f} [{:.2f}]', temp, self._calibrate(temp))
-                    
-                    await sleep(self._realtime_interval, loop=self._loop)
-            
-            except CancelledError:
-                logger.debug('stopped temperature updating cycle')
-                raise  # required to signal the end of the task
-        
-        @property
-        def raw_temperature(self):
-            """Return a "weighted"" average of the last measured temperatures.
-            
-            The average is computed excluding some greatest and lowest
-            temperatures in the `self._temperatures` queue using `self._skipval`
-            to compute how many temperatures to exclude.
-            """
-            
-            logger.debug('retriving current raw temperature')
-            
-            skip = int(round(self._temperatures.maxlen * self._skipval / 2, 0))  # least and greatest temperatures to be excluded
-            elements = len(self._temperatures)
-            
-            if elements < self._temperatures.maxlen:
-                shortened = self._temperatures
+            # If the config variable '_fake_RPi_for_testing' is True, fake
+            # implementation for MCP3008 class is used in order to test
+            # Raspberry Pi thermometer without requiring the real hardware.
+            # Otherwise an exception is raised.
+            if config._fake_RPi_Device == True:
+                logger.debug('using a fake implementation for {}', self.__class__.__name__)
+                MCP3008 = _fake_RPi_MCP3008
             
             else:
-                temperatures = list(self._temperatures)
-                temperatures.sort()
-                shortened = temperatures[skip:(elements-skip)]
-            
-            return round(numpy.mean(shortened), 2)  # additional decimal are meaningless
+                raise ThermometerError('modules spidev and gpiozero not loaded')
         
-        def __del__(self):
-            """Stop the temperature-averaging thread."""
-            # cannot use logger here, the logger could be already unloaded
-            self._averaging_task.cancel()
-            
-            for adc in self._adc:
-                adc.close()
-
-else:
-    # The running system is not a Raspberry Pi or both spidev and gpiozero
-    # modules are not installed, in either cases fake Pi* classes are defined.
-    # If an object of the following classes is created, an exception is raised.
+        logger.debug('init A/D converter with channels {}', channels)
+        self._adc = [MCP3008(channel=c) for c in channels]
+        
+        # Set max comunication speed with the SPI device.
+        # It's enough to set only for first MCP3008 object because every
+        # MCP3008 object share the same SPI device (both mine and gpiozero
+        # implementations). From my tests I have stated that 15200 Hz is
+        # the best frequency to read temperature from TMP36 thermometer
+        # connected through a MCP3008 A/D converter.
+        try:
+            self._adc[0]._spi._device.max_speed_hz = 15200
+        except AttributeError:
+            # Cannot set a custom communication speed because software bus
+            # of gpiozero package is in use.
+            logger.debug('PiAnalogZero thermometer is using gpiozero software bus to SPI device')
+        
+        self._stddev = stddev
+        self._realtime_interval = realtime_interval  # seconds
+        self._averaging_time = averaging_time  # minutes
+        self._skipval = skipval
+        
+        # Only the first time an abnormal raw temperature is read a warning
+        # message is printed. This variable is used as a check for it.
+        self._printed_warning_std = False
+        
+        # Allocate the queue for the last temperatures to be averaged. The
+        # lenght is computed considering the desired averaging time and
+        # the frequency of the raw samples.
+        self._temperatures = deque([self.realtime_raw_temperature],
+                                   maxlen=int(self._averaging_time * 60 / self._realtime_interval))
+        
+        # start averaging task
+        self._loop = (loop if loop is not None else get_event_loop())
+        self._averaging_task = self._loop.create_task(self._update_temperatures())
     
-    logger.debug('modules spidev and gpiozero not found, '
-                 'probably the running system is not a Raspberry Pi')
+    def __repr__(self, *args, **kwargs):
+        return ('<{module}.{cls}({channels!r}, {scale!r}, '
+                'stddev={stddev!r}, realtime_interval={realint!r}, '
+                'averaging_time={avgtime!r}, skipval={skipval!r}, '
+                'calibration={calib!r}, loop={loop!r})>'.format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    channels=[adc.channel for adc in self._adc],
+                    scale=self._scale,
+                    stddev=self._stddev,
+                    realint=self._realtime_interval,
+                    avgtime=self._averaging_time,
+                    skipval=self._skipval,
+                    calib=self._calibrate,
+                    loop=self._loop))
     
-    class PiAnalogZeroThermometer(BaseThermometer):
-        def __init__(self, *args, **kwargs):
-            raise ThermometerError('modules spidev and gpiozero not loaded')
+    def __deepcopy__(self, memodict={}):
+        """Return a deep copy of this PiAnalogZeroThermometer."""
+        return self.__class__(channels=[adc.channel for adc in self._adc],
+                              scale=self._scale,
+                              stddev=self._stddev,
+                              realtime_interval=self._realtime_interval,
+                              averaging_time=self._averaging_time,
+                              skipval=self._skipval,
+                              calibration=self._calibrate,
+                              loop=self._loop)
+    
+    @property
+    def realtime_raw_temperature(self):
+        """The current raw temperature as measured by physical thermometer.
+        
+        If more than one channel is provided during object creation, the
+        returned temperature is the median value of all channels.
+        
+        A standard deviation between all values is also used to exclude from
+        the computation broken physical thermometers.
+        """
+        
+        temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
+        
+        std = numpy.std(temperatures)
+        if std < self._stddev and self._printed_warning_std is True:
+            self._printed_warning_std = False
+        
+        elif std >= self._stddev and self._printed_warning_std is False:
+            self._printed_warning_std = True
+            logger.warning('standard deviation of raw temperatures is {:.1f}, '
+                           'greater than maximum allowed value of {:.1f}, the '
+                           'temperatures are {}'.format(std, self._stddev, temperatures))
+        
+        # the median excludes a possible single outlier
+        return round(numpy.median(temperatures), 2)  # additional decimal are meaningless
+    
+    async def _update_temperatures(self):
+        """Start a cycle to update the list of last measured temperatures.
+        
+        This method should be run in a separate task in order to keep
+        the list `self._temperatures` always updated with the last measured
+        temperatures.
+        """
+        
+        logger.debug('starting temperature updating cycle')
+        
+        try:
+            while True:
+                temp = self.realtime_raw_temperature
+                self._temperatures.append(temp)
+                logger.debug('added new realtime temperature {:.2f} [{:.2f}]', temp, self._calibrate(temp))
+                
+                await sleep(self._realtime_interval, loop=self._loop)
+        
+        except CancelledError:
+            logger.debug('stopped temperature updating cycle')
+            raise  # required to signal the end of the task
+    
+    @property
+    def raw_temperature(self):
+        """Return a "weighted"" average of the last measured temperatures.
+        
+        The average is computed excluding some greatest and lowest
+        temperatures in the `self._temperatures` queue using `self._skipval`
+        to compute how many temperatures to exclude.
+        """
+        
+        logger.debug('retriving current raw temperature')
+        
+        skip = int(round(self._temperatures.maxlen * self._skipval / 2, 0))  # least and greatest temperatures to be excluded
+        elements = len(self._temperatures)
+        
+        if elements < self._temperatures.maxlen:
+            shortened = self._temperatures
+        
+        else:
+            temperatures = list(self._temperatures)
+            temperatures.sort()
+            shortened = temperatures[skip:(elements-skip)]
+        
+        return round(numpy.mean(shortened), 2)  # additional decimal are meaningless
+    
+    def __del__(self):
+        """Stop the temperature-averaging thread."""
+        # cannot use logger here, the logger could be already unloaded
+        self._averaging_task.cancel()
+        
+        for adc in self._adc:
+            adc.close()
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

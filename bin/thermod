@@ -42,7 +42,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-12-17'
+__updated__ = '2017-12-23'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
@@ -53,6 +53,9 @@ __updated__ = '2017-12-17'
 
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterne
+
+# TODO crasha quando si preme Ctrl+C
+# TODO scrivere test per PiAnalogZeroThermometer
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK
@@ -351,7 +354,7 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
         # the real cycle of temperature checking
         while enabled:
             try:
-                with lock:
+                async with lock:
                     try:
                         should_be_on = timetable.should_the_heating_be_on(
                                             thermometer.temperature,
@@ -447,7 +450,7 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                         # temperature. The wait is wrapped in a timeout to force
                         # a check at least any `settings.interval` seconds.
                         try:
-                            async with timeout(settings.interval, loop):
+                            async with timeout(settings.interval, loop=loop):
                                 await lock.wait()
                         
                         except asyncio.TimeoutError:
@@ -477,8 +480,7 @@ signal.signal(signal.SIGHUP, reload_timetable)
 
 # start control socket
 try:
-    with masterlock:
-        socket.start()
+    socket.start()
 
 except OSError as oe:
     # probably the socket address is already in use
@@ -511,8 +513,7 @@ finally:
     
     # stop the socket
     try:
-        with masterlock:
-            socket.stop()
+        socket.stop()
     
     except Exception as e:
         logger.error('unexpected error stopping control socket: {}', e, exc_info=True)
