@@ -29,6 +29,7 @@ from copy import deepcopy
 from json.decoder import JSONDecodeError
 from asyncio import CancelledError, get_event_loop, sleep
 from collections import deque
+from random import random
 
 from . import config
 from .utils import check_script
@@ -44,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-12-23'
+__updated__ = '2017-12-24'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -171,6 +172,10 @@ class BaseThermometer(object):
     def temperature(self):
         """The calibrated temperature."""
         return round(self._calibrate(self.raw_temperature), 2)  # additional decimal are meaningless
+    
+    def close(self):
+        """To be implemented in subclasses to handle possible hardware shutdown."""
+        pass
     
     def to_celsius(self):
         """Return the current temperature in Celsius degrees."""
@@ -400,7 +405,9 @@ class _fake_RPi_MCP3008(object):
     
     @property
     def value(self):
-        return 0.691310697  # 20°C
+        d = 0.004937934  # 0.5° C
+        r = (random() * d) - (d / 2)  # a value between -0.25° and +0.25° C
+        return (0.691310697 + r)  # 20° ± 0.25° C
     
     def close(self):
         pass
@@ -592,7 +599,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
                 await sleep(self._realtime_interval, loop=self._loop)
         
         except CancelledError:
-            logger.debug('stopped temperature updating cycle')
+            logger.debug('temperature updating cycle stopped')
             raise  # required to signal the end of the task
     
     @property
@@ -619,11 +626,14 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         return round(numpy.mean(shortened), 2)  # additional decimal are meaningless
     
-    def __del__(self):
-        """Stop the temperature-averaging thread."""
-        # cannot use logger here, the logger could be already unloaded
+    def close(self):
+        """Stop the temperature updating task."""
+        logger.debug('stopping temperature updating cycle')
         self._averaging_task.cancel()
-        
+    
+    def __del__(self):
+        """Close hardware channels."""
+        # cannot use logger here, the logger could be already unloaded
         for adc in self._adc:
             adc.close()
 

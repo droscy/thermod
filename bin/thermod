@@ -42,7 +42,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-12-23'
+__updated__ = '2017-12-24'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
@@ -54,7 +54,6 @@ __updated__ = '2017-12-23'
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterne
 
-# TODO crasha quando si preme Ctrl+C
 # TODO scrivere test per PiAnalogZeroThermometer
 
 script_path = os.path.dirname(os.path.realpath(__file__))
@@ -279,43 +278,58 @@ finally:
         exit(main_return_code)
 
 
-def shutdown(signum=None, frame=None, exitcode=common.RET_CODE_OK):
-    global enabled, main_return_code, masterlock
-
+def shutdown(exitcode=common.RET_CODE_OK):
+    """Shutdown the daemon."""
+    
+    global enabled, main_return_code
     logger.info('shutdown requested')
-    with masterlock:
-        enabled = False
-        masterlock.notify_all()
+    
+    async def stop_cycle():
+        global enabled
+        thermometer.close()
+        async with masterlock:
+            enabled = False
+            masterlock.notify_all()
+    
+    if main_loop.is_running():
+        main_loop.create_task(stop_cycle())
+    else:
+        main_loop.run_until_complete(stop_cycle())
 
     # setting the global return code
     main_return_code = exitcode
 
 
-def reload_timetable(signum=None, frame=None):
-    global masterlock
+def reload_timetable():
+    """Reaload timetable json file."""
     
     logger.info('timetable reload requested')
-    with masterlock:
-        try:
-            timetable.reload()
-            masterlock.notify_all()
-        
-        except OSError as oe:
-            logger.warning('cannot reload timetable file `{}`, old settings '
-                           'remain unchanged: {}', timetable.filepath, oe)
-        
-        except ValidationError as jsve:
-            logger.warning('cannot reload settings, timetable file contains '
-                           'invalid data in element {}: {}', list(jsve.path),
-                           jsve.message)
-        
-        except ValueError as ve:
-            logger.warning('cannot reload settings, timetable file contains '
-                           'invalid data: {}', ve)
-        
-        except Exception as e:
-            logger.warning('error while reloading timetable, old settings '
-                           'remain unchanged: {}', e)
+    
+    async def reload():
+        async with masterlock:
+            try:
+                timetable.reload()
+                masterlock.notify_all()
+            
+            except OSError as oe:
+                logger.warning('cannot reload timetable file `{}`, '
+                               'old settings remain unchanged: {}',
+                               timetable.filepath, oe)
+            
+            except ValidationError as jsve:
+                logger.warning('cannot reload settings, timetable file '
+                               'contains invalid data in element {}: {}',
+                               list(jsve.path), jsve.message)
+            
+            except ValueError as ve:
+                logger.warning('cannot reload settings, timetable file '
+                               'contains invalid data: {}', ve)
+            
+            except Exception as e:
+                logger.warning('error while reloading timetable, old '
+                               'settings remain unchanged: {}', e)
+    
+    main_loop.create_task(reload())
 
 
 async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
@@ -330,9 +344,10 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
     is printed and the daemon is closed.
     """
     
-    global main_return_code
+    global enabled, main_return_code
     logger.info('daemon started ({})', PROGRAM_VERSION)
-    if True:  # TODO togliere questo if, serve solo per formattare correttamente
+    
+    try:
         try:
             logger.info('the heating is currently {}', (heating.is_on() and 'ON' or 'OFF'))
             
@@ -342,9 +357,6 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
             # will appears again in the hereafter "while" cycle and it will
             # be managed there.
             logger.error('cannot query the heating to retrieve current status: {}', e)
-            
-        except KeyboardInterrupt:
-            shutdown(exitcode=common.RET_CODE_KEYB_INTERRUPT)
         
         # The following variable is needed to print info messages only
         # when no timeout has occurred, that means that someone has changed
@@ -426,14 +438,14 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                         logger.error('error from heating: {}', he)
                         logger.debug(he.suberror)
                     
+                    except asyncio.CancelledError:
+                        newstatus = ThermodStatus(time.time(), error='Shutting down Thermod')
+                        raise
+                    
                     except Exception:
                         # There is an unknown error. We create an error-status
                         # for monitors and we re-raise the exception.
                         newstatus = ThermodStatus(time.time(), error='Unknown Error')
-                        raise
-                    
-                    except KeyboardInterrupt:
-                        newstatus = ThermodStatus(time.time(), error='Shutting down Thermod')
                         raise
                     
                     else:
@@ -464,19 +476,21 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                 # An unknown error occurred somewhere, a critical message is
                 # printed and the daemon will be closed.
                 logger.critical('unknown error occurred: {}', e, exc_info=True)
-                shutdown(exitcode=common.RET_CODE_RUN_OTHER_ERR)
-            
-            except KeyboardInterrupt:
-                shutdown(exitcode=common.RET_CODE_KEYB_INTERRUPT)
+                shutdown(common.RET_CODE_RUN_OTHER_ERR)
     
-    logger.info('daemon stopped')
+    except asyncio.CancelledError:
+        logger.debug('main cycle cancelled')
+        raise
+    
+    logger.debug('main cycle stopped')
 
 
 # main
 logger.debug('starting daemon')
 
-signal.signal(signal.SIGTERM, shutdown)
-signal.signal(signal.SIGHUP, reload_timetable)
+main_loop.add_signal_handler(signal.SIGTERM, shutdown)
+main_loop.add_signal_handler(signal.SIGINT, shutdown)
+main_loop.add_signal_handler(signal.SIGHUP, reload_timetable)
 
 # start control socket
 try:
@@ -504,7 +518,7 @@ finally:
 
 # run the loop
 try:
-    logger.debug('starting main event loop')
+    logger.debug('starting main cycle')
     main_loop.run_until_complete(thermostat_cycle(timetable, heating, thermometer, masterlock, main_loop))
 
 # TODO verificare quali altre eccezioni potrebbero verificarsi
@@ -563,6 +577,8 @@ finally:
     except KeyboardInterrupt:
         # We are already shutting down, no other operations required
         pass
+    
+    logger.info('daemon stopped')
     
     # close the main loop
     logger.debug('closing main event loop')
