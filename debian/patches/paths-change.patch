@@ -7,9 +7,9 @@
 -timetable = /etc/thermod/timetable.json
 +timetable = /var/lib/thermod/timetable.json
  interval = 30
- mode = 2
  
-@@ -21,7 +21,7 @@
+ # Internal working mode to take into account thermal inertia. Set to one of
+@@ -27,7 +27,7 @@
  [heating/scripts]
  # Full path to heating scripts. One script to switch on the heating, one to
  # switch if off and the last one to query the current status.
@@ -18,7 +18,7 @@
  # Required only if `heating` setting is set to 'scripts'.
  switchon = /etc/thermod/switch-heating --on -j -s -q
  switchoff = /etc/thermod/switch-heating --off -j -s -q
-@@ -41,7 +41,7 @@
+@@ -47,7 +47,7 @@
  # Full path to an external script (that return the current temperature) or
  # the value PiAnalogZero if the temperature is retrieved from an AnalogZero
  # board connected to a Raspberry Pi.

@@ -1,3 +1,9 @@
+thermod (1.0.0~beta15-1) unstable; urgency=medium
+
+  * New upstream version with full asyncio
+
+ -- Simone Rossetto <simros85@gmail.com>  Sun, 24 Dec 2017 12:49:58 +0100
+
 thermod (1.0.0~beta14-1) unstable; urgency=medium
 
   * New upstream version with more custom parameters
