@@ -30,13 +30,14 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2017-12-23'
+__updated__ = '2017-12-25'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
 
 # Global variable to use fake implementations of Raspberry Pi hardware.
-_fake_RPi_Device = False
+_fake_RPi_Heating = False
+_fake_RPi_Thermometer = False
 
 
 # Main config filename, search paths, classes and parsers.
@@ -136,7 +137,7 @@ def parse_main_settings(cfg):
     @exception TypeError if cfg is not a configparser.ConfigParser object
     """
     
-    global _fake_RPi_Device
+    global _fake_RPi_Heating, _fake_RPi_Thermometer
     
     if not isinstance(cfg, configparser.ConfigParser):
         raise TypeError('ConfigParser object is required to parse main settings')
@@ -226,7 +227,8 @@ def parse_main_settings(cfg):
                  'subject': cfg.get('email', 'subject', fallback='Thermod alert'),
                  'credentials': ((euser or epwd) and (euser, epwd) or None)}
         
-        _fake_RPi_Device = cfg.getboolean('debug', 'fake_rpi_device', fallback=False)
+        _fake_RPi_Heating = cfg.getboolean('debug', 'fake_rpi_heating', fallback=False)
+        _fake_RPi_Thermometer = cfg.getboolean('debug', 'fake_rpi_thermometer', fallback=False)
     
     except configparser.NoSectionError as nse:
         error_code = common.RET_CODE_CFG_FILE_INVALID

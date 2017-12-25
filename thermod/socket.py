@@ -37,7 +37,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-12-18'
+__updated__ = '2017-12-25'
 __version__ = '2.2b2'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -348,7 +348,9 @@ async def GET_handler(request):
         
         except HeatingError as he:
             message = 'Heating Error'
-            logger.warning('{}: {}', message.lower(), he)
+            logger.warning('{}: {} ({})', message.lower(), he,
+                           (he.suberror if he.suberror else 'no other information'))
+            
             response = json_response(status=503,
                                      reason=message,
                                      data={RSP_ERROR: message,
@@ -356,7 +358,9 @@ async def GET_handler(request):
         
         except ThermometerError as te:
             message = 'Thermometer Error'
-            logger.warning('{}: {}', message.lower(), te)
+            logger.warning('{}: {} ({})', message.lower(), te,
+                           (te.suberror if te.suberror else 'no other information'))
+            
             response = json_response(status=503,
                                      reason=message,
                                      data={RSP_ERROR: message,

@@ -42,7 +42,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-12-24'
+__updated__ = '2017-12-25'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
@@ -251,11 +251,13 @@ except ValidationError as jsve:
 
 except HeatingError as he:
     main_return_code = common.RET_CODE_HW_INIT_ERR
-    logger.critical('cannot initialize heating: {}', he)
+    logger.critical('cannot initialize heating: {} ({})', he,
+                    (he.suberror if he.suberror else 'no other information'))
 
 except ThermometerError as te:
     main_return_code = common.RET_CODE_HW_INIT_ERR
-    logger.critical('cannot initialize thermometer: {}', he)
+    logger.critical('cannot initialize thermometer: {} ({})', te,
+                    (te.suberror if te.suberror else 'no other information'))
 
 except RuntimeError as re:
     main_return_code = common.RET_CODE_CFG_FILE_UNKNOWN_ERR
@@ -430,13 +432,13 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                     
                     except ThermometerError as te:
                         newstatus = ThermodStatus(time.time(), error='Error from thermometer')
-                        logger.error('error from thermometer: {}', te)
-                        logger.debug(te.suberror)
+                        logger.error('error from thermometer: {} ({})', te,
+                                     (te.suberror if te.suberror else 'no other information'))
                     
                     except HeatingError as he:
                         newstatus = ThermodStatus(time.time(), error='Error from heating')
-                        logger.error('error from heating: {}', he)
-                        logger.debug(he.suberror)
+                        logger.error('error from heating: {} ({})', he,
+                                     (he.suberror if he.suberror else 'no other information'))
                     
                     except asyncio.CancelledError:
                         newstatus = ThermodStatus(time.time(), error='Shutting down Thermod')
@@ -472,6 +474,9 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                             cycle_timeout = False
             
             
+            except asyncio.CancelledError:
+                raise
+            
             except Exception as e:
                 # An unknown error occurred somewhere, a critical message is
                 # printed and the daemon will be closed.
@@ -488,8 +493,8 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
 # main
 logger.debug('starting daemon')
 
-main_loop.add_signal_handler(signal.SIGTERM, shutdown)
 main_loop.add_signal_handler(signal.SIGINT, shutdown)
+main_loop.add_signal_handler(signal.SIGTERM, shutdown)
 main_loop.add_signal_handler(signal.SIGHUP, reload_timetable)
 
 # start control socket
@@ -516,7 +521,7 @@ finally:
         logger.info('closing daemon with return code {}', main_return_code)
         exit(main_return_code)
 
-# run the loop
+# run the main loop
 try:
     logger.debug('starting main cycle')
     main_loop.run_until_complete(thermostat_cycle(timetable, heating, thermometer, masterlock, main_loop))
@@ -558,7 +563,7 @@ finally:
     
     except HeatingError as he:
         logger.warning('error from heating while shutting down the '
-                       'daemon: {}', he)
+                       'daemon: {} ({})', he, (he.suberror if he.suberror else 'no other information'))
         
         # We set a new exit code only if this is the first error
         # otherwise we leave the original error exit code.

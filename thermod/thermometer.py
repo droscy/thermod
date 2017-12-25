@@ -42,7 +42,7 @@ except ImportError:
     try:
         from gpiozero import MCP3008
     except ImportError:
-        MCP3008 = False
+        pass
 
 __date__ = '2016-02-04'
 __updated__ = '2017-12-24'
@@ -474,23 +474,19 @@ class PiAnalogZeroThermometer(BaseThermometer):
                 raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
         
         self._vref = ((3.32/(3.32+7.5))*3.3*1000)
-
-        # If MCP3008 is not defined, we are not on Raspberry Pi or neither
-        # spidev nor gpiozero modules are available in the system.
-        if 'MCP3008' in globals():
-            logger.debug('modules spidev and gpiozero not found, probably '
-                         'the running system is not a Raspberry Pi')
             
-            # If the config variable '_fake_RPi_for_testing' is True, fake
-            # implementation for MCP3008 class is used in order to test
-            # Raspberry Pi thermometer without requiring the real hardware.
-            # Otherwise an exception is raised.
-            if config._fake_RPi_Device == True:
-                logger.debug('using a fake implementation for {}', self.__class__.__name__)
-                MCP3008 = _fake_RPi_MCP3008
-            
-            else:
-                raise ThermometerError('modules spidev and gpiozero not loaded')
+        # If the config variable '_fake_RPi_Thermometer' is True, fake
+        # implementation for MCP3008 class is used in order to test
+        # Raspberry Pi thermometer without requiring the real hardware.
+        if config._fake_RPi_Thermometer:
+            logger.debug('using a fake implementation for gpiozero.MCP3008 class')
+            MCP3008 = _fake_RPi_MCP3008
+        
+        elif 'MCP3008' not in globals():
+            raise ThermometerError('modules spidev and gpiozero not loaded',
+                                   'the MCP3008 class is not defined, we are '
+                                   'not on Raspberry Pi or neither spidev nor '
+                                   'gpiozero modules are available')
         
         logger.debug('init A/D converter with channels {}', channels)
         self._adc = [MCP3008(channel=c) for c in channels]
@@ -574,7 +570,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
         elif std >= self._stddev and self._printed_warning_std is False:
             self._printed_warning_std = True
             logger.warning('standard deviation of raw temperatures is {:.1f}, '
-                           'greater than maximum allowed value of {:.1f}, the '
+                           'greater thaPiAnalogZeroThermometern maximum allowed value of {:.1f}, the '
                            'temperatures are {}'.format(std, self._stddev, temperatures))
         
         # the median excludes a possible single outlier
@@ -634,7 +630,11 @@ class PiAnalogZeroThermometer(BaseThermometer):
     def __del__(self):
         """Close hardware channels."""
         # cannot use logger here, the logger could be already unloaded
-        for adc in self._adc:
-            adc.close()
+        try:
+            for adc in self._adc:
+                adc.close()
+        except AttributeError:
+            # an exception was raised in __init__() method, the object is incomplete
+            pass
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
