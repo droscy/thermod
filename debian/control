@@ -27,7 +27,11 @@ X-Python3-Version: >= 3.5
 
 Package: thermod
 Architecture: all
-Depends: python3-thermod (=${binary:Version}), ${python3:Depends}, ${misc:Depends}, adduser
+Depends:
+ python3-thermod (=${binary:Version}),
+ ${python3:Depends},
+ ${misc:Depends},
+ adduser
 Description: Programmable thermostat daemon for smart-heating automation
  The main daemon to control the heating of the house/building.
 
@@ -54,7 +58,7 @@ Package: thermod-web
 Section: web
 Architecture: all
 Depends:
- libapache2-mod-php5 (>=5.6),
+ libapache2-mod-php | php-cgi | php-fpm | php,
  libjs-jquery-ui (>=1.10.0),
  libjs-jquery (>=1.7.2),
  ${misc:Depends}
@@ -78,7 +82,10 @@ Description: Programmable thermostat daemon (button-led monitor)
 Package: munin-plugins-thermod
 Section: net
 Architecture: all
-Depends: python3, munin-node | munin-node-c, ${misc:Depends}
+Depends:
+ python3,
+ munin-node | munin-node-c,
+ ${misc:Depends}
 Suggests: thermod (=${binary:Version})
 Description: Programmable thermostat daemon (Munin plugin)
  Munin plugin to plot status information retrieved from Thermod daemon.
