@@ -1,3 +1,9 @@
+thermod (1.0.0~beta16-1) unstable; urgency=medium
+
+  * New upstream version.
+
+ -- Simone Rossetto <simros85@gmail.com>  Thu, 28 Dec 2017 01:09:07 +0100
+
 thermod (1.0.0~beta15-3) unstable; urgency=medium
 
   * Correctly configured for lighttpd

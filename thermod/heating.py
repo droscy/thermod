@@ -38,7 +38,7 @@ except ImportError:
     GPIO = False
 
 __date__ = '2015-12-30'
-__updated__ = '2017-12-25'
+__updated__ = '2017-12-28'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -390,7 +390,7 @@ class ScriptHeating(BaseHeating):
         return self._is_on
 
 
-# Fake class for testing RPi board without the real hardware
+# fake classes to test RPi boards without the real hardware
 class _fake_RPi_GPIO(object):
     HIGH = 1
     LOW = 0
@@ -414,7 +414,7 @@ class _fake_RPi_GPIO(object):
         return self.pins[pin]
 
 
-if GPIO:
+if GPIO:  # GPIO module imported
     GPIO.setmode(GPIO.BCM)
 
 class PiPinsRelayHeating(BaseHeating):

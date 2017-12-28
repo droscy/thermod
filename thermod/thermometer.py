@@ -42,10 +42,10 @@ except ImportError:
     try:
         from gpiozero import MCP3008
     except ImportError:
-        pass
+        MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-12-24'
+__updated__ = '2017-12-28'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -336,9 +336,7 @@ class ScriptThermometer(BaseThermometer):
         return t
 
 
-if SpiDev:
-    # spidev module imported, defining a custom MCP3008 class
-    
+if SpiDev:  # spidev module imported
     class _MCP3008(object):
         """Custom lighter implementation of MCP3008 A/D converter.
         
@@ -385,11 +383,11 @@ if SpiDev:
             
             return _MCP3008(self.spi, channel)
     
+    # replacement of `gpiozero.MPC3008` class interface
     MCP3008 = _SpiDeviceWrapper()
-    """Replacement of `gpiozero.MPC3008` class interface."""
 
 
-# Fake classes for testing RPi board without the real hardware
+# fake classes to test RPi boards without the real hardware
 class _fake_RPi_Device(object):
     def __init__(self):
         self.max_speed_hz = None
@@ -480,9 +478,11 @@ class PiAnalogZeroThermometer(BaseThermometer):
         # Raspberry Pi thermometer without requiring the real hardware.
         if config._fake_RPi_Thermometer:
             logger.debug('using a fake implementation for gpiozero.MCP3008 class')
+            
+            global MCP3008
             MCP3008 = _fake_RPi_MCP3008
         
-        elif 'MCP3008' not in globals():
+        elif MCP3008 is False:
             raise ThermometerError('modules spidev and gpiozero not loaded',
                                    'the MCP3008 class is not defined, we are '
                                    'not on Raspberry Pi or neither spidev nor '
