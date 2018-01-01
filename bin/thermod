@@ -42,7 +42,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2017-12-25'
+__updated__ = '2018-01-01'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
@@ -55,6 +55,8 @@ __updated__ = '2017-12-25'
 # per eseguire in modo asincrono le chiamate agli script esterne
 
 # TODO scrivere test per PiAnalogZeroThermometer
+# TODO scrivere Scheduler
+# TODO scrivere NetThermometer
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK
@@ -65,7 +67,7 @@ parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.f
 parser.add_argument('-C', '--config', action='store', default=None, help='read configuration from CONFIG file (full path)')
 parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
 parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground (log to console and start even if disabled in config file)')
-parser.add_argument('-L', '--log', action='store', default=None, help='write log messages also to LOG file (full path)')
+parser.add_argument('-L', '--log', action='store', default=None, help='write log messages to LOG file (full path)')
 args = parser.parse_args()
 
 # setting up logging system
@@ -82,12 +84,6 @@ if args.foreground:
                                            style=common.LOGGER_FMT_STYLE))
     logger.addHandler(console)
     logger.debug('logging to console')
-else:
-    syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
-    syslog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_SYSLOG,
-                                          style=common.LOGGER_FMT_STYLE))
-    logger.addHandler(syslog)
-    logger.debug('logging to syslog (daemon section)')
 
 if args.log:
     logfile = None
@@ -114,6 +110,13 @@ if args.log:
                                                datefmt=common.LOGGER_FMT_DATETIME,
                                                style=common.LOGGER_FMT_STYLE))
         logger.addHandler(logfile)
+
+if not args.foreground and not args.log:
+    syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
+    syslog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_SYSLOG,
+                                          style=common.LOGGER_FMT_STYLE))
+    logger.addHandler(syslog)
+    logger.debug('logging to syslog (daemon section)')
 
 
 # reading configuration files
@@ -334,6 +337,19 @@ def reload_timetable():
     main_loop.create_task(reload())
 
 
+def toggle_debug_messages():
+    """Enable or disable debug messages at runtime."""
+    
+    logger.debug('toggle debug messages')
+    
+    if logger.level != logging.DEBUG:
+        logger.info('enabling debug messages')
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+        logger.info('debug messages disabled')
+
+
 async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
     """The main cycle of temperature checking.
     
@@ -496,6 +512,7 @@ logger.debug('starting daemon')
 main_loop.add_signal_handler(signal.SIGINT, shutdown)
 main_loop.add_signal_handler(signal.SIGTERM, shutdown)
 main_loop.add_signal_handler(signal.SIGHUP, reload_timetable)
+main_loop.add_signal_handler(signal.SIGUSR1, toggle_debug_messages)
 
 # start control socket
 try:
