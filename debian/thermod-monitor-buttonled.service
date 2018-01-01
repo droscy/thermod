@@ -6,7 +6,7 @@ After=network.target thermod.service
 
 [Service]
 Type=simple
-User=nobody
+User=thermod
 PermissionsStartOnly=true
 ExecStart=/usr/bin/thermod-monitor-buttonled
 KillSignal=SIGTERM
