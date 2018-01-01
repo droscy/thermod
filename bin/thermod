@@ -340,11 +340,9 @@ def reload_timetable():
 def toggle_debug_messages():
     """Enable or disable debug messages at runtime."""
     
-    logger.debug('toggle debug messages')
-    
     if logger.level != logging.DEBUG:
-        logger.info('enabling debug messages')
         logger.setLevel(logging.DEBUG)
+        logger.info('debug messages enabled')
     else:
         logger.setLevel(logging.INFO)
         logger.info('debug messages disabled')

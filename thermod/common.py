@@ -25,7 +25,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2017-12-15'
+__updated__ = '2018-01-01'
 
 
 # logger common settings
@@ -115,6 +115,10 @@ class LogStyleAdapter(logging.LoggerAdapter):
     
     def addHandler(self, hdlr):
         self.logger.addHandler(hdlr)
+    
+    @property
+    def level(self):
+        return self.logger.level
 
 
 class ScriptError(RuntimeError):
