@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Thermod daemon.
 
-Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -42,7 +42,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-01-01'
+__updated__ = '2018-01-03'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
@@ -57,6 +57,7 @@ __updated__ = '2018-01-01'
 # TODO scrivere test per PiAnalogZeroThermometer
 # TODO scrivere Scheduler
 # TODO scrivere NetThermometer
+# TODO aggiornare copyright al 2018 e anche il README
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK

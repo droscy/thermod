@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Interface to the real heating.
 
-Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -38,7 +38,7 @@ except ImportError:
     GPIO = False
 
 __date__ = '2015-12-30'
-__updated__ = '2017-12-28'
+__updated__ = '2018-01-03'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -390,8 +390,9 @@ class ScriptHeating(BaseHeating):
         return self._is_on
 
 
-# fake classes to test RPi boards without the real hardware
 class _fake_RPi_GPIO(object):
+    """Fake class to test Raspberry Pi boards without the real hardware."""
+    
     HIGH = 1
     LOW = 0
     OUT = None
@@ -440,14 +441,15 @@ class PiPinsRelayHeating(BaseHeating):
         # Raspberry Pi geating without requiring the real hardware.
         if config._fake_RPi_Heating:
             logger.debug('using a fake implementation for RPi.GPIO module')
-            
-            global GPIO
-            GPIO = _fake_RPi_GPIO()
+            self.GPIO = _fake_RPi_GPIO()
         
         elif GPIO is False:
             raise HeatingError('module RPi.GPIO not loaded',
                                'the running system is not a Raspberry Pi or '
                                'the RPi.GPIO module is not installed')
+        
+        else:
+            self.GPIO = GPIO
         
         # Private reference to GPIO.cleanup() method, required to be used
         # in the __del__() method below.
@@ -466,20 +468,20 @@ class PiPinsRelayHeating(BaseHeating):
             if p not in range(28):
                 raise ValueError('pin number must be in range 0-27, {} given'.format(p))
         
-        if switch_on_level in (GPIO.HIGH, 'h'):
+        if switch_on_level in (self.GPIO.HIGH, 'h'):
             logger.debug('setting HIGH level to switch on the heating')
-            self._on = GPIO.HIGH
-            self._off = GPIO.LOW
-        elif switch_on_level in (GPIO.LOW, 'l'):
+            self._on = self.GPIO.HIGH
+            self._off = self.GPIO.LOW
+        elif switch_on_level in (self.GPIO.LOW, 'l'):
             logger.debug('setting LOW level to switch on the heating')
-            self._on = GPIO.LOW
-            self._off = GPIO.HIGH
+            self._on = self.GPIO.LOW
+            self._off = self.GPIO.HIGH
         else:
             raise ValueError('switch on level `{}` is not valid'.format(switch_on_level))
         
         logger.debug('initializing GPIO pins {}', self._pins)
-        GPIO.setup(self._pins, GPIO.OUT)
-        GPIO.output(self._pins, self._off)
+        self.GPIO.setup(self._pins, self.GPIO.OUT)
+        self.GPIO.output(self._pins, self._off)
     
     def __repr__(self, *args, **kwargs):
         return '<{module}.{cls}({pins!r}, {level!r})>'.format(
@@ -491,12 +493,12 @@ class PiPinsRelayHeating(BaseHeating):
     def switch_on(self):
         """Switch on the heating setting right level to GPIO pins."""
         logger.debug('switching on the heating setting level {} to pins {}', self._on, self._pins)
-        GPIO.output(self._pins, self._on)
+        self.GPIO.output(self._pins, self._on)
     
     def switch_off(self):
         """Switch off the heating setting right level to GPIO pins."""
         logger.debug('switching off the heating setting level {} to pins {}', self._off, self._pins)
-        GPIO.output(self._pins, self._off)
+        self.GPIO.output(self._pins, self._off)
         self._switch_off_time = datetime.now()
         logger.debug('heating switched off at {}', self._switch_off_time)
     
@@ -507,7 +509,7 @@ class PiPinsRelayHeating(BaseHeating):
         to `self._on` value. Other pins, if used, are ignored.
         """
         
-        return (GPIO.input(self._pins[0]) == self._on)
+        return (self.GPIO.input(self._pins[0]) == self._on)
     
     def __del__(self):
         """Cleanup used GPIO pins."""

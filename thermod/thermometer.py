@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Interface to the thermometer.
 
-Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2017-12-28'
+__updated__ = '2018-01-03'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -330,14 +330,14 @@ class ScriptThermometer(BaseThermometer):
                                          'invalid value', str(vte),
                                          self._script[0])
         
-        # No round(t, 2) on returned value becasue the external script can be
+        # No round(t, 2) on returned value because the external script can be
         # connected to a very sensitive and calibrated thermometer.
         logger.debug('current temperature: {:.2f}', t)
         return t
 
 
 if SpiDev:  # spidev module imported
-    class _MCP3008(object):
+    class _Light_MCP3008(object):
         """Custom lighter implementation of MCP3008 A/D converter.
         
         This class is a reimplementation of gpiozero.MCP3008 class and permits a
@@ -371,8 +371,6 @@ if SpiDev:  # spidev module imported
             self.spi = SpiDev()
             self.bus = bus
             self.device = device
-            #self.spi.open(bus, device)
-            #self.spi.max_speed_hz = 15200
         
         def __del__(self):
             self.spi.close()
@@ -381,21 +379,24 @@ if SpiDev:  # spidev module imported
             if self.spi.fileno() == -1:
                 self.spi.open(self.bus, self.device)
             
-            return _MCP3008(self.spi, channel)
+            return _Light_MCP3008(self.spi, channel)
     
     # replacement of `gpiozero.MPC3008` class interface
     MCP3008 = _SpiDeviceWrapper()
 
 
-# fake classes to test RPi boards without the real hardware
 class _fake_RPi_Device(object):
+    """Fake class to test Raspberry Pi boards without the real hardware."""
     def __init__(self):
         self.max_speed_hz = None
 
 class _fake_RPi_SpiDev(object):
+    """Fake class to test Raspberry Pi boards without the real hardware."""
     _device = _fake_RPi_Device()
 
 class _fake_RPi_MCP3008(object):
+    """Fake class to test Raspberry Pi boards without the real hardware."""
+    
     _spi = _fake_RPi_SpiDev()
     
     def __init__(self, channel):
@@ -478,18 +479,22 @@ class PiAnalogZeroThermometer(BaseThermometer):
         # Raspberry Pi thermometer without requiring the real hardware.
         if config._fake_RPi_Thermometer:
             logger.debug('using a fake implementation for gpiozero.MCP3008 class')
-            
-            global MCP3008
-            MCP3008 = _fake_RPi_MCP3008
+            _MCP3008 = _fake_RPi_MCP3008
         
+        # Otherwise, if the real MCP3008 class is not defined (cannot load one
+        # of the required modules), an exception is raised.
         elif MCP3008 is False:
             raise ThermometerError('modules spidev and gpiozero not loaded',
                                    'the MCP3008 class is not defined, we are '
                                    'not on Raspberry Pi or neither spidev nor '
                                    'gpiozero modules are available')
         
+        # Otherwise the real MCP3008 class is used.
+        else:
+            _MCP3008 = MCP3008
+        
         logger.debug('init A/D converter with channels {}', channels)
-        self._adc = [MCP3008(channel=c) for c in channels]
+        self._adc = [_MCP3008(channel=c) for c in channels]
         
         # Set max comunication speed with the SPI device.
         # It's enough to set only for first MCP3008 object because every
