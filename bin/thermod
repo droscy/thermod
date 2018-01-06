@@ -25,7 +25,6 @@ import sys
 import logging
 import argparse
 import signal
-import tempfile
 import asyncio
 import time
 
@@ -42,7 +41,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-01-03'
+__updated__ = '2018-01-06'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
@@ -62,14 +61,16 @@ __updated__ = '2018-01-03'
 script_path = os.path.dirname(os.path.realpath(__file__))
 main_return_code = common.RET_CODE_OK
 
+
 # parsing input arguments
 parser = argparse.ArgumentParser(description='Thermod: programmable thermostat daemon for smart-heating automation')
 parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.format(PROGRAM_VERSION))
 parser.add_argument('-C', '--config', action='store', default=None, help='read configuration from CONFIG file (full path)')
-parser.add_argument('-D', '--debug', action='store_true', help='start the daemon in debug mode')
-parser.add_argument('-F', '--foreground', action='store_true', help='start the daemon in foreground (log to console and start even if disabled in config file)')
 parser.add_argument('-L', '--log', action='store', default=None, help='write log messages to LOG file (full path)')
+parser.add_argument('-D', '--debug', action='store_true', help='enable debug messages')
+parser.add_argument('-d', '--daemon', action='store_true', help='write log messages to syslog and honor `enabled` setting in config file (can be used when started from systemd)')
 args = parser.parse_args()
+
 
 # setting up logging system
 logger = LogStyleAdapter(logging.getLogger(common.LOGGER_BASE_NAME))
@@ -78,46 +79,45 @@ logger.setLevel(logging.INFO)
 if args.debug:
     logger.setLevel(logging.DEBUG)
 
-if args.foreground:
+if args.daemon:
+    syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
+    syslog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_SYSLOG,
+                                          style=common.LOGGER_FMT_STYLE))
+    logger.addHandler(syslog)
+
+else:
     console = logging.StreamHandler(sys.stdout)
     console.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG,
                                            datefmt=common.LOGGER_FMT_TIME,
                                            style=common.LOGGER_FMT_STYLE))
     logger.addHandler(console)
-    logger.debug('logging to console')
 
 if args.log:
-    logfile = None
-    
     try:
         logfile = logging.FileHandler(args.log, mode='a')
     
     except PermissionError as pe:
+        
         logger.warning('cannot write log to `{}`: {}', args.log, pe)
-        
-        try:
-            (_fd, _path) = tempfile.mkstemp(prefix='tmp_thermod', suffix='.log', test=True)
-            _fd.close()
-            
-            logger.info('the log will be written to temp file `{}`', _path)
-            logfile = logging.FileHandler(_path, mode='w')
-        
-        except Exception as e:
-            logger.error('cannot write logfile: {}', e)
-            logger.info('the daemon will start without logfile')
+        logger.info('the daemon will start without logfile')
     
-    if logfile:
+    else:
         logfile.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG,
                                                datefmt=common.LOGGER_FMT_DATETIME,
                                                style=common.LOGGER_FMT_STYLE))
         logger.addHandler(logfile)
+    
+        if args.daemon:
+            # When a custom log file is configured and the deamon in started
+            # in background, only warnings and errors are printed to syslog.
+            syslog.setLevel(logging.WARNING)
+        
+        logger.debug('logging to file {}', args.log)
 
-if not args.foreground and not args.log:
-    syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
-    syslog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_SYSLOG,
-                                          style=common.LOGGER_FMT_STYLE))
-    logger.addHandler(syslog)
-    logger.debug('logging to syslog (daemon section)')
+if args.daemon:
+    logger.debug('logging to syslog (daemon facility)')
+else:
+    logger.debug('logging to console')
 
 
 # reading configuration files
@@ -138,9 +138,9 @@ if main_return_code != common.RET_CODE_OK:
 
 
 # if executed in foreground we ignore the 'enabled' setting in config file
-enabled = settings.enabled or args.foreground
+enabled = settings.enabled or (not args.daemon)
 
-# if the daemon is disabled we exit immediately
+# if disabled we exit immediately
 if not enabled:
     logger.info('daemon disabled in configuration file, exiting...')
     exit(common.RET_CODE_DAEMON_DISABLED)

@@ -38,7 +38,7 @@ except ImportError:
     GPIO = False
 
 __date__ = '2015-12-30'
-__updated__ = '2018-01-03'
+__updated__ = '2018-01-06'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -453,7 +453,7 @@ class PiPinsRelayHeating(BaseHeating):
         
         # Private reference to GPIO.cleanup() method, required to be used
         # in the __del__() method below.
-        self.cleanup = GPIO.cleanup
+        self.cleanup = self.GPIO.cleanup
         
         try:
             self._pins = [int(p) for p in pins]

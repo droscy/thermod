@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Common classes and constants for thermod package and Thermod daemon.
 
-Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -25,7 +25,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2018-01-01'
+__updated__ = '2018-01-06'
 
 
 # logger common settings
@@ -119,6 +119,9 @@ class LogStyleAdapter(logging.LoggerAdapter):
     @property
     def level(self):
         return self.logger.level
+    
+    def setLevel(self, level):
+        self.logger.setLevel(level)
 
 
 class ScriptError(RuntimeError):

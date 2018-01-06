@@ -10,7 +10,7 @@ User=thermod
 PermissionsStartOnly=true
 ExecStartPre=-/bin/mkdir -p /run/thermod
 ExecStartPre=/bin/chown thermod /run/thermod
-ExecStart=/usr/bin/thermod
+ExecStart=/usr/bin/thermod --daemon
 ExecReload=/bin/kill -HUP $MAINPID
 KillSignal=SIGTERM
 
