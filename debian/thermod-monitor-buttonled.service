@@ -8,7 +8,7 @@ After=network.target thermod.service
 Type=simple
 User=thermod
 PermissionsStartOnly=true
-ExecStart=/usr/bin/thermod-monitor-buttonled
+ExecStart=/usr/bin/thermod-monitor-buttonled --daemon
 KillSignal=SIGTERM
 
 [Install]

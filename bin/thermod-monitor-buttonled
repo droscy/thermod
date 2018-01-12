@@ -4,7 +4,7 @@
 Thermod monitor for Raspberry Pi with one button and one led.
 
 @author:     Simone Rossetto
-@copyright:  2017 Simone Rossetto
+@copyright:  2018 Simone Rossetto
 @license:    GNU General Public License v3
 @contact:    simros85@gmail.com
 
@@ -36,9 +36,9 @@ from gpiozero import Button, RGBLED
 from threading import Timer, Lock
 from logging.handlers import SysLogHandler
 
-__version__ = '1.0.0b2'
+__version__ = '1.0.0b3'
 __date__ = '2017-05-12'
-__updated__ = '2017-12-03'
+__updated__ = '2018-01-12'
 
 # TODO capire come interrompere una get in corso quando si ha il SIGTERM
 # TODO gestire lo stato ON almeno a livello di LED
@@ -248,23 +248,23 @@ parser.add_argument('-u', '--button', action='store', type=int, default=5, metav
 parser.add_argument('-H', '--host', action='store', default='localhost', help='daemon socket host name')
 parser.add_argument('-P', '--port', action='store', type=int, default=4344, help='daemon socket port')
 parser.add_argument('-D', '--debug', action='store_true', help='start the monitor in debug mode')
-parser.add_argument('-F', '--foreground', action='store_true', help='start the monitor in foreground (log to console)')
+parser.add_argument('-d', '--daemon', action='store_true', help='start the monitor in background (log to syslog)')
 args = parser.parse_args()
 
 if args.debug:
     logger.setLevel(logging.DEBUG)
 
-if args.foreground:
+if args.daemon:
+    syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
+    syslog.setFormatter(logging.Formatter(fmt=LOGGER_FMT_MSG_SYSLOG,
+                                          style=LOGGER_FMT_STYLE))
+    logger.addHandler(syslog)
+else:
     console = logging.StreamHandler(sys.stdout)
     console.setFormatter(logging.Formatter(fmt=LOGGER_FMT_MSG,
                                            datefmt=LOGGER_FMT_TIME,
                                            style=LOGGER_FMT_STYLE))
     logger.addHandler(console)
-else:
-    syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
-    syslog.setFormatter(logging.Formatter(fmt=LOGGER_FMT_MSG_SYSLOG,
-                                          style=LOGGER_FMT_STYLE))
-    logger.addHandler(syslog)
 
 
 with ButtonLedMonitor(args.red, args.green, args.blue, args.button, args.host, args.port) as monitor:
