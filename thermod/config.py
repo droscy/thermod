@@ -4,7 +4,7 @@
 This module is only useful in main Thermod daemon because it doesn't raise any
 exception and uses logger to print info and error messages. 
 
-Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2017-12-28'
+__updated__ = '2018-01-28'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -200,6 +200,18 @@ def parse_main_settings(cfg):
             thermometer['realint'] = cfg.getint('thermometer/PiAnalogZero', 'realint', fallback=3)
             thermometer['avgtime'] = cfg.getint('thermometer/PiAnalogZero', 'avgtime', fallback=6)
             thermometer['skipval'] = cfg.getfloat('thermometer/PiAnalogZero', 'skipval', fallback=0.33)
+			
+			if thermometer['stddev'] <= 0:
+				raise ValueError('advanced parameter `stddev` must be positive')
+			
+			if thermometer['realint'] < 1:
+				raise ValueError('advanced parameter `realint` must be at least 1 second')
+			
+			if thermometer['avgtime'] < (2*interval/60):
+				raise ValueError('advanced parameter `avgtime` must be at least {:d} minutes'.format(2 * interval / 60))
+			
+			if thermometer['skipval'] < 0 or thermometer['skipval'] > 1:
+				raise ValueError('advanced parameter `skipval` must be a float number between 0 and 1')
         
         # An `elif` can be added with additional specific thermometer classes
         # once they will be created.

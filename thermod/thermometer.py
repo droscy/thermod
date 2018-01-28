@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-01-03'
+__updated__ = '2018-01-28'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -481,8 +481,8 @@ class PiAnalogZeroThermometer(BaseThermometer):
             logger.debug('using a fake implementation for gpiozero.MCP3008 class')
             _MCP3008 = _fake_RPi_MCP3008
         
-        # Otherwise, if the real MCP3008 class is not defined (cannot load one
-        # of the required modules), an exception is raised.
+        # Otherwise, if the real MCP3008 class is not defined (i.e. one of the
+        # required modules cannot be loaded), an exception is raised.
         elif MCP3008 is False:
             raise ThermometerError('modules spidev and gpiozero not loaded',
                                    'the MCP3008 class is not defined, we are '
@@ -574,9 +574,9 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         elif std >= self._stddev and self._printed_warning_std is False:
             self._printed_warning_std = True
-            logger.warning('standard deviation of raw temperatures is {:.1f}, '
-                           'greater thaPiAnalogZeroThermometern maximum allowed value of {:.1f}, the '
-                           'temperatures are {}'.format(std, self._stddev, temperatures))
+            logger.warning('standard deviation of raw temperatures is {:.1f} '
+                           '(greater than the maximum allowed value of {:.1f} degrees), '
+                           'raw temperatures are {}'.format(std, self._stddev, temperatures))
         
         # the median excludes a possible single outlier
         return round(numpy.median(temperatures), 2)  # additional decimal are meaningless
