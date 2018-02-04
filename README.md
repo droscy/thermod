@@ -52,7 +52,7 @@ and adjust it to meet your requirements.
 
 
 ### Debian
-On Debian-based systems a *deb* package can be build before installing the
+On Debian-based systems a *deb* package can be built before installing the
 software. To build the package extract the tarball, install all the required
 Python modules and then execute:
 
@@ -60,13 +60,12 @@ Python modules and then execute:
 dpkg-buildpackage
 ```
 
-After that, install at least the following packages (assuming that the Debian
-version is X.Y.Z-R):
+After having built the package install, at least, the following packagesx:
 
 ```bash
 dpkg -i \
-  thermod_X.Y.Z-R_all.deb \
-  python3-thermod_X.Y.Z-R_{arch}.deb
+  thermod_{version}_all.deb \
+  python3-thermod_{version}_{arch}.deb
 ```
 
 
@@ -86,4 +85,3 @@ To manually start/stop *Thermod* daemon execute:
 ```bash
 systemctl [start|stop] thermod.service
 ```
-
