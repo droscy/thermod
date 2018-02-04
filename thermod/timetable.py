@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Manage the timetable of Thermod.
 
-Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -36,7 +36,7 @@ from .memento import transactional
 
 __date__ = '2015-09-09'
 __updated__ = '2017-12-03'
-__version__ = '1.9b2'
+__version__ = '1.9'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 

@@ -33,7 +33,7 @@ from serial import Serial, SerialException
 from thermod import common, ScriptHeating
 
 
-__version__ = '1.0.0b10'
+__version__ = '1.0.0'
 __date__ = '2015-10-02'
 __updated__ = '2017-03-04'
 

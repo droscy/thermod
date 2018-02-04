@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Init of `thermod.tests` package.
 
-Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 

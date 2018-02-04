@@ -10,7 +10,7 @@ the Memento pattern can be found here
 https://benzidwael.wordpress.com/2014/12/13/memento-design-pattern-part-2/.
 
 Copyright (C) 2005 Zoran Isailovski
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2016-2018 Simone Rossetto <simros85@gmail.com>
 Python Software Foundation License
 """
 

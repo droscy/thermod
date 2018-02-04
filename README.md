@@ -2,8 +2,8 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.0.0-beta5 \
-Copyright (C) 2016 Simone Rossetto <simros85@gmail.com> \
+Thermod v1.0.0-beta17 \
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com> \
 GNU General Public License v3
 
     Thermod is free software: you can redistribute it and/or modify
@@ -23,11 +23,13 @@ GNU General Public License v3
 ## How to install
 
 ### Requirements
-*Thermod* requires [Python3](https://www.python.org/) (at least version 3.4)
+*Thermod* requires [Python3](https://www.python.org/) (at least version 3.5)
 and the following packages:
 
- - [python-daemon](https://pypi.python.org/pypi/python-daemon) (>=2.0.5)
  - [jsonschema](https://pypi.python.org/pypi/jsonschema) (>=2.3.0)
+ - [async_timeout](https://github.com/aio-libs/async-timeout) (>=1.3.0)
+ - [aiohttp](https://aiohttp.readthedocs.io/) (>=1.2.0)
+ - [numpy](http://www.numpy.org/) (>=1.8.0)
  - [requests](http://docs.python-requests.org/) (>=2.4.3)
  - [nose](http://nose.readthedocs.io/) (>=1.3.4)
 
@@ -46,13 +48,42 @@ then copy the source file `etc/thermod.conf` in one of the following paths:
  - `${HOME}/thermod/thermod.conf` (where `${HOME}` is the *home* folder of
    the user running the daemon)
 
-and adjust it to meet your requirements, in particular set:
+and adjust it to meet your requirements.
 
- - `timetable` path to timetable file
- - `scripts` path to executables to control heating and thermometer
- - `email` mail server settings
- - `email/rcpt` list of recipients for alert e-mails
+
+### Debian
+On Debian-based systems a *deb* package can be build before installing the
+software. To build the package extract the tarball, install all the required
+Python modules and then execute:
+
+```bash
+dpkg-buildpackage
+```
+
+After that, install at least the following packages (assuming that the Debian
+version is X.Y.Z-R):
+
+```bash
+dpkg -i \
+  thermod_X.Y.Z-R_all.deb \
+  python3-thermod_X.Y.Z-R_{arch}.deb
+```
 
 
 ## Starting/Stopping the daemon
-TODO
+If *systemd* is in use in the system, copy the script `debian/thermod.service`
+to `/lib/systemd/system/thermod.service` then execute
+
+```bash
+systemctl daemon-reload
+systemctl enable thermod.service
+```
+
+to automatically start *Thermod* at system startup.
+
+To manually start/stop *Thermod* daemon execute:
+
+```bash
+systemctl [start|stop] thermod.service
+```
+

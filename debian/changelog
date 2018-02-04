@@ -1,3 +1,9 @@
+thermod (1.0.0~beta17-1) unstable; urgency=medium
+
+  * New upstream revision.
+
+ -- Simone Rossetto <simros85@gmail.com>  Sun, 04 Feb 2018 09:36:06 +0100
+
 thermod (1.0.0~beta16-3) unstable; urgency=medium
 
   * Fix startup error in buttonled monitor

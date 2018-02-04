@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Control socket to manage Thermod from external applications.
 
-Copyright (C) 2017 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -38,7 +38,7 @@ from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
 __updated__ = '2017-12-25'
-__version__ = '2.2b2'
+__version__ = '2.2'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
