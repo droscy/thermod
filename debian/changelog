@@ -1,98 +1,23 @@
+thermod (1.0.0-1) unstable; urgency=medium
+
+  * First stable release.
+
+ -- Simone Rossetto <simros85@gmail.com>  Wed, 14 Mar 2018 12:11:47 +0100
+
 thermod (1.0.0~beta17-1) unstable; urgency=medium
 
-  * New upstream revision.
+  * Third version installed on a real thermostat.
 
  -- Simone Rossetto <simros85@gmail.com>  Sun, 04 Feb 2018 09:36:06 +0100
 
 thermod (1.0.0~beta16-3) unstable; urgency=medium
 
-  * Fix startup error in buttonled monitor
+  * Second version installed on a real thermostat.
 
  -- Simone Rossetto <simros85@gmail.com>  Mon, 01 Jan 2018 22:50:19 +0100
 
-thermod (1.0.0~beta16-2) unstable; urgency=medium
-
-  * Enable syslog only if background and no log file
-
- -- Simone Rossetto <simros85@gmail.com>  Mon, 01 Jan 2018 18:56:11 +0100
-
-thermod (1.0.0~beta16-1) unstable; urgency=medium
-
-  * New upstream version.
-
- -- Simone Rossetto <simros85@gmail.com>  Thu, 28 Dec 2017 01:09:07 +0100
-
-thermod (1.0.0~beta15-3) unstable; urgency=medium
-
-  * Correctly configured for lighttpd
-
- -- Simone Rossetto <simros85@gmail.com>  Tue, 26 Dec 2017 15:48:01 +0100
-
-thermod (1.0.0~beta15-2) unstable; urgency=medium
-
-  * Change dependency for php
-
- -- Simone Rossetto <simros85@gmail.com>  Tue, 26 Dec 2017 15:00:08 +0100
-
-thermod (1.0.0~beta15-1) unstable; urgency=medium
-
-  * New upstream version with full asyncio
-
- -- Simone Rossetto <simros85@gmail.com>  Sun, 24 Dec 2017 12:49:58 +0100
-
-thermod (1.0.0~beta14-1) unstable; urgency=medium
-
-  * New upstream version with more custom parameters
-
- -- Simone Rossetto <simros85@gmail.com>  Fri, 10 Nov 2017 12:53:57 +0100
-
 thermod (1.0.0~beta13-4) unstable; urgency=medium
 
-  * Change munin plugin
+  * First version installed on a real thermostat.
 
  -- Simone Rossetto <simros85@gmail.com>  Mon, 25 Sep 2017 14:45:44 +0200
-
-thermod (1.0.0~beta13-3) unstable; urgency=medium
-
-  * Fix temperatures outliers
-  * Change LED color components
-
- -- Simone Rossetto <simros85@gmail.com>  Sun, 24 Sep 2017 13:41:45 +0200
-
-thermod (1.0.0~beta13-2) unstable; urgency=medium
-
-  * Fix postinst script for thermod
-
- -- Simone Rossetto <simros85@gmail.com>  Fri, 14 Jul 2017 16:23:15 +0200
-
-thermod (1.0.0~beta13-1) unstable; urgency=medium
-
-  * Change Debian postinst script to add thermod user to specific groups
-  * Remove fixed colour for status in Munin plugin
-
- -- Simone Rossetto <simros85@gmail.com>  Fri, 14 Jul 2017 15:28:31 +0200
-
-thermod (1.0.0~beta12-4) unstable; urgency=medium
-
-  * Fix wrong path for timetable.json in main conf file
-  * Add python3-rpi.gpio in suggested packages for armel, armhf and arm64
-
- -- Simone Rossetto <simros85@gmail.com>  Wed, 12 Jul 2017 15:21:33 +0200
-
-thermod (1.0.0~beta12-3) unstable; urgency=medium
-
-  * Add package graphviz to build depends.
-
- -- Simone Rossetto <simros85@gmail.com>  Fri, 23 Jun 2017 09:48:56 +0200
-
-thermod (1.0.0~beta12-2) unstable; urgency=medium
-
-  * Add install scripts for thermod-monitor-buttonled
-
- -- Simone Rossetto <simros85@gmail.com>  Thu, 25 May 2017 12:46:36 +0200
-
-thermod (1.0.0~beta12-1) unstable; urgency=medium
-
-  * Initial release.
-
- -- Simone Rossetto <simros85@gmail.com>  Sun, 24 May 2017 15:55:22 +0200

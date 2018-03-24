@@ -194,7 +194,7 @@
 		
 		<div id="copyright">
 			<p>Thermod (Web Manager) <span id="version"></span></p>
-			<p>Copyright &copy; 2017<?=(date('Y')>2017?'-'.date('Y'):'');?> Simone Rossetto</p>
+			<p>Copyright &copy; 2018<?=(date('Y')>2018?'-'.date('Y'):'');?> Simone Rossetto</p>
 			<p>GNU General Public License v3.0</p>
 		</div>
 	</body>

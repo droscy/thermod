@@ -2,7 +2,7 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.0.0-beta17 \
+Thermod v1.0.0 \
 Copyright (C) 2018 Simone Rossetto <simros85@gmail.com> \
 GNU General Public License v3
 
@@ -31,7 +31,7 @@ and the following packages:
  - [aiohttp](https://aiohttp.readthedocs.io/) (>=1.2.0)
  - [numpy](http://www.numpy.org/) (>=1.8.0)
  - [requests](http://docs.python-requests.org/) (>=2.4.3)
- - [nose](http://nose.readthedocs.io/) (>=1.3.4)
+ - [nose](http://nose.readthedocs.io/) (>=1.3.4, only to run tests)
 
 
 ### Installation
@@ -48,7 +48,7 @@ then copy the source file `etc/thermod.conf` in one of the following paths:
  - `${HOME}/thermod/thermod.conf` (where `${HOME}` is the *home* folder of
    the user running the daemon)
 
-and adjust it to meet your requirements.
+and adjust it to meet your requirements (documentation inside the file).
 
 
 ### Debian
@@ -60,7 +60,7 @@ Python modules and then execute:
 dpkg-buildpackage
 ```
 
-After having built the package install, at least, the following packagesx:
+After having built the package install, at least, the following packages:
 
 ```bash
 dpkg -i \
