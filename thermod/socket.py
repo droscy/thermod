@@ -28,6 +28,7 @@ from json.decoder import JSONDecodeError
 from aiohttp.web import Application, json_response, HTTPNotFound, HTTPMethodNotAllowed
 from email.utils import formatdate
 from datetime import datetime
+from urllib.parse import parse_qs
 
 from . import timetable as tt
 from .common import LogStyleAdapter, ThermodStatus
@@ -37,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2017-12-25'
-__version__ = '2.2'
+__updated__ = '2018-04-10'
+__version__ = '2.2.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -318,6 +319,7 @@ async def GET_handler(request):
     thermometer = request.app['thermometer']
     
     action = request.match_info['action']
+    qs = parse_qs(request.url.query_string)  # query string for long polling
     
     if action in REQ_PATH_VERSION:
         logger.debug('preparing response with Thermod version')
@@ -383,7 +385,9 @@ async def GET_handler(request):
                                 'my wife.')})
     
     elif action in REQ_PATH_MONITOR:
-        logger.debug('enqueuing new long-polling monitor request')
+        logger.debug('enqueuing new long-polling {} monitor request',
+                     (qs['name'][0] if 'name' in qs else 'unknown'))
+        
         future = request.app.loop.create_future()
         await request.app['monitors'].put(future)
         

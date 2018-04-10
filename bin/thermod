@@ -41,7 +41,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-03-14'
+__updated__ = '2018-04-10'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
@@ -51,6 +51,8 @@ __updated__ = '2018-03-14'
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterne
 
+# TODO [Roadmap 1.0.1] separare thermod-monitor-buttonled
+# TODO [Roadmap 1.0.1] rivedere import dei moduli per velocizzare il caricamento
 # TODO [Roadmap 1.0.1] inserire controllo su variazioni repentine di temperatura
 # TODO [Roadmap 1.0.1] scrivere test per PiAnalogZeroThermometer
 
@@ -110,7 +112,6 @@ if args.log:
         logfile = logging.FileHandler(args.log, mode='a')
     
     except PermissionError as pe:
-        
         logger.warning('cannot write log to `{}`: {}', args.log, pe)
         logger.info('the daemon will start without logfile')
     
