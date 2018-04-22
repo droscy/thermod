@@ -1,2 +1,0 @@
-#!/usr/bin/dh-exec
-bin/thermod-munin-plugin => /usr/share/thermod/munin-plugins/thermod
