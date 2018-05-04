@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-01-28'
+__updated__ = '2018-05-04'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -62,8 +62,8 @@ def fahrenheit2celsius(value):
 class ThermometerError(RuntimeError):
     """Main exception for thermomter-related errors.
     
-    The attribute `suberror` can contain additional informations about the
-    error. These informations are not printed nor returned by default and
+    The attribute `suberror` can contain additional information about the
+    error. This information is not printed nor returned by default and
     must be accessed directly.
     """
     
@@ -206,6 +206,8 @@ class FakeThermometer(BaseThermometer):
         else:
             return round(celsius2fahrenheit(t), 2)
 
+
+# BaseThermometer real implementations
 
 class ScriptThermometer(BaseThermometer):
     """Manage the real thermometer through an external script.
@@ -641,5 +643,65 @@ class PiAnalogZeroThermometer(BaseThermometer):
         except AttributeError:
             # an exception was raised in __init__() method, the object is incomplete
             pass
+
+
+
+# BaseThermometer decorators
+
+class ThermometerBaseDecorator(BaseThermometer):
+    """Abstract base decorator for thermometers."""
+    
+    def __init__(thermometer):
+        if not isinstance(thermometer, BaseThermometer):
+            raise TypeError('the provided thermometer is not an instance of {}'.format(BaseThermometer.__class__.__name__))
+        
+        self.thermometer = thermometer
+
+    @property
+    def raw_temperature(self):
+        return self.thermometer.raw_temperature
+    
+    @property
+    def temperature(self):
+        return self.thermometer.temperature
+
+class DeltaTempCheckerThermometerDecorator(ThermometerBaseDecorator):
+    """Check if the last read temperature is too much different from older values.
+    
+    Keeps a history of the last read temperatures and checks if the new one
+    is not too far from the average of older values.
+    """
+    
+    def __init__(thermometer, queuelen, delta):
+        """Init DeltaTempCheckerThermometerDecorator.
+        
+        @param thermometer the reference to the base thermometer
+        @param queuelen the number of older temperatures to keep
+        @param delta the maximum allowed difference from new temperature to be
+            considered valid
+        """
+        super().__init__(thermometer)
+        self.last_raw_temperatures = deque(maxlen=queuelen)
+        self.delta = delta
+
+    @property
+    def raw_temperature(self):
+        """Return the raw temperature if it is not too much different from older values.
+        
+        @exception ThermometerError when the read value is over allowed delta.
+        """
+        newtemp = self.thermometer.raw_temperature
+        avgtemp = numpy.mean(self.last_raw_temperatures)
+        
+        if abs(newtemp - avgtemp) >= self.delta:
+            raise ThermometerError('the just read temperature ({} degrees) has '
+                                   'been ignored because it is more than {} '
+                                   'degrees away from the average value of the '
+                                   'previous temperatures ({} degrees)'
+                                   .format(newtemp, self.delta, avgtemp),
+                                   'this is probably a hardware fault')
+        
+        self.last_raw_temperatures.append(newtemp)
+        return newtemp
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
