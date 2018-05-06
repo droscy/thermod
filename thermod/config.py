@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-01-30'
+__updated__ = '2018-05-06'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -177,14 +177,29 @@ def parse_main_settings(cfg):
         _t_raw = cfg.get('thermometer', 't_raw')
         thermometer = {'script': cfg.get('thermometer', 'thermometer'),
                        't_ref': [float(t) for t in _t_ref.split(',')] if _t_ref else [],
-                       't_raw': [float(t) for t in _t_raw.split(',')] if _t_raw else []}
+                       't_raw': [float(t) for t in _t_raw.split(',')] if _t_raw else [],
+                       'similcheck': cfg.getboolean('thermometer', 'similarity_check', fallback=True),
+                       'simillen': cfg.getint('thermometer', 'similarity_queuelen', fallback=12),
+                       'simildelta': cfg.getfloat('thermometer', 'similarity_delta', fallback=3.0),
+                       # The avgtask is disabled by default for backward compatibility
+                       # in case the user is using and old config file.
+                       'avgtask': cfg.getboolean('thermometer', 'avgtask', fallback=False),
+                       'avgint': cfg.getint('thermometer', 'avgint', fallback=3),
+                       'avgtime': cfg.getint('thermometer', 'avgtime', fallback=6),
+                       'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33)}
+        
+        if thermometer['simillen'] < 1:
+            raise ValueError('advanced parameter `similarity_queuelen` must be a positive integer')
+        
+        if thermometer['simildelta'] <= 0:
+            raise ValueError('advanced parameter `similarity_delta` must be a positive number')
         
         _scale = cfg.get('thermometer', 'scale', fallback='celsius').casefold()
         if _scale not in ('celsius', 'fahrenheit'):
                 raise ValueError('the degree scale must be `celsius` or '
                                  '`fahrenheit`, `{}` provided'.format(_scale))
         
-        thermometer['scale'] = _scale[0]  # only the first letter of _level is used
+        thermometer['scale'] = _scale[0]  # only the first letter of _scale is used
         
         if thermometer['script'][0] == '/':
             # If the first char is a / it denotes the beginning of a filesystem
@@ -197,26 +212,39 @@ def parse_main_settings(cfg):
             # thermometer instead of an external script.
             thermometer['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
             thermometer['stddev'] = cfg.getfloat('thermometer/PiAnalogZero', 'stddev', fallback=2.0)
-            thermometer['realint'] = cfg.getint('thermometer/PiAnalogZero', 'realint', fallback=3)
-            thermometer['avgtime'] = cfg.getint('thermometer/PiAnalogZero', 'avgtime', fallback=6)
-            thermometer['skipval'] = cfg.getfloat('thermometer/PiAnalogZero', 'skipval', fallback=0.33)
             
             if thermometer['stddev'] <= 0:
                 raise ValueError('advanced parameter `stddev` must be positive')
             
-            if thermometer['realint'] < 1:
-                raise ValueError('advanced parameter `realint` must be at least 1 second')
+            # In version 1.0.0 of Thermod the PiAnalogZero thermometer made use
+            # of a class-builtin averaging task so, now that the averaging task
+            # is a separate decorator, we enable it by default unless the user
+            # has manually disabled it in the config file.
+            thermometer['avgtask'] = cfg.getboolean('thermometer', 'avgtask', fallback=True)
             
-            if thermometer['avgtime'] < (2*interval/60):
-                raise ValueError('advanced parameter `avgtime` must be at least {:d} minutes'.format(2 * interval / 60))
-            
-            if thermometer['skipval'] < 0 or thermometer['skipval'] > 1:
-                raise ValueError('advanced parameter `skipval` must be a float number between 0 and 1')
+            # For backward compatibility of PiAnalogZero section in Thermod 1.0.0
+            # we check if the config file still have older settings: realint,
+            # avgtime and skipval.
+            if thermometer['avgtask']:
+                thermometer['avgint'] = cfg.getint('thermometer/PiAnalogZero', 'realint', fallback=thermometer['avgint'])
+                thermometer['avgtime'] = cfg.getint('thermometer/PiAnalogZero', 'avgtime', fallback=thermometer['avgtime'])
+                thermometer['avgskip'] = cfg.getfloat('thermometer/PiAnalogZero', 'skipval', fallback=thermometer['avgskip'])
         
         # An `elif` can be added with additional specific thermometer classes
         # once they will be created.
         else:
             raise ValueError('invalid value `{}` for thermometer'.format(thermometer['script']))
+        
+        # Checking here the avg* settings because they can have been overwritten
+        # by older settings of PiAnalogZero section.
+        if thermometer['avgint'] < 1:
+            raise ValueError('advanced parameter `avgint` must be at least 1 second')
+        
+        if thermometer['avgtime'] < (2*interval/60):
+            raise ValueError('advanced parameter `avgtime` must be at least {:d} minutes'.format(2 * interval / 60))
+        
+        if thermometer['avgskip'] < 0 or thermometer['avgskip'] > 1:
+            raise ValueError('advanced parameter `avgskip` must be a float number between 0 and 1')
         
         logger.debug('parsing socket settings')
         host = cfg.get('socket', 'host', fallback=common.SOCKET_DEFAULT_HOST)

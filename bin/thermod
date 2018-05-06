@@ -41,19 +41,20 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-05-04'
+__updated__ = '2018-05-06'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
 # TODO aggiungere ai sorgenti i file della scatolina
+# TODO rivedere test del socket che con il nuovo python e/o aiohttp non funzionano
 
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterne
 
 # TODO [Roadmap 1.0.1] rivedere import dei moduli per velocizzare il caricamento
 # TODO [Roadmap 1.0.1] inserire controllo su variazioni repentine di temperatura (ONGOING)
-# TODO [Roadmap 1.0.1] scrivere test per PiAnalogZeroThermometer
+# TODO [Roadmap 1.0.1] scrivere test per PiAnalogZeroThermometer e per i Decorator
 
 # TODO [Roadmap 1.1.0] fare client testuale
 # TODO [Roadmap 1.1.0] creare manpage per questo file e per il client testuale
@@ -226,10 +227,7 @@ try:
                                               settings.thermometer['scale'],
                                               settings.thermometer['t_ref'],
                                               settings.thermometer['t_raw'],
-                                              settings.thermometer['stddev'],
-                                              settings.thermometer['realint'],
-                                              settings.thermometer['avgtime'],
-                                              loop=main_loop)
+                                              settings.thermometer['stddev'])
     
     # An `elif` can be added with additional specific thermometer classes
     # once they will be created.
@@ -237,6 +235,22 @@ try:
         # The execution should not arrive here because the settings are
         # already checked inside common.parse_main_settings() function.
         raise RuntimeError('invalid thermometer configuration')
+    
+    if settings.thermometer['similcheck']:
+        # enable similarity decorator
+        thermometer = SimilarityCheckerThermometerDecorator(
+                            thermometer,
+                            settings.thermometer['simillen'],
+                            settings.thermometer['simildelta'])
+    
+    if settings.thermometer['avgtask']:
+        # enable averaging task decorator
+        thermometer = AveragingTaskThermometerDecorator(
+                            thermometer,
+                            settings.thermometer['avgint'],
+                            settings.thermometer['avgtime'],
+                            settings.thermometer['avgskip'],
+                            main_loop)
     
     # the control socket
     # TODO controllare gli errori possibili alla creazione del socket asyncrono

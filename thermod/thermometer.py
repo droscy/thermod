@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-05-04'
+__updated__ = '2018-05-06'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -98,7 +98,7 @@ class BaseThermometer(object):
     `t_ref` with reference temperatures and `t_raw` with the corresponding
     values read by the thermometer. These two lists will be used to compute a
     transformation function to calibrate the thermometer. The two lists must
-    have the same number of elements and must have at least 6 elements each.
+    have the same number of elements and must have at least 2 elements each.
     To disable the calibration or to get the values for `t_raw` list, leave
     `t_raw` itself empty.
     """
@@ -205,6 +205,7 @@ class FakeThermometer(BaseThermometer):
             return t
         else:
             return round(celsius2fahrenheit(t), 2)
+
 
 
 # BaseThermometer real implementations
@@ -432,11 +433,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
                  t_ref=[],
                  t_raw=[],
                  stddev=2.0,
-                 realtime_interval=3,
-                 averaging_time=6,
-                 skipval=0.33,
-                 calibration=None,
-                 loop=None):
+                 calibration=None):
         """Init PiAnalogZeroThermometer object using `channels` of the A/D converter.
         
         @param channels the list of channels to read value from
@@ -444,22 +441,11 @@ class PiAnalogZeroThermometer(BaseThermometer):
         @param t_ref list of reference values for temperature calibration
         @param t_raw list of raw temperatures read by the thermometer
             corresponding to values in `t_ref`
-        @param stddev standard deviation between temperatures to consider a
-            thermometer broken
-        @param realtime_interval time interval (in seconds) between each
-            realtime temperature reading from thermometers
-        @param averaging_time the reported real temperature is the average
-            of all temperatures read during this time
-        @param skipval the percentage of temperatures to be skipped during
-            the average process, the half of this value from the greatest
-            temperatures and the other half form the lowest (this value
-            must be between 0 and 1)
-        @param calibration e callable object to calibrate the temperature
+        @param stddev maximum standard deviation between temperatures to
+            consider a thermometer not broken
+        @param calibration a callable object to calibrate the temperature
             (if both `t_ref` and `t_raw` are valid, this parameter is
             ignored)
-        @param loop the asynchronous loop to be used (if it is `None` the
-            default loop as retrieved with `asyncio.get_event_loop()` is
-            used)
         
         @exception ValueError if no channels provided or channels out of range [0,7]
         @exception ThermometerError if the module `gpiozero' cannot be imported
@@ -474,6 +460,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
             if c < 0 or c > 7:
                 raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
         
+        # voltage reference value
         self._vref = ((3.32/(3.32+7.5))*3.3*1000)
             
         # If the config variable '_fake_RPi_Thermometer' is True, fake
@@ -512,57 +499,35 @@ class PiAnalogZeroThermometer(BaseThermometer):
             logger.debug('PiAnalogZero thermometer is using gpiozero software bus to SPI device')
         
         self._stddev = stddev
-        self._realtime_interval = realtime_interval  # seconds
-        self._averaging_time = averaging_time  # minutes
-        self._skipval = skipval
         
         # Only the first time an abnormal raw temperature is read a warning
         # message is printed. This variable is used as a check for it.
         self._printed_warning_std = False
-        
-        # Allocate the queue for the last temperatures to be averaged. The
-        # lenght is computed considering the desired averaging time and
-        # the frequency of the raw samples.
-        self._temperatures = deque([self.realtime_raw_temperature],
-                                   maxlen=int(self._averaging_time * 60 / self._realtime_interval))
-        
-        # start averaging task
-        self._loop = (loop if loop is not None else get_event_loop())
-        self._averaging_task = self._loop.create_task(self._update_temperatures())
     
     def __repr__(self, *args, **kwargs):
         return ('<{module}.{cls}({channels!r}, {scale!r}, '
-                'stddev={stddev!r}, realtime_interval={realint!r}, '
-                'averaging_time={avgtime!r}, skipval={skipval!r}, '
-                'calibration={calib!r}, loop={loop!r})>'.format(
+                'stddev={stddev!r}, calibration={calib!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     channels=[adc.channel for adc in self._adc],
                     scale=self._scale,
                     stddev=self._stddev,
-                    realint=self._realtime_interval,
-                    avgtime=self._averaging_time,
-                    skipval=self._skipval,
-                    calib=self._calibrate,
-                    loop=self._loop))
+                    calib=self._calibrate))
     
     def __deepcopy__(self, memodict={}):
         """Return a deep copy of this PiAnalogZeroThermometer."""
         return self.__class__(channels=[adc.channel for adc in self._adc],
                               scale=self._scale,
                               stddev=self._stddev,
-                              realtime_interval=self._realtime_interval,
-                              averaging_time=self._averaging_time,
-                              skipval=self._skipval,
-                              calibration=self._calibrate,
-                              loop=self._loop)
+                              calibration=self._calibrate)
     
     @property
-    def realtime_raw_temperature(self):
+    def raw_temperature(self):
         """The current raw temperature as measured by physical thermometer.
         
         If more than one channel is provided during object creation, the
-        returned temperature is the median value of all channels.
+        returned temperature is the median value of all channels (the mean
+        value if there are only two channels).
         
         A standard deviation between all values is also used to exclude from
         the computation broken physical thermometers.
@@ -580,26 +545,176 @@ class PiAnalogZeroThermometer(BaseThermometer):
                            '(greater than the maximum allowed value of {:.1f} degrees), '
                            'raw temperatures are {}'.format(std, self._stddev, temperatures))
         
-        # the median excludes a possible single outlier
-        return round(numpy.median(temperatures), 2)  # additional decimal are meaningless
+        # The median excludes a possible single outlier. We round the value
+        # only with two decimals because additional decimals are meaningless.
+        return round(numpy.median(temperatures) if len(temperatures)>2 else numpy.mean(temperatures), 2)
+    
+    def __del__(self):
+        """Close hardware channels."""
+        # cannot use logger here, the logger could be already unloaded
+        try:
+            for adc in self._adc:
+                adc.close()
+        except AttributeError:
+            # an exception was raised in __init__() method, the object is incomplete
+            pass
+
+
+
+# BaseThermometer decorators
+
+class ThermometerBaseDecorator(BaseThermometer):
+    """Base decorator for subclasses of BaseThermometer.
+    
+    This class simply forwards any public method invocation to the decorated
+    thermometer passed during object creation.
+    """
+    
+    def __init__(self, thermometer):
+        """Init the base decorator storing a reference to the decorated thermometer.
+        
+        @param thermometer the BaseThermometer to be decorated
+        @exception TypeError in case `thermometer` is not an instance of BaseThermometer
+        """
+        
+        logger.debug('initializing a new {}', self.__class__.__name__)
+        
+        if not isinstance(thermometer, BaseThermometer):
+            raise TypeError('the provided thermometer is not an instance of {}'.format(BaseThermometer.__class__.__name__))
+        
+        self._thermometer = thermometer
+
+    @property
+    def raw_temperature(self):
+        logger.debug('forwarding raw_temperature call to decorated thermometer')
+        return self._thermometer.raw_temperature
+    
+    @property
+    def temperature(self):
+        logger.debug('forwarding temperature call to decorated thermometer')
+        return self._thermometer.temperature
+    
+    def close(self):
+        logger.debug('forwarding close() call to decorated thermometer')
+        self._thermometer.close()
+
+
+class DeltaTempCheckerThermometerDecorator(ThermometerBaseDecorator):
+    """Check if the last read temperature is similar to the average of older values.
+    
+    To do the check, a history of older temperatures is stored. Every new
+    temperature is compared to the average value of the list, if it is similar,
+    it is added to the list, otherwise an error is rised.
+    """
+    
+    def __init__(self, thermometer, queuelen, delta):
+        """Init DeltaTempCheckerThermometerDecorator.
+        
+        @param thermometer the BaseThermometer to be decorated
+        @param queuelen the number of older temperatures to keep
+        @param delta the maximum allowed difference from new temperature to be
+            considered similar to older values
+        """
+        super().__init__(thermometer)
+        
+        logger.debug('queue size is {}, maximum allowed delta is {} degrees', queuelen, delta)
+        self.last_raw_temperatures = deque(maxlen=queuelen)
+        self.delta = delta
+
+    @property
+    def raw_temperature(self):
+        """Return the raw temperature if it is similar to the average of older values.
+        
+        @exception ThermometerError when the just read value is NOT similar
+        """
+        newtemp = self._thermometer.raw_temperature
+        avgtemp = numpy.mean(self.last_raw_temperatures)
+        logger.debug('new raw temperature is {}, old average value is {}', newtemp, avgtemp)
+        
+        if abs(newtemp - avgtemp) >= self.delta:
+            raise ThermometerError('the just read temperature ({} degrees) has '
+                                   'been ignored because it is more than {} '
+                                   'degrees away from the average value of the '
+                                   'previous temperatures ({} degrees)'
+                                   .format(newtemp, self.delta, avgtemp),
+                                   'this is probably a hardware fault')
+        
+        logger.debug('appending new temperature to the delta checker queue')
+        self.last_raw_temperatures.append(newtemp)
+        
+        return newtemp
+
+
+class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
+    """Start a task that computes the average of temperatures in a long interval of time.
+    
+    Sometimes a thermometer can be very "noisy" due to fluctuation of currents
+    or external perturbations. This decorator tries to mitigate this problem
+    querying the thermometer at a fixed short interval of time and keeping all
+    the temperatures for a long time. When the current temperature is retireved
+    using the builtin `temperature` property, the average of the stored
+    temperatures is returned, this is the mean value of the temperatures in the
+    long period.
+    
+    The real thermometer is automatically queried using an asynchronous task.
+    """
+    
+    def __init__(self,
+                 thermometer,
+                 short_interval=3,  # seconds
+                 averaging_time=6,  # minutes
+                 skipval=0.33,
+                 loop=None):
+        """Decorate `thermometer` with an autonomous averaging task.
+        
+        @param short_interval time interval (in seconds) between two following
+            query of the real thermometer
+        @param averaging_time the reported temperature is the average
+            of all temperatures read during this time (in minutes)
+        @param skipval the percentage of temperatures to be skipped during
+            the average process, the half of this value from the greatest
+            temperatures and the other half form the lowest (this value
+            must be between 0 and 1)
+        @param loop the asynchronous loop to be used (if it is `None` the
+            default loop as retrieved with `asyncio.get_event_loop()` is
+            used)
+        """
+        
+        super().__init__(thermometer)
+        self._short_interval = short_interval
+        self._averaging_time = averaging_time
+        self._skipval = skipval
+        
+        # Allocate the queue for the last temperatures to be averaged. The
+        # lenght is computed considering the desired averaging time and
+        # the frequency of the raw samples.
+        self._temperatures = deque([self._thermometer.raw_temperature],
+                                   maxlen=int(self._averaging_time * 60 / self._short_interval))
+        
+        # start averaging task
+        self._loop = (loop if loop is not None else get_event_loop())
+        self._averaging_task = self._loop.create_task(self._update_temperatures())
     
     async def _update_temperatures(self):
-        """Start a cycle to update the list of last measured temperatures.
+        """Start a loop to update the list of last measured temperatures.
         
         This method should be run in a separate task in order to keep
         the list `self._temperatures` always updated with the last measured
         temperatures.
+        
+        @exception asyncio.CancelledError at the end of the task
         """
         
         logger.debug('starting temperature updating cycle')
         
         try:
             while True:
-                temp = self.realtime_raw_temperature
+                temp = self._thermometer.raw_temperature  # raw temperature from decorated thermomemter
                 self._temperatures.append(temp)
-                logger.debug('added new realtime temperature {:.2f} [{:.2f}]', temp, self._calibrate(temp))
+                logger.debug('added new temperature to the averaging queue '
+                             '({:.2f} -> {:.2f})', temp, self._thermometer._calibrate(temp))
                 
-                await sleep(self._realtime_interval, loop=self._loop)
+                await sleep(self._short_interval, loop=self._loop)
         
         except CancelledError:
             logger.debug('temperature updating cycle stopped')
@@ -607,14 +722,14 @@ class PiAnalogZeroThermometer(BaseThermometer):
     
     @property
     def raw_temperature(self):
-        """Return a "weighted"" average of the last measured temperatures.
+        """Return a "weighted" average of the last measured temperatures.
         
         The average is computed excluding some greatest and lowest
         temperatures in the `self._temperatures` queue using `self._skipval`
         to compute how many temperatures to exclude.
         """
         
-        logger.debug('retriving current raw temperature')
+        logger.debug('retriving current average raw temperature')
         
         skip = int(round(self._temperatures.maxlen * self._skipval / 2, 0))  # least and greatest temperatures to be excluded
         elements = len(self._temperatures)
@@ -633,75 +748,6 @@ class PiAnalogZeroThermometer(BaseThermometer):
         """Stop the temperature updating task."""
         logger.debug('stopping temperature updating cycle')
         self._averaging_task.cancel()
-    
-    def __del__(self):
-        """Close hardware channels."""
-        # cannot use logger here, the logger could be already unloaded
-        try:
-            for adc in self._adc:
-                adc.close()
-        except AttributeError:
-            # an exception was raised in __init__() method, the object is incomplete
-            pass
-
-
-
-# BaseThermometer decorators
-
-class ThermometerBaseDecorator(BaseThermometer):
-    """Abstract base decorator for thermometers."""
-    
-    def __init__(thermometer):
-        if not isinstance(thermometer, BaseThermometer):
-            raise TypeError('the provided thermometer is not an instance of {}'.format(BaseThermometer.__class__.__name__))
-        
-        self.thermometer = thermometer
-
-    @property
-    def raw_temperature(self):
-        return self.thermometer.raw_temperature
-    
-    @property
-    def temperature(self):
-        return self.thermometer.temperature
-
-class DeltaTempCheckerThermometerDecorator(ThermometerBaseDecorator):
-    """Check if the last read temperature is too much different from older values.
-    
-    Keeps a history of the last read temperatures and checks if the new one
-    is not too far from the average of older values.
-    """
-    
-    def __init__(thermometer, queuelen, delta):
-        """Init DeltaTempCheckerThermometerDecorator.
-        
-        @param thermometer the reference to the base thermometer
-        @param queuelen the number of older temperatures to keep
-        @param delta the maximum allowed difference from new temperature to be
-            considered valid
-        """
-        super().__init__(thermometer)
-        self.last_raw_temperatures = deque(maxlen=queuelen)
-        self.delta = delta
-
-    @property
-    def raw_temperature(self):
-        """Return the raw temperature if it is not too much different from older values.
-        
-        @exception ThermometerError when the read value is over allowed delta.
-        """
-        newtemp = self.thermometer.raw_temperature
-        avgtemp = numpy.mean(self.last_raw_temperatures)
-        
-        if abs(newtemp - avgtemp) >= self.delta:
-            raise ThermometerError('the just read temperature ({} degrees) has '
-                                   'been ignored because it is more than {} '
-                                   'degrees away from the average value of the '
-                                   'previous temperatures ({} degrees)'
-                                   .format(newtemp, self.delta, avgtemp),
-                                   'this is probably a hardware fault')
-        
-        self.last_raw_temperatures.append(newtemp)
-        return newtemp
+        self._thermometer.close()
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
