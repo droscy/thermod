@@ -23,7 +23,7 @@ import os
 import unittest
 import thermod.config as cnf
 
-__updated__ = '2017-12-03'
+__updated__ = '2018-05-06'
 
 # TODO write more tests for specific settings and possible errors
 
@@ -46,8 +46,22 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.debug, False)
         self.assertEqual(settings.interval, 30)
         self.assertEqual(settings.mode, 2)
+        
         self.assertEqual(settings.heating['manager'], 'scripts')
+        self.assertEqual(settings.heating['on'], '/etc/thermod/switch-heating --on -j -s -q')
+        self.assertEqual(settings.heating['off'], '/etc/thermod/switch-heating --off -j -s -q')
+        self.assertEqual(settings.heating['status'], '/etc/thermod/switch-heating --status -j -s -q')
+        
+        self.assertEqual(settings.thermometer['script'], '/etc/thermod/get-temperature')
         self.assertEqual(settings.thermometer['scale'], 'c')
+        self.assertEqual(settings.thermometer['similcheck'], True)
+        self.assertEqual(settings.thermometer['simillen'], 12)
+        self.assertEqual(settings.thermometer['simildelta'], 3.0)
+        self.assertEqual(settings.thermometer['avgtask'], True)
+        self.assertEqual(settings.thermometer['avgint'], 3)
+        self.assertEqual(settings.thermometer['avgtime'], 6)
+        self.assertEqual(settings.thermometer['avgskip'], 0.33)
+        
         self.assertEqual(settings.host, 'localhost')
         self.assertEqual(settings.port, 4344)
 

@@ -65,11 +65,12 @@ __updated__ = '2018-05-06'
 
 # TODO [Roadmap 1.2.0] scrivere NetThermometer
 # TODO [Roadmap 1.2.0] scrivere Pi1WireThermometer
-# TODO [Roadmap 1.2.0] spostare l'averaging-task fuori dalla classe
+# TODO [Roadmap 1.2.0] spostare l'averaging-task fuori dalla classe (ONGOING)
 # PiAnalogZeroThermometer, così da poterlo usare in qualasiasi termometro:
 # potrebbe essere fatto con un Decorator.
 
 # TODO [Roadmap 2.0.0] chiamare le temperature t0, t1 e t2
+# TODO [Roadmap 2.0.0] aggiungere modalità di funzionamento estivo
 # TODO [Roadmap 2.0.0] modificare client web per permettere di impostare tre livelli di
 # temperatura per ogni singolo quarto d'ora
 

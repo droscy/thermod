@@ -582,33 +582,41 @@ class ThermometerBaseDecorator(BaseThermometer):
         if not isinstance(thermometer, BaseThermometer):
             raise TypeError('the provided thermometer is not an instance of {}'.format(BaseThermometer.__class__.__name__))
         
-        self._thermometer = thermometer
+        self.__decorated = thermometer
+    
+    @property
+    def decorated(self):
+        """Return the reference to the decorated thermometer."""
+        return self.__decorated
 
     @property
     def raw_temperature(self):
-        logger.debug('forwarding raw_temperature call to decorated thermometer')
-        return self._thermometer.raw_temperature
+        logger.debug('forwarding raw_temperature call to the decorated thermometer')
+        return self.decorated.raw_temperature
     
     @property
     def temperature(self):
-        logger.debug('forwarding temperature call to decorated thermometer')
-        return self._thermometer.temperature
+        logger.debug('forwarding temperature call to the decorated thermometer')
+        return self.decorated.temperature
     
     def close(self):
-        logger.debug('forwarding close() call to decorated thermometer')
-        self._thermometer.close()
+        logger.debug('forwarding close() call to the decorated thermometer')
+        self.decorated.close()
 
 
-class DeltaTempCheckerThermometerDecorator(ThermometerBaseDecorator):
+class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
     """Check if the last read temperature is similar to the average of older values.
     
     To do the check, a history of older temperatures is stored. Every new
     temperature is compared to the average value of the list, if it is similar,
     it is added to the list, otherwise an error is rised.
+    
+    **Note**: in case of joint usage of this decorator with an
+    AveragingTaskThermometerDecorator, this one should be the *inner* decorator.
     """
     
     def __init__(self, thermometer, queuelen, delta):
-        """Init DeltaTempCheckerThermometerDecorator.
+        """Init SimilarityCheckerThermometerDecorator.
         
         @param thermometer the BaseThermometer to be decorated
         @param queuelen the number of older temperatures to keep
@@ -623,11 +631,11 @@ class DeltaTempCheckerThermometerDecorator(ThermometerBaseDecorator):
 
     @property
     def raw_temperature(self):
-        """Return the raw temperature if it is similar to the average of older values.
+        """Return the raw temperature only if it is similar to the average of older values.
         
         @exception ThermometerError when the just read value is NOT similar
         """
-        newtemp = self._thermometer.raw_temperature
+        newtemp = self.decorated.raw_temperature
         avgtemp = numpy.mean(self.last_raw_temperatures)
         logger.debug('new raw temperature is {}, old average value is {}', newtemp, avgtemp)
         
@@ -639,7 +647,7 @@ class DeltaTempCheckerThermometerDecorator(ThermometerBaseDecorator):
                                    .format(newtemp, self.delta, avgtemp),
                                    'this is probably a hardware fault')
         
-        logger.debug('appending new temperature to the delta checker queue')
+        logger.debug('appending new temperature to the similarity checker queue')
         self.last_raw_temperatures.append(newtemp)
         
         return newtemp
@@ -657,6 +665,10 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
     long period.
     
     The real thermometer is automatically queried using an asynchronous task.
+    
+    **Note**: in case of joint usage of this decorator with a
+    SimilarityCheckerThermometerDecorator, this one should be the *outer*
+    decorator.
     """
     
     def __init__(self,
@@ -688,7 +700,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         # Allocate the queue for the last temperatures to be averaged. The
         # lenght is computed considering the desired averaging time and
         # the frequency of the raw samples.
-        self._temperatures = deque([self._thermometer.raw_temperature],
+        self._temperatures = deque([self.decorated.raw_temperature],
                                    maxlen=int(self._averaging_time * 60 / self._short_interval))
         
         # start averaging task
@@ -696,7 +708,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         self._averaging_task = self._loop.create_task(self._update_temperatures())
     
     async def _update_temperatures(self):
-        """Start a loop to update the list of last measured temperatures.
+        """Start a cycle to update the list of last measured temperatures.
         
         This method should be run in a separate task in order to keep
         the list `self._temperatures` always updated with the last measured
@@ -709,10 +721,10 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         
         try:
             while True:
-                temp = self._thermometer.raw_temperature  # raw temperature from decorated thermomemter
+                temp = self.decorated.raw_temperature  # raw temperature from decorated thermomemter
                 self._temperatures.append(temp)
                 logger.debug('added new temperature to the averaging queue '
-                             '({:.2f} -> {:.2f})', temp, self._thermometer._calibrate(temp))
+                             '({:.2f} -> {:.2f})', temp, self.decorated._calibrate(temp))
                 
                 await sleep(self._short_interval, loop=self._loop)
         
@@ -748,6 +760,6 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         """Stop the temperature updating task."""
         logger.debug('stopping temperature updating cycle')
         self._averaging_task.cancel()
-        self._thermometer.close()
+        self.decorated.close()
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
