@@ -34,14 +34,16 @@ from async_timeout import timeout
 
 from thermod import common, config
 from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus
-from thermod.thermometer import ScriptThermometer, ThermometerError, PiAnalogZeroThermometer
+from thermod.thermometer import ScriptThermometer, ThermometerError, \
+    PiAnalogZeroThermometer, SimilarityCheckerThermometerDecorator, \
+    AveragingTaskThermometerDecorator
 from thermod.heating import ScriptHeating, HeatingError, PiPinsRelayHeating
 from thermod.timetable import TimeTable, JsonValueError
 from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-05-06'
+__updated__ = '2018-05-11'
 
 # TODO documentare return code
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)

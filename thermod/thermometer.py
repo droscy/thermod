@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-05-06'
+__updated__ = '2018-05-11'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -533,8 +533,10 @@ class PiAnalogZeroThermometer(BaseThermometer):
         the computation broken physical thermometers.
         """
         
+        logger.debug('retrieving temperatures from A/D converter')
         temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
         
+        logger.debug('checking standard deviation of raw temperatures {}', temperatures)
         std = numpy.std(temperatures)
         if std < self._stddev and self._printed_warning_std is True:
             self._printed_warning_std = False
@@ -542,11 +544,12 @@ class PiAnalogZeroThermometer(BaseThermometer):
         elif std >= self._stddev and self._printed_warning_std is False:
             self._printed_warning_std = True
             logger.warning('standard deviation of raw temperatures is {:.1f} '
-                           '(greater than the maximum allowed value of {:.1f} degrees), '
-                           'raw temperatures are {}'.format(std, self._stddev, temperatures))
+                           '(greater than the maximum allowed value of {:.1f} '
+                           'degrees)'.format(std, self._stddev))
         
         # The median excludes a possible single outlier. We round the value
         # only with two decimals because additional decimals are meaningless.
+        logger.debug('returning median of raw temperatures')
         return round(numpy.median(temperatures) if len(temperatures)>2 else numpy.mean(temperatures), 2)
     
     def __del__(self):
@@ -580,27 +583,42 @@ class ThermometerBaseDecorator(BaseThermometer):
         logger.debug('initializing a new {}', self.__class__.__name__)
         
         if not isinstance(thermometer, BaseThermometer):
-            raise TypeError('the provided thermometer is not an instance of {}'.format(BaseThermometer.__class__.__name__))
+            raise TypeError('the provided thermometer is not an instance of {}'
+                            .format(BaseThermometer.__class__.__name__))
         
+        # private reference to the decorated thermometer
         self.__decorated = thermometer
+        
+        # Replicate internal _scale attribute that is used in to_celsius()
+        # and to_fahrenheit() methods.
+        self._scale = thermometer._scale
+        
+        # Replicate internal _calibrate method that is used in other methods.
+        self._calibrate = thermometer._calibrate
+    
+    def __repr__(self, *args, **kwargs):
+        return '<{}.{}({!r})>'.format(self.__module__,
+                                      self.__class__.__name__,
+                                      self.__decorated)
     
     @property
     def decorated(self):
         """Return the reference to the decorated thermometer."""
         return self.__decorated
-
+    
     @property
     def raw_temperature(self):
-        logger.debug('forwarding raw_temperature call to the decorated thermometer')
+        #logger.debug('forwarding `raw_temperature` call from {} to {}',
+        #             self.__class__.__name__,
+        #             self.decorated.__class__.__name__)
+        
         return self.decorated.raw_temperature
     
-    @property
-    def temperature(self):
-        logger.debug('forwarding temperature call to the decorated thermometer')
-        return self.decorated.temperature
-    
     def close(self):
-        logger.debug('forwarding close() call to the decorated thermometer')
+        #logger.debug('forwarding `close` call from {} to {}',
+        #             self.__class__.__name__,
+        #             self.decorated.__class__.__name__)
+        
         self.decorated.close()
 
 
@@ -626,9 +644,17 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
         super().__init__(thermometer)
         
         logger.debug('queue size is {}, maximum allowed delta is {} degrees', queuelen, delta)
-        self.last_raw_temperatures = deque(maxlen=queuelen)
+        self.last_raw_temperatures = deque([self.decorated.raw_temperature],
+                                           maxlen=queuelen)
         self.delta = delta
-
+    
+    def __repr__(self, *args, **kwargs):
+        return '<{}.{}({!r}, {}, {})>'.format(self.__module__,
+                                              self.__class__.__name__,
+                                              self.decorated,
+                                              self.last_raw_temperatures.maxlen,
+                                              self.delta)
+    
     @property
     def raw_temperature(self):
         """Return the raw temperature only if it is similar to the average of older values.
@@ -637,7 +663,7 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
         """
         newtemp = self.decorated.raw_temperature
         avgtemp = numpy.mean(self.last_raw_temperatures)
-        logger.debug('new raw temperature is {}, old average value is {}', newtemp, avgtemp)
+        logger.debug('new raw temperature is {:.2f}, old average value is {:.2f}', newtemp, avgtemp)
         
         if abs(newtemp - avgtemp) >= self.delta:
             raise ThermometerError('the just read temperature ({} degrees) has '
@@ -647,7 +673,7 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
                                    .format(newtemp, self.delta, avgtemp),
                                    'this is probably a hardware fault')
         
-        logger.debug('appending new temperature to the similarity checker queue')
+        logger.debug('appending the new raw temperature to the similarity checker queue')
         self.last_raw_temperatures.append(newtemp)
         
         return newtemp
@@ -704,11 +730,25 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
                                    maxlen=int(self._averaging_time * 60 / self._short_interval))
         
         # start averaging task
+        logger.debug('creating averaging task')
         self._loop = (loop if loop is not None else get_event_loop())
         self._averaging_task = self._loop.create_task(self._update_temperatures())
+
+    def __repr__(self, *args, **kwargs):
+        return ('<{module}.{cls}(thermometer={decorated!r}, '
+                'short_interval={shortint!r}, '
+                'averaging_time={avgtime!r}, '
+                'skipval={skipval!r}, '
+                'loop={loop!r})>'.format(module=self.__module__,
+                                         cls=self.__class__.__name__,
+                                         decorated=self.decorated,
+                                         shortint=self._short_interval,
+                                         avgtime=self._averaging_time,
+                                         skipval=self._skipval,
+                                         loop=self._loop))
     
     async def _update_temperatures(self):
-        """Start a cycle to update the list of last measured temperatures.
+        """Start a loop to update the list of last measured temperatures.
         
         This method should be run in a separate task in order to keep
         the list `self._temperatures` always updated with the last measured
@@ -721,10 +761,10 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         
         try:
             while True:
-                temp = self.decorated.raw_temperature  # raw temperature from decorated thermomemter
+                temp = self.decorated.raw_temperature
                 self._temperatures.append(temp)
                 logger.debug('added new temperature to the averaging queue '
-                             '({:.2f} -> {:.2f})', temp, self.decorated._calibrate(temp))
+                             '({:.2f} -> {:.2f})', temp, self._calibrate(temp))
                 
                 await sleep(self._short_interval, loop=self._loop)
         
