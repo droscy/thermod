@@ -29,8 +29,7 @@ from datetime import datetime
 from json.decoder import JSONDecodeError
 
 from . import config
-from .utils import check_script
-from .common import ScriptError, LogStyleAdapter
+from .common import ScriptError, LogStyleAdapter, check_script
 
 try:
     import RPi.GPIO as GPIO

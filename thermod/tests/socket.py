@@ -29,12 +29,14 @@ import threading
 import asyncio
 import time
 
-import thermod.socket as socket
-from thermod import TimeTable, BaseHeating, ControlSocket, utils, common, timetable
+from thermod import socket, common, timetable
+from thermod.timetable import TimeTable
+from thermod.heating import BaseHeating
+from thermod.socket import ControlSocket
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-12-22'
+__updated__ = '2018-05-12'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/status'
 
@@ -187,8 +189,8 @@ class TestSocket(unittest.TestCase):
         
         # some days
         old_set = self.timetable.__getstate__()
-        friday = old_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(5)]
-        sunday = old_set[timetable.JSON_TIMETABLE][utils.json_get_day_name(7)]
+        friday = old_set[timetable.JSON_TIMETABLE][timetable.json_get_day_name(5)]
+        sunday = old_set[timetable.JSON_TIMETABLE][timetable.json_get_day_name(7)]
         
         friday['h12'][0] = 44
         friday['h15'][1] = 45

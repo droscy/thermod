@@ -19,13 +19,14 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import os
 import sys
 import logging
 from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2018-04-04'
+__updated__ = '2018-05-12'
 
 
 # logger common settings
@@ -73,6 +74,22 @@ RET_CODE_KEYB_INTERRUPT = 130
 # socket default address and port
 SOCKET_DEFAULT_HOST = 'localhost'
 SOCKET_DEFAULT_PORT = 4344
+
+SOCKET_REQ_SETTINGS = 'settings'
+SOCKET_REQ_STATUS = 'status'
+SOCKET_REQ_VERSION = 'version'
+SOCKET_REQ_MONITOR = 'monitor'
+
+SOCKET_REQ_SETTINGS_ALL = 'settings'
+SOCKET_REQ_SETTINGS_STATUS = 'status'
+SOCKET_REQ_SETTINGS_T0 = 't0'
+SOCKET_REQ_SETTINGS_TMIN = 'tmin'
+SOCKET_REQ_SETTINGS_TMAX = 'tmax'
+SOCKET_REQ_SETTINGS_DIFFERENTIAL = 'differential'
+SOCKET_REQ_SETTINGS_GRACE_TIME = 'grace_time'
+
+SOCKET_RSP_MESSAGE = 'message'
+SOCKET_RSP_VERSION = 'version'
 
 # timestamp max value for current platform
 try:
@@ -141,5 +158,26 @@ class ScriptError(RuntimeError):
     def __init__(self, error=None, script=None):
         super().__init__(error)
         self.script = script
+
+
+class JsonValueError(ValueError):
+    """Exception for invalid settings' values in JSON files or socket messages."""
+    pass
+
+
+def check_script(program):
+    """Check the existence and executability of `program`.
+    
+    In case of error a `ScriptError` exception is raised.
+    
+    @param program the full path to the script to be checked
+    @exception ScriptError if the script cannot be found or executed
+    """
+    
+    if not os.path.isfile(program):
+        raise ScriptError('file not found', program)
+    
+    if not os.access(program, os.X_OK):
+        raise ScriptError('script not executable', program)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

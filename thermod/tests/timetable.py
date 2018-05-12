@@ -28,9 +28,11 @@ import tempfile
 import threading
 from jsonschema import ValidationError
 from datetime import datetime, timedelta
-from thermod import timetable, TimeTable, ShouldBeOn, JsonValueError, utils, BaseHeating, ThermodStatus
+from thermod import timetable, ThermodStatus
+from thermod.timetable import TimeTable, ShouldBeOn, JsonValueError
+from thermod.heating import BaseHeating
 
-__updated__ = '2017-11-22'
+__updated__ = '2018-05-12'
 
 
 def fill_timetable(tt):
@@ -360,18 +362,18 @@ class TestTimeTable(unittest.TestCase):
             self.assertIsNone(self.timetable.update('mer',11,2,20))
             settings = self.timetable.__getstate__()
             
-            day = utils.json_get_day_name(1)
-            hour = utils.json_format_hour(10)
+            day = timetable.json_get_day_name(1)
+            hour = timetable.json_format_hour(10)
             quarter = 1
-            t1 = utils.temperature_to_float(settings[timetable.JSON_TIMETABLE][day][hour][quarter])
-            t2 = utils.temperature_to_float(30)
+            t1 = timetable.temperature_to_float(settings[timetable.JSON_TIMETABLE][day][hour][quarter])
+            t2 = timetable.temperature_to_float(30)
             self.assertEqual(t1, t2)
     
-            day = utils.json_get_day_name(3)
-            hour = utils.json_format_hour(11)
+            day = timetable.json_get_day_name(3)
+            hour = timetable.json_format_hour(11)
             quarter = 2
-            t1 = utils.temperature_to_float(settings[timetable.JSON_TIMETABLE][day][hour][quarter])
-            t2 = utils.temperature_to_float(20)
+            t1 = timetable.temperature_to_float(settings[timetable.JSON_TIMETABLE][day][hour][quarter])
+            t2 = timetable.temperature_to_float(20)
             self.assertEqual(t1, t2)
     
     
@@ -380,7 +382,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_T0
@@ -401,7 +403,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_TMIN
@@ -422,7 +424,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_TMAX
@@ -443,7 +445,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_ON
@@ -470,7 +472,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_AUTO
@@ -517,7 +519,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_AUTO
@@ -553,7 +555,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_AUTO
@@ -590,7 +592,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_AUTO
@@ -625,7 +627,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_AUTO
@@ -644,7 +646,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_AUTO
@@ -665,7 +667,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_AUTO
@@ -694,7 +696,7 @@ class TestTimeTable(unittest.TestCase):
         
         now = datetime.now()
         day = now.strftime('%w')
-        hour = utils.json_format_hour(now.hour)
+        hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
         self.timetable.status = timetable.JSON_STATUS_AUTO
@@ -715,7 +717,7 @@ class TestTimeTable(unittest.TestCase):
         
         time = datetime(2016,2,14,17,23,0)
         day = time.strftime('%w')
-        hour = utils.json_format_hour(time.hour)
+        hour = timetable.json_format_hour(time.hour)
         quarter = int(time.minute // 15)
         
         self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.tmax, delta=0.01)

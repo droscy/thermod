@@ -32,8 +32,7 @@ from collections import deque
 from random import random
 
 from . import config
-from .utils import check_script
-from .common import ScriptError, LogStyleAdapter
+from .common import ScriptError, LogStyleAdapter, check_script
 
 try:
     from spidev import SpiDev

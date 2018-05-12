@@ -30,7 +30,7 @@ from email.utils import formatdate
 from datetime import datetime
 from urllib.parse import parse_qs
 
-from . import timetable as tt
+from . import common
 from .common import LogStyleAdapter, ThermodStatus
 from .memento import memento
 from .heating import HeatingError
@@ -38,27 +38,27 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2018-04-10'
+__updated__ = '2018-05-12'
 __version__ = '2.2.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
-REQ_PATH_SETTINGS = ('settings', )
-REQ_PATH_STATUS = ('status', )
-REQ_PATH_VERSION = ('version', )
+REQ_PATH_SETTINGS = (common.SOCKET_REQ_SETTINGS, )
+REQ_PATH_STATUS = (common.SOCKET_REQ_STATUS, )
+REQ_PATH_VERSION = (common.SOCKET_REQ_VERSION, )
+REQ_PATH_MONITOR = (common.SOCKET_REQ_MONITOR, )
 REQ_PATH_TEAPOT = ('elena', 'tea')
-REQ_PATH_MONITOR = ('monitor', )
 
-REQ_SETTINGS_ALL = 'settings'
-REQ_SETTINGS_STATUS = tt.JSON_STATUS
-REQ_SETTINGS_T0 = tt.JSON_T0_STR
-REQ_SETTINGS_TMIN = tt.JSON_TMIN_STR
-REQ_SETTINGS_TMAX = tt.JSON_TMAX_STR
-REQ_SETTINGS_DIFFERENTIAL = tt.JSON_DIFFERENTIAL
-REQ_SETTINGS_GRACE_TIME = tt.JSON_GRACE_TIME
+REQ_SETTINGS_ALL = common.SOCKET_REQ_SETTINGS_ALL
+REQ_SETTINGS_STATUS = common.SOCKET_REQ_SETTINGS_STATUS
+REQ_SETTINGS_T0 = common.SOCKET_REQ_SETTINGS_T0
+REQ_SETTINGS_TMIN = common.SOCKET_REQ_SETTINGS_TMIN
+REQ_SETTINGS_TMAX = common.SOCKET_REQ_SETTINGS_TMAX
+REQ_SETTINGS_DIFFERENTIAL = common.SOCKET_REQ_SETTINGS_DIFFERENTIAL
+REQ_SETTINGS_GRACE_TIME = common.SOCKET_REQ_SETTINGS_GRACE_TIME
 
-RSP_MESSAGE = 'message'
-RSP_VERSION = 'version'
+RSP_MESSAGE = common.SOCKET_RSP_MESSAGE
+RSP_VERSION = common.SOCKET_RSP_VERSION
 RSP_ERROR = ThermodStatus._fields[5]
 RSP_EXPLAIN = ThermodStatus._fields[6]
 

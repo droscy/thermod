@@ -25,18 +25,18 @@ import logging
 import jsonschema
 import time
 import math
+import calendar
 
 from copy import deepcopy
 from datetime import datetime
 from json.decoder import JSONDecodeError
 
-from . import utils
-from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
+from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonValueError
 from .memento import transactional
 
 __date__ = '2015-09-09'
 __updated__ = '2018-05-12'
-__version__ = '1.9'
+__version__ = '1.10'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -122,9 +122,144 @@ JSON_SCHEMA = {
 
 
 
-class JsonValueError(ValueError):
-    """Exception for invalid settings values in JSON file or socket messages."""
-    pass
+def is_valid_temperature(temperature):
+    """Return `True` if the provided temperature is valid.
+    
+    A temperature is considered valid if it is a number or one of the
+    string values in `thermod.config.JSON_ALL_TEMPERATURES`.
+    The positive/negative infinity and NaN are considered invalid.
+    """
+    
+    result = None
+
+    if temperature in JSON_ALL_TEMPERATURES:
+        result = True
+    else:
+        try:
+            t = float(temperature)
+        except:
+            result = False
+        else:
+            # any real number is valid
+            result = math.isfinite(t)
+
+    return result
+
+
+def temperature_to_float(temperature):
+    """Format the provided temperature as a float with one decimal.
+    
+    Can be used both for timetable and main temperatures in JSON file or for
+    any other simple formatting. The input value must be a number except
+    positive/negative infinity and NaN.
+    
+    @exception ValueError if the provided temperature cannot be converted to float.
+    """
+    
+    if not is_valid_temperature(temperature) or temperature in JSON_ALL_TEMPERATURES:
+        raise ValueError('the temperature `{}` is not valid, '
+                         'it must be a number'.format(temperature))
+    
+    return round(float(temperature), 1)
+
+
+def json_format_temperature(temperature):
+    """Format the provided temperature as a string for timetable JSON file.
+    
+    The output can be a number string with one single decimal (XX.Y) or
+    one of the following string: 't0', 'tmin', 'tmax'.
+    """
+    
+    result = None
+    
+    if is_valid_temperature(temperature):
+        if temperature in JSON_ALL_TEMPERATURES:
+            result = temperature
+        else:
+            # rounding returned value in order to avoid to many rapid changes
+            # between on and off
+            result = format(round(float(temperature), 1), '.1f')
+            # TODO capire come mai ho deciso di far tornare una stringa qui
+            # e quindi capire come mai nella validazione del JSON accetto anche
+            # stringhe che sono convertibili in float!
+    else:
+        raise JsonValueError('the provided temperature is not valid `{}`, '
+                             'it must be a number or one of the following '
+                             'values: {}'.format(
+                                    temperature,
+                                    ', '.join(JSON_ALL_TEMPERATURES)))
+    
+    return result
+
+
+def json_format_hour(hour):
+    """Format the provided hour as a string in 24H clock with a leading `h` and zeroes.
+    
+    @exception thermod.timetable.JsonValueError if the `hour` cannot be formatted
+    """
+    try:
+        # if hour cannot be converted to int or is outside 0-23 range
+        # raise a JsonValueError
+        _hour = int(float(str(hour).lstrip('h')))
+        if _hour not in range(24):
+            raise Exception()
+    except:
+        raise JsonValueError('the provided hour is not valid `{}`, '
+                             'it must be in range 0-23 with an optional '
+                             'leading `h`'.format(hour))
+    
+    return 'h{:0>2d}'.format(_hour)
+
+
+def json_get_day_name(day):
+    """Return the name of the provided day as used by Thermod.
+    
+    The input `day` can be a number in range 0-7 (0 and 7 are Sunday,
+    1 is Monday, 2 is Tuesday, etc) or a day name in English or in the
+    current locale.
+    
+    @exception thermod.timetable.JsonValueError if the `day` is invalid
+    """
+    
+    result = None
+    
+    try:
+        if day in JSON_DAYS_NAME_MAP.keys():
+            result = JSON_DAYS_NAME_MAP[day]
+        elif isinstance(day, int) and int(day) in range(8):
+            result = JSON_DAYS_NAME_MAP[int(day) % 7]
+        elif str(day).lower() in set(JSON_DAYS_NAME_MAP.values()):
+            result = str(day).lower()
+        else:
+            day_name = [name.lower() for name in list(calendar.day_name)]
+            day_abbr = [name.lower() for name in list(calendar.day_abbr)]
+            
+            if str(day).lower() in day_name:
+                idx =  (day_name.index(str(day).lower())+1) % 7
+                result = JSON_DAYS_NAME_MAP[idx]
+            elif str(day).lower() in day_abbr:
+                idx =  (day_abbr.index(str(day).lower())+1) % 7
+                result = JSON_DAYS_NAME_MAP[idx]
+            else:
+                raise Exception
+    
+    except:
+        raise JsonValueError('the provided day name or number `{}` is not valid'.format(day))
+    
+    return result
+
+
+def json_reject_invalid_float(value):
+    """Used as parser for `Infinity` and `NaN` values in `json.loads()` function.
+    
+    Always raises `thermod.timetable.JsonValueError` exception because
+    `Infinity` and `NaN` are not accepted as valid values for numbers in
+    Thermod daemon.
+    """
+    
+    raise JsonValueError('numbers must have finite values in JSON data, '
+                         '`NaN` and `Infinity` are not accepted')
+
 
 
 class ShouldBeOn(int):
@@ -428,7 +563,7 @@ class TimeTable(object):
             raised during storing of new settings
         """
         
-        self.__setstate__(json.loads(settings, parse_constant=utils.json_reject_invalid_float))
+        self.__setstate__(json.loads(settings, parse_constant=json_reject_invalid_float))
     
     
     # no need for @transactional because __setstate__ is @transactionl
@@ -460,7 +595,7 @@ class TimeTable(object):
         # loading json file
         with open(self.filepath, 'r') as file:
             logger.debug('loading json file: {}', self.filepath)
-            settings = json.load(file, parse_constant=utils.json_reject_invalid_float)
+            settings = json.load(file, parse_constant=json_reject_invalid_float)
             logger.debug('json file loaded')
         
         self.__setstate__(settings)
@@ -503,7 +638,7 @@ class TimeTable(object):
         try:
             logger.debug('reading old JSON file {}', filepath)
             with open(filepath, 'r') as file:
-                old_settings = json.load(file, parse_constant=utils.json_reject_invalid_float)
+                old_settings = json.load(file, parse_constant=json_reject_invalid_float)
         
         except FileNotFoundError:
             logger.debug('old JSON file does not exist, skipping')
@@ -582,7 +717,7 @@ class TimeTable(object):
         logger.debug('setting a new differential value')
         
         try:
-            nvalue = utils.temperature_to_float(value)
+            nvalue = temperature_to_float(value)
             
             if nvalue < 0 or nvalue > 1:
                 raise ValueError()
@@ -656,7 +791,7 @@ class TimeTable(object):
         logger.debug('setting a new t0 value')
         
         try:
-            nvalue = utils.temperature_to_float(value)
+            nvalue = temperature_to_float(value)
         
         # I catch and raise again the same exception to change the message
         except:
@@ -684,7 +819,7 @@ class TimeTable(object):
         logger.debug('setting a new tmin value')
         
         try:
-            nvalue = utils.temperature_to_float(value)
+            nvalue = temperature_to_float(value)
         
         # I catch and raise again the same exception to change the message
         except:
@@ -712,7 +847,7 @@ class TimeTable(object):
         logger.debug('setting a new tmax value')
         
         try:
-            nvalue = utils.temperature_to_float(value)
+            nvalue = temperature_to_float(value)
         
         # I catch and raise again the same exception to change the message
         except:
@@ -744,11 +879,11 @@ class TimeTable(object):
             
         # get day name
         logger.debug('retriving day name')
-        _day = utils.json_get_day_name(day)
+        _day = json_get_day_name(day)
         
         # check hour validity
         logger.debug('checking and formatting hour')
-        _hour = utils.json_format_hour(hour)
+        _hour = json_format_hour(hour)
         
         # check validity of quarter of an hour
         logger.debug('checking validity of quarter')
@@ -764,7 +899,7 @@ class TimeTable(object):
         
         # format temperature and check validity
         logger.debug('checking and formatting temperature')
-        _temp = utils.json_format_temperature(temperature)
+        _temp = json_format_temperature(temperature)
         
         # if the day is missing, add it to the timetable
         if _day not in self._timetable.keys():
@@ -800,7 +935,7 @@ class TimeTable(object):
             raise RuntimeError('no main temperature provided, '
                                'cannot convert name to degrees')
         
-        value = utils.json_format_temperature(temperature)
+        value = json_format_temperature(temperature)
         
         if value in JSON_ALL_TEMPERATURES:
             value = self._temperatures[value]
@@ -839,8 +974,8 @@ class TimeTable(object):
         
         elif self._status == JSON_STATUS_AUTO:
             # target temperature is retrived from timetable
-            day = utils.json_get_day_name(target_time.strftime('%w'))
-            hour = utils.json_format_hour(target_time.hour)
+            day = json_get_day_name(target_time.strftime('%w'))
+            hour = json_format_hour(target_time.hour)
             quarter = int(target_time.minute // 15)
             
             target = self.degrees(self._timetable[day][hour][quarter])

@@ -26,11 +26,13 @@ import unittest
 import threading
 import jsonschema
 
-from thermod import TimeTable, timetable, BaseHeating
+from thermod import timetable
+from thermod.timetable import TimeTable
+from thermod.heating import BaseHeating
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-10-19'
+__updated__ = '2018-05-12'
 
 
 class MementoTable(TimeTable):
