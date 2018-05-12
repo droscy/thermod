@@ -38,7 +38,7 @@ except ImportError:
     GPIO = False
 
 __date__ = '2015-12-30'
-__updated__ = '2018-01-06'
+__updated__ = '2018-05-12'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -398,7 +398,7 @@ class _fake_RPi_GPIO(object):
     OUT = None
     
     def __init__(self):
-        self.pins = [None for p in range(0, 28)]
+        self.pins = [None]*28
     
     def cleanup(self, pins):
         for p in pins:

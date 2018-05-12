@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-05-11'
+__updated__ = '2018-05-12'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -536,16 +536,18 @@ class PiAnalogZeroThermometer(BaseThermometer):
         logger.debug('retrieving temperatures from A/D converter')
         temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
         
-        logger.debug('checking standard deviation of raw temperatures {}', temperatures)
         std = numpy.std(temperatures)
+        logger.debug('checking standard deviation of raw temperatures {} -> {:.1f}', temperatures, std)
+        
         if std < self._stddev and self._printed_warning_std is True:
             self._printed_warning_std = False
         
         elif std >= self._stddev and self._printed_warning_std is False:
             self._printed_warning_std = True
-            logger.warning('standard deviation of raw temperatures is {:.1f} '
-                           '(greater than the maximum allowed value of {:.1f} '
-                           'degrees)'.format(std, self._stddev))
+            logger.info('raw temperatures are {}', temperatures)
+            logger.warning('standard deviation of raw temperatures is {:.1f}, '
+                           'greater than the maximum allowed value of {:.1f} '
+                           'degrees'.format(std, self._stddev))
         
         # The median excludes a possible single outlier. We round the value
         # only with two decimals because additional decimals are meaningless.
@@ -705,6 +707,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
                  loop=None):
         """Decorate `thermometer` with an autonomous averaging task.
         
+        @param thermometer the BaseThermometer to be decorated
         @param short_interval time interval (in seconds) between two following
             query of the real thermometer
         @param averaging_time the reported temperature is the average
@@ -800,6 +803,8 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         """Stop the temperature updating task."""
         logger.debug('stopping temperature updating cycle')
         self._averaging_task.cancel()
+        
+        # forwarding the call to the decorated thermometer
         self.decorated.close()
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
