@@ -43,9 +43,10 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-05-12'
+__updated__ = '2018-05-13'
 
 # TODO documentare return code
+# TODO documentare variabili globali nel socket
 # TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
 # TODO aggiungere ai sorgenti i file della scatolina

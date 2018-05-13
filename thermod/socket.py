@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2018-04-10'
+__updated__ = '2018-05-13'
 __version__ = '2.2.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -56,6 +56,8 @@ REQ_SETTINGS_TMIN = tt.JSON_TMIN_STR
 REQ_SETTINGS_TMAX = tt.JSON_TMAX_STR
 REQ_SETTINGS_DIFFERENTIAL = tt.JSON_DIFFERENTIAL
 REQ_SETTINGS_GRACE_TIME = tt.JSON_GRACE_TIME
+
+REQ_MONITOR_NAME = 'name'
 
 RSP_MESSAGE = 'message'
 RSP_VERSION = 'version'
@@ -386,7 +388,7 @@ async def GET_handler(request):
     
     elif action in REQ_PATH_MONITOR:
         logger.debug('enqueuing new long-polling {} monitor request',
-                     (qs['name'][0] if 'name' in qs else 'unknown'))
+                     (qs[REQ_MONITOR_NAME][0] if REQ_MONITOR_NAME in qs else 'unknown'))
         
         future = request.app.loop.create_future()
         await request.app['monitors'].put(future)
