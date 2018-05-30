@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-05-12'
+__updated__ = '2018-05-30'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -726,6 +726,9 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         self._averaging_time = averaging_time
         self._skipval = skipval
         
+        # exception raised inside the averaging task (None == no exception)
+        self._fail_exception = None
+        
         # Allocate the queue for the last temperatures to be averaged. The
         # lenght is computed considering the desired averaging time and
         # the frequency of the raw samples.
@@ -736,7 +739,8 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         logger.debug('creating averaging task')
         self._loop = (loop if loop is not None else get_event_loop())
         self._averaging_task = self._loop.create_task(self._update_temperatures())
-
+        self._averaging_task.add_done_callback(self._update_temperatures_callback)
+    
     def __repr__(self, *args, **kwargs):
         return ('<{module}.{cls}(thermometer={decorated!r}, '
                 'short_interval={shortint!r}, '
@@ -755,25 +759,34 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         
         This method should be run in a separate task in order to keep
         the list `self._temperatures` always updated with the last measured
-        temperatures.
+        temperatures. To that task should be added as "done callback" function
+        the method `self._update_temperatures_callback` to manage exceptions.
         
         @exception asyncio.CancelledError at the end of the task
         """
         
         logger.debug('starting temperature updating cycle')
         
+        while True:
+            temp = self.decorated.raw_temperature
+            self._temperatures.append(temp)
+            logger.debug('added new temperature to the averaging queue '
+                         '({:.2f} -> {:.2f})', temp, self._calibrate(temp))
+            
+            await sleep(self._short_interval, loop=self._loop)
+    
+    def _update_temperatures_callback(self, averaging_task):
+        """Mae the exceptions raised by `self._update_temperatures`."""
+        
         try:
-            while True:
-                temp = self.decorated.raw_temperature
-                self._temperatures.append(temp)
-                logger.debug('added new temperature to the averaging queue '
-                             '({:.2f} -> {:.2f})', temp, self._calibrate(temp))
-                
-                await sleep(self._short_interval, loop=self._loop)
+            averaging_task.result()
         
         except CancelledError:
             logger.debug('temperature updating cycle stopped')
-            raise  # required to signal the end of the task
+        
+        except Exception as e:
+            logger.debug('unknown error in temperature updating cycle')
+            self._fail_exception = e
     
     @property
     def raw_temperature(self):
@@ -785,6 +798,11 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         """
         
         logger.debug('retriving current average raw temperature')
+        
+        if self._fail_exception is not None:
+            # If an exception has been raised inside the averaging task, we rise
+            # it here in order to be propagated to the main loop.
+            raise self._fail_exception
         
         skip = int(round(self._temperatures.maxlen * self._skipval / 2, 0))  # least and greatest temperatures to be excluded
         elements = len(self._temperatures)

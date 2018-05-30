@@ -43,7 +43,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-05-13'
+__updated__ = '2018-05-30'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -320,19 +320,21 @@ finally:
 def shutdown(exitcode=common.RET_CODE_OK):
     """Shutdown the daemon."""
     
-    global enabled, main_return_code
+    global enabled, main_loop, main_return_code
     logger.info('shutdown requested')
     
     async def stop_cycle():
-        global enabled
+        global enabled, thermometer, masterlock
         thermometer.close()
         async with masterlock:
             enabled = False
             masterlock.notify_all()
     
     if main_loop.is_running():
+        logger.debug('the main loop in running, creating a task to stop the loop')
         main_loop.create_task(stop_cycle())
     else:
+        logger.debug('stopping the main cycle')
         main_loop.run_until_complete(stop_cycle())
 
     # setting the global return code
@@ -530,6 +532,9 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                 # printed and the daemon will be closed.
                 logger.critical('unknown error occurred: {}', e, exc_info=True)
                 shutdown(common.RET_CODE_RUN_OTHER_ERR)
+                
+                # we await to let e coroutine started by shutdown to run
+                await asyncio.sleep(0.2, loop=loop)
     
     except asyncio.CancelledError:
         logger.debug('main cycle cancelled')
