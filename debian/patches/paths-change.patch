@@ -1,3 +1,14 @@
+From: Simone Rossetto <simros85@gmail.com>
+Date: Thu, 21 Jun 2018 17:31:10 +0200
+Subject: Change paths to match Debian conventions
+
+---
+ etc/thermod.conf | 6 +++---
+ web/index.php    | 2 +-
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/etc/thermod.conf b/etc/thermod.conf
+index 6905014..cd433de 100644
 --- a/etc/thermod.conf
 +++ b/etc/thermod.conf
 @@ -8,7 +8,7 @@
@@ -9,7 +20,7 @@
  interval = 30
  
  # Internal working mode to take into account thermal inertia. Set to one of
-@@ -27,7 +27,7 @@
+@@ -27,7 +27,7 @@ heating = scripts
  [heating/scripts]
  # Full path to heating scripts. One script to switch on the heating, one to
  # switch if off and the last one to query the current status.
@@ -18,7 +29,7 @@
  # Required only if `heating` setting is set to 'scripts'.
  switchon = /etc/thermod/switch-heating --on -j -s -q
  switchoff = /etc/thermod/switch-heating --off -j -s -q
-@@ -47,7 +47,7 @@
+@@ -47,7 +47,7 @@ switch_on_level = low
  # Full path to an external script (that return the current temperature) or
  # the value PiAnalogZero if the temperature is retrieved from an AnalogZero
  # board connected to a Raspberry Pi.
@@ -27,6 +38,8 @@
  thermometer = /etc/thermod/get-temperature
  
  # Degree scale of the thermometer. Two values are valid: celsius or fahrenheit.
+diff --git a/web/index.php b/web/index.php
+index 67e6c5d..7dbffbc 100644
 --- a/web/index.php
 +++ b/web/index.php
 @@ -25,7 +25,7 @@
