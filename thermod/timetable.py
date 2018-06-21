@@ -35,7 +35,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2017-12-03'
+__updated__ = '2018-05-12'
 __version__ = '1.9'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -874,20 +874,17 @@ class TimeTable(object):
         if appropriate conditions are met.
         
         @param current_temperature the current temperature of the room
-        @param heating_status current status of the heating
+        @param heating_status current status of the heating (as returned from
+            `BaseHeating.status`)
         
-        @return an instance of thermod.timetable.ShouldBeOn with a boolean value
+        @return an instance of ShouldBeOn with a boolean value
             of `True` if the heating should be on, `False` otherwise
         
-        @see thermod.timetable.ShouldBeOn for additional attributes of this class
+        @see ShouldBeOn for additional attributes of this class
         
         @exception jsonschema.ValidationError if internal settings are invalid
-        @exception thermod.thermometer.ThermometerError if an error happens
-            while querying the therometer
-        @exception thermod.heating.HeatingError if an error happens
-            while querying the heating
-        @exception thermod.timetable.JsonValueError if the provided room
-            temperature is not a valid temperature
+        @exception JsonValueError if the provided room temperature is not a
+            valid temperature
         """
         
         logger.debug('checking should-be status of the heating')

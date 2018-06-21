@@ -3,6 +3,7 @@ include MANIFEST.in
 include Doxyfile
 include README.md
 include COPYING
+include CHANGELOG
 recursive-include thermod *.py
 include bin/*
 include etc/*

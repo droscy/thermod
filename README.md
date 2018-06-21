@@ -2,8 +2,8 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.0.0 \
-Copyright (C) 2018 Simone Rossetto <simros85@gmail.com> \
+Thermod v1.1.0<br/>
+Copyright (C) 2018 Simone Rossetto <simros85@gmail.com><br/>
 GNU General Public License v3
 
     Thermod is free software: you can redistribute it and/or modify
@@ -28,11 +28,10 @@ and the following packages:
 
  - [jsonschema](https://pypi.python.org/pypi/jsonschema) (>=2.3.0)
  - [async_timeout](https://github.com/aio-libs/async-timeout) (>=1.3.0)
- - [aiohttp](https://aiohttp.readthedocs.io/) (>=1.2.0)
+ - [aiohttp](https://aiohttp.readthedocs.io/) (>=1.2.0, <=2.3)
  - [numpy](http://www.numpy.org/) (>=1.8.0)
- - [requests](http://docs.python-requests.org/) (>=2.4.3)
+ - [requests](http://docs.python-requests.org/) (>=2.4.3, only to run tests)
  - [nose](http://nose.readthedocs.io/) (>=1.3.4, only to run tests)
-
 
 ### Installation
 To install *Thermod* first uncompress the tarball and run
@@ -50,17 +49,26 @@ then copy the source file `etc/thermod.conf` in one of the following paths:
 
 and adjust it to meet your requirements (documentation inside the file).
 
+### Building and installing on Debian-based system
+A Debian package can be build using
+[git-buildpackage](https://honk.sigxcpu.org/piki/projects/git-buildpackage/).
 
-### Debian
-On Debian-based systems a *deb* package can be built before installing the
-software. To build the package extract the tarball, install all the required
-Python modules and then execute:
+Assuming you have already configured your system to use git-buildpackage
+(if not see Debian Wiki for [git-pbuilder](https://wiki.debian.org/git-pbuilder),
+[cowbuilder](https://wiki.debian.org/cowbuilder),
+[Packaging with Git](https://wiki.debian.org/PackagingWithGit) and
+[Using Git for Debian Packaging](https://www.eyrie.org/~eagle/notes/debian/git.html))
+then these are the basic steps:
 
 ```bash
-dpkg-buildpackage
+git clone https://github.com/droscy/thermod.git
+cd thermod
+git branch --track pristine-tar origin/pristine-tar
+git checkout -b debian/master origin/debian/master
+gbp buildpackage
 ```
 
-After having built the package install, at least, the following packages:
+The packages can then be installed as usual:
 
 ```bash
 dpkg -i \
@@ -85,3 +93,14 @@ To manually start/stop *Thermod* daemon execute:
 ```bash
 systemctl [start|stop] thermod.service
 ```
+
+
+## Thermod monitors
+Some monitors have been developed to read the status of *Thermod*:
+
+ - [thermod-monitor-buttonled](https://github.com/droscy/thermod-monitor-buttonled)
+   for Raspberry Pi with one button and one RGB LED: the LED reports the current
+   status of the thermostat, while the button can be used to change the status.
+ - [thermod-monitor-dbstats](https://github.com/droscy/thermod-monitor-dbstats)
+   collects statistics on Thermod operation: records status changes in order to
+   track switch ON and OFF of the heating along with timestamp.
