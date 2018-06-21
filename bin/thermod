@@ -43,7 +43,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-05-30'
+__updated__ = '2018-06-21'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -55,25 +55,23 @@ __updated__ = '2018-05-30'
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterne
 
-# TODO [Roadmap 1.0.1] rivedere import dei moduli per velocizzare il caricamento
-# TODO [Roadmap 1.0.1] inserire controllo su variazioni repentine di temperatura (ONGOING)
-# TODO [Roadmap 1.0.1] scrivere test per PiAnalogZeroThermometer e per i Decorator
+# TODO [Roadmap 1.2.0] scrivere Scheduler
+# TODO [Roadmap 1.2.0] aggiungere modalità di funzionamento estivo
+# TODO [Roadmap 1.2.0] fare client testuale
+# TODO [Roadmap 1.2.0] creare manpage per questo file e per il client testuale
 
-# TODO [Roadmap 1.1.0] fare client testuale
-# TODO [Roadmap 1.1.0] creare manpage per questo file e per il client testuale
-# TODO [Roadmap 1.1.0] scrivere Scheduler
-# TODO [Roadmap 1.1.0] forse, impostare un timeout quando tramite pulsante si mette su "ON"
-# TODO [Roadmap 1.1.0] modificare client web per permettere lo switch verso lo
+# TODO [Roadmap 1.2.1] scrivere test per PiAnalogZeroThermometer e per i Decorator
+# TODO [Roadmap 1.2.1] impostare un timeout quando tramite pulsante si mette su "ON"
+# TODO [Roadmap 1.2.1] modificare client web per permettere lo switch verso lo
 # stato "ON" impostando però un timeout
 
-# TODO [Roadmap 1.2.0] scrivere NetThermometer
-# TODO [Roadmap 1.2.0] scrivere Pi1WireThermometer
-# TODO [Roadmap 1.2.0] spostare l'averaging-task fuori dalla classe (ONGOING)
+# TODO [Roadmap 1.3.0] scrivere NetThermometer
+# TODO [Roadmap 1.3.0] scrivere Pi1WireThermometer
 # PiAnalogZeroThermometer, così da poterlo usare in qualasiasi termometro:
 # potrebbe essere fatto con un Decorator.
 
+# TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento
 # TODO [Roadmap 2.0.0] chiamare le temperature t0, t1 e t2
-# TODO [Roadmap 2.0.0] aggiungere modalità di funzionamento estivo
 # TODO [Roadmap 2.0.0] modificare client web per permettere di impostare tre livelli di
 # temperatura per ogni singolo quarto d'ora
 

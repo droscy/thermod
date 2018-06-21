@@ -1,0 +1,10 @@
+# Thermod Changelog
+
+ - 1.0.0: first stable release
+ 
+ - 1.1.0:
+     o move the averaging-task outside PiAnalogZeroThermometer in order to use
+       that feature with any thermometer
+     
+     o add a "similarity-checker" for thermometers in order to recognize
+       malfunctions that produce an abnormal temperature reading

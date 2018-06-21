@@ -2,7 +2,7 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.0.0+dev<br/>
+Thermod v1.1.0<br/>
 Copyright (C) 2018 Simone Rossetto <simros85@gmail.com><br/>
 GNU General Public License v3
 
@@ -28,9 +28,9 @@ and the following packages:
 
  - [jsonschema](https://pypi.python.org/pypi/jsonschema) (>=2.3.0)
  - [async_timeout](https://github.com/aio-libs/async-timeout) (>=1.3.0)
- - [aiohttp](https://aiohttp.readthedocs.io/) (>=1.2.0)
+ - [aiohttp](https://aiohttp.readthedocs.io/) (>=1.2.0, <=2.3)
  - [numpy](http://www.numpy.org/) (>=1.8.0)
- - [requests](http://docs.python-requests.org/) (>=2.4.3)
+ - [requests](http://docs.python-requests.org/) (>=2.4.3, only to run tests)
  - [nose](http://nose.readthedocs.io/) (>=1.3.4, only to run tests)
 
 ### Installation
