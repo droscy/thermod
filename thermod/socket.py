@@ -25,7 +25,8 @@ import asyncio
 import jsonschema
 
 from json.decoder import JSONDecodeError
-from aiohttp.web import Application, json_response, HTTPNotFound, HTTPMethodNotAllowed, middleware
+from aiohttp import web
+from aiohttp.web import json_response
 from email.utils import formatdate
 from datetime import datetime
 from urllib.parse import parse_qs
@@ -39,7 +40,7 @@ from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
 __updated__ = '2018-06-22'
-__version__ = '2.2.1'
+__version__ = '2.3.0'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -93,11 +94,10 @@ class ControlSocket(object):
         if not isinstance(lock, asyncio.Condition):
             raise TypeError('the lock in ControlSocket must be an asyncio.Condition object')
         
-        self.app = Application(middlewares=[exceptions_handler], loop=loop)
+        self.app = web.Application(middlewares=[exceptions_handler], loop=loop)
+        self.runner = web.AppRunner(self.app)
         self.host = host
         self.port = port
-        self.handler = None
-        self.srv = None
         
         self.app['lock'] = lock
         self.app['monitors'] = asyncio.Queue(loop=loop)
@@ -113,24 +113,22 @@ class ControlSocket(object):
     
     def start(self):
         """Start the internal HTTP server."""
+        
         baselogger.debug('starting control socket')
-        loop = self.app.loop
-        loop.run_until_complete(self.app.startup())
-        self.handler = self.app.make_handler()
-        self.srv = loop.run_until_complete(loop.create_server(self.handler, self.host, self.port))
+        self.app.loop.run_until_complete(self.runner.setup())
+        
+        site = web.TCPSite(runner=self.runner,
+                           host=self.host,
+                           port=self.port,
+                           shutdown_timeout=6.0)
+        
+        self.app.loop.run_until_complete(site.start())
         baselogger.info('control socket listening on {}:{}', self.host, self.port)
     
     def stop(self):
         """Stop the internal HTTP server."""
         baselogger.debug('stopping control socket')
-        self.srv.close()
-        
-        loop = self.app.loop
-        loop.run_until_complete(self.srv.wait_closed())
-        loop.run_until_complete(self.app.shutdown())
-        loop.run_until_complete(self.handler.shutdown(6))
-        loop.run_until_complete(self.app.cleanup())
-        
+        self.app.loop.run_until_complete(self.runner.cleanup())
         baselogger.info('control socket halted')
     
     async def update_monitors(self, status):
@@ -172,7 +170,7 @@ def _last_mod_hdr(last_mod_time):
     return {'Last-Modified': formatdate(last_mod_time, usegmt=True)}
 
 
-@middleware
+@web.middleware
 async def exceptions_handler(request, handler):
     """Handle exceptions raised during HTTP requests."""
     logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
@@ -190,7 +188,7 @@ async def exceptions_handler(request, handler):
             #logger.debug('no Origin header found in request, no need for Access-Control-Allow-Origin in response')
             pass
     
-    except HTTPNotFound as htnf:
+    except web.HTTPNotFound as htnf:
         message = 'Invalid Request'
         logger.warning('{} "{} {}" received', message.lower(), request.method, request.url.path)
         response = json_response(status=404,
@@ -198,7 +196,7 @@ async def exceptions_handler(request, handler):
                                  data={RSP_ERROR: message,
                                        RSP_EXPLAIN: str(htnf)})
     
-    except HTTPMethodNotAllowed as htna:
+    except web.HTTPMethodNotAllowed as htna:
         message = 'Not Implemented'
         logger.warning('Method "{}" {}', request.method, message.lower())
         response = json_response(status=501,
@@ -399,7 +397,7 @@ async def GET_handler(request):
                                  data=status._asdict())
     
     else:
-        raise HTTPNotFound(reason='Invalid `{}` action in request.'.format(action))
+        raise web.HTTPNotFound(reason='Invalid `{}` action in request.'.format(action))
     
     logger.debug('response ready')
     return response
@@ -597,7 +595,7 @@ async def POST_handler(request):
                 lock.notify_all()
     
     else:
-        raise HTTPNotFound(reason='Invalid `{}` action in request.'.format(action))
+        raise web.HTTPNotFound(reason='Invalid `{}` action in request.'.format(action))
     
     return response
 
