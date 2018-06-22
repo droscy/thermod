@@ -67,13 +67,17 @@ class SocketThread(threading.Thread):
     def run(self):
         try:
             self.loop.run_forever()
-        
+            print('loop stopped')
         finally:
+            print('socket stop')
             self.socket.stop()
+            print('loop close')
             self.loop.close()
     
     def stop(self):
+        print('thread stop')
         self.loop.stop()
+        print('thread stop issued')
 
 class TestSocket(unittest.TestCase):
     """Test cases for `thermod.socket` module."""
@@ -94,6 +98,7 @@ class TestSocket(unittest.TestCase):
     
     
     def tearDown(self):
+        print('tearDown')
         self.socket.stop()
         self.socket.join()
         os.remove(self.timetable.filepath)

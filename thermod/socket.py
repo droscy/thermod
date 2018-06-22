@@ -128,7 +128,14 @@ class ControlSocket(object):
     def stop(self):
         """Stop the internal HTTP server."""
         baselogger.debug('stopping control socket')
-        self.app.loop.run_until_complete(self.runner.cleanup())
+        
+        if self.app.loop.is_running():
+            # TODO this way the stop() method exits even if the runner is still
+            # running, check if this is acceptable.
+            self.app.loop.create_task(self.runner.cleanup())
+        else:
+            self.app.loop.run_until_complete(self.runner.cleanup())
+        
         baselogger.info('control socket halted')
     
     async def update_monitors(self, status):
