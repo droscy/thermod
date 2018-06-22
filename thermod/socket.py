@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2018-05-13'
+__updated__ = '2018-06-22'
 __version__ = '2.2.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -57,7 +57,7 @@ REQ_SETTINGS_TMAX = common.SOCKET_REQ_SETTINGS_TMAX
 REQ_SETTINGS_DIFFERENTIAL = common.SOCKET_REQ_SETTINGS_DIFFERENTIAL
 REQ_SETTINGS_GRACE_TIME = common.SOCKET_REQ_SETTINGS_GRACE_TIME
 
-REQ_MONITOR_NAME = 'name'
+REQ_MONITOR_NAME = common.SOCKET_REQ_MONITOR_NAME
 
 RSP_MESSAGE = common.SOCKET_RSP_MESSAGE
 RSP_VERSION = common.SOCKET_RSP_VERSION
@@ -174,7 +174,7 @@ async def exceptions_middleware(app, handler):
     """Handle exceptions raised during HTTP requests."""
     
     # TODO upgrade to the new style of Middlewares
-    # https://aiohttp.readthedocs.io/en/stable/web.html#middlewares
+    # https://docs.aiohttp.org/en/v2.3.0/web.html#old-style-middleware
     # this old style is deprecated sync version 2.3 of aiohttp.
     
     async def exceptions_handler(request):

@@ -26,7 +26,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2018-06-21'
+__updated__ = '2018-06-22'
 
 
 # logger common settings
@@ -87,6 +87,8 @@ SOCKET_REQ_SETTINGS_TMIN = 'tmin'
 SOCKET_REQ_SETTINGS_TMAX = 'tmax'
 SOCKET_REQ_SETTINGS_DIFFERENTIAL = 'differential'
 SOCKET_REQ_SETTINGS_GRACE_TIME = 'grace_time'
+
+SOCKET_REQ_MONITOR_NAME = 'name'
 
 SOCKET_RSP_MESSAGE = 'message'
 SOCKET_RSP_VERSION = 'version'
