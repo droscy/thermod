@@ -25,7 +25,7 @@ import asyncio
 import jsonschema
 
 from json.decoder import JSONDecodeError
-from aiohttp.web import Application, json_response, HTTPNotFound, HTTPMethodNotAllowed
+from aiohttp.web import Application, json_response, HTTPNotFound, HTTPMethodNotAllowed, middleware
 from email.utils import formatdate
 from datetime import datetime
 from urllib.parse import parse_qs
@@ -93,9 +93,11 @@ class ControlSocket(object):
         if not isinstance(lock, asyncio.Condition):
             raise TypeError('the lock in ControlSocket must be an asyncio.Condition object')
         
-        self.app = Application(middlewares=[exceptions_middleware], loop=loop)
+        self.app = Application(middlewares=[exceptions_handler], loop=loop)
         self.host = host
         self.port = port
+        self.handler = None
+        self.srv = None
         
         self.app['lock'] = lock
         self.app['monitors'] = asyncio.Queue(loop=loop)
@@ -170,136 +172,129 @@ def _last_mod_hdr(last_mod_time):
     return {'Last-Modified': formatdate(last_mod_time, usegmt=True)}
 
 
-async def exceptions_middleware(app, handler):
+@middleware
+async def exceptions_handler(request, handler):
     """Handle exceptions raised during HTTP requests."""
+    logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
     
-    # TODO upgrade to the new style of Middlewares
-    # https://docs.aiohttp.org/en/v2.3.0/web.html#old-style-middleware
-    # this old style is deprecated sync version 2.3 of aiohttp.
+    log = (logger.debug if request.method == 'GET' else logger.info)
+    log('received "{} {}" request', request.method, request.url.path)
     
-    async def exceptions_handler(request):
-        logger = ClientAddressLogAdapter(baselogger, request.transport.get_extra_info('peername'))
-        
-        log = (logger.debug if request.method == 'GET' else logger.info)
-        log('received "{} {}" request', request.method, request.url.path)
+    try:
+        response = await handler(request)
         
         try:
-            response = await handler(request)
-            
-            try:
-                response.headers['Access-Control-Allow-Origin'] = request.headers['Origin']
-                #logger.debug('added header \'Access-Control-Allow-Origin: {}\' to response', request.headers['Origin'])
-            except KeyError:
-                #logger.debug('no Origin header found in request, no need for Access-Control-Allow-Origin in response')
-                pass
-        
-        except HTTPNotFound as htnf:
-            message = 'Invalid Request'
-            logger.warning('{} "{} {}" received', message.lower(), request.method, request.url.path)
-            response = json_response(status=404,
-                                     reason=message,
-                                     data={RSP_ERROR: message,
-                                           RSP_EXPLAIN: str(htnf)})
-        
-        except HTTPMethodNotAllowed as htna:
-            message = 'Not Implemented'
-            logger.warning('Method "{}" {}', request.method, message.lower())
-            response = json_response(status=501,
-                                     reason=message,
-                                     data={RSP_ERROR: message,
-                                           RSP_EXPLAIN: str(htna)})
-        
-        except JSONDecodeError as jde:
-            logger.warning('cannot update settings, the {} request contains '
-                           'invalid JSON syntax: {}', request.method, jde)
-            
-            message = 'Invalid JSON syntax'
-            response = json_response(status=400,
-                                     reason=message,
-                                     data={RSP_ERROR: message,
-                                           RSP_EXPLAIN: '{}: {}'.format(message, jde)})
-        
-        except jsonschema.ValidationError as jsve:
-            logger.warning('cannot update settings, the {} request contains '
-                           'incomplete or invalid data in JSON element {}: {}',
-                            request.method,
-                            list(jsve.path),
-                            jsve.message)
-            
-            message = 'Incomplete or invalid JSON element'
-            response = json_response(status=400,
-                                     reason=message,
-                                     data={RSP_ERROR: message,
-                                           RSP_EXPLAIN: '{} {}: {}'
-                                                        .format(message,
-                                                                list(jsve.path),
-                                                                jsve.message)})
-        
-        except ValueError as ve:
-            logger.warning('cannot update settings, the {} request contains '
-                           'incomplete or invalid data: {}', request.method, ve)
-            
-            message = 'Incomplete or invalid settings'
-            response = json_response(status=400,
-                                     reason=message,
-                                     data={RSP_ERROR: message,
-                                           RSP_EXPLAIN: '{}: {}'.format(message, ve)})
-        
-        except IOError as ioe:
-            # Can be raised only by timetable.save() method, so the
-            # internal settings have already been updated but cannot
-            # be saved to filesystem, so in case of daemon restart
-            # they will be lost.
-            
-            logger.error('cannot save new settings to fileystem: {}', ioe)
-            message = 'Cannot save new settings to fileystem'
-            response = json_response(
-                    status=423,
-                    reason=message,
-                    data={RSP_ERROR: message,
-                          RSP_EXPLAIN: ('new settings accepted and '
-                                        'applied on running Thermod but they '
-                                        'cannot be saved to filesystem so, on '
-                                        'daemon restart, they will be lost, '
-                                        'try again in a couple of minutes')})
-        
-        except asyncio.CancelledError:
-            logger.debug('an asynchronous operation has been cancelled due to '
-                         'daemon shutdown or client disconnection')
-            
-            # TODO if the client has already closed the connection, the response
-            # is useless, find a way to separate the two behaviours.
-            message = 'Thermod is shutting down'
-            response = json_response(status=530,
-                                     reason=message,
-                                     data={RSP_ERROR: message,
-                                           RSP_EXPLAIN: message})
-        
-        except Exception as e:
-            # this is an unhandled exception, a critical message is printed
-            if request.method == 'POST':
-                logger.critical('cannot update settings, the POST request '
-                                'produced an unhandled {} exception',
-                                type(e).__name__, exc_info=True)
-            
-            else:
-                logger.critical('the {} request produced an unhandled '
-                                '{} exception', request.method,
-                                                type(e).__name__,
-                                                exc_info=True)
-            
-            message = 'Cannot process the request'
-            response = json_response(status=500,
-                                     reason=message,
-                                     data={RSP_ERROR: message,
-                                           RSP_EXPLAIN: '{}: {}'.format(message, e)})
-        
-        finally:
-            logger.debug('sending back response')
-        
-        return response
+            response.headers['Access-Control-Allow-Origin'] = request.headers['Origin']
+            #logger.debug('added header \'Access-Control-Allow-Origin: {}\' to response', request.headers['Origin'])
+        except KeyError:
+            #logger.debug('no Origin header found in request, no need for Access-Control-Allow-Origin in response')
+            pass
     
-    return exceptions_handler
+    except HTTPNotFound as htnf:
+        message = 'Invalid Request'
+        logger.warning('{} "{} {}" received', message.lower(), request.method, request.url.path)
+        response = json_response(status=404,
+                                 reason=message,
+                                 data={RSP_ERROR: message,
+                                       RSP_EXPLAIN: str(htnf)})
+    
+    except HTTPMethodNotAllowed as htna:
+        message = 'Not Implemented'
+        logger.warning('Method "{}" {}', request.method, message.lower())
+        response = json_response(status=501,
+                                 reason=message,
+                                 data={RSP_ERROR: message,
+                                       RSP_EXPLAIN: str(htna)})
+    
+    except JSONDecodeError as jde:
+        logger.warning('cannot update settings, the {} request contains '
+                       'invalid JSON syntax: {}', request.method, jde)
+        
+        message = 'Invalid JSON syntax'
+        response = json_response(status=400,
+                                 reason=message,
+                                 data={RSP_ERROR: message,
+                                       RSP_EXPLAIN: '{}: {}'.format(message, jde)})
+    
+    except jsonschema.ValidationError as jsve:
+        logger.warning('cannot update settings, the {} request contains '
+                       'incomplete or invalid data in JSON element {}: {}',
+                        request.method,
+                        list(jsve.path),
+                        jsve.message)
+        
+        message = 'Incomplete or invalid JSON element'
+        response = json_response(status=400,
+                                 reason=message,
+                                 data={RSP_ERROR: message,
+                                       RSP_EXPLAIN: '{} {}: {}'
+                                                    .format(message,
+                                                            list(jsve.path),
+                                                            jsve.message)})
+    
+    except ValueError as ve:
+        logger.warning('cannot update settings, the {} request contains '
+                       'incomplete or invalid data: {}', request.method, ve)
+        
+        message = 'Incomplete or invalid settings'
+        response = json_response(status=400,
+                                 reason=message,
+                                 data={RSP_ERROR: message,
+                                       RSP_EXPLAIN: '{}: {}'.format(message, ve)})
+    
+    except IOError as ioe:
+        # Can be raised only by timetable.save() method, so the
+        # internal settings have already been updated but cannot
+        # be saved to filesystem, so in case of daemon restart
+        # they will be lost.
+        
+        logger.error('cannot save new settings to fileystem: {}', ioe)
+        message = 'Cannot save new settings to fileystem'
+        response = json_response(
+                status=423,
+                reason=message,
+                data={RSP_ERROR: message,
+                      RSP_EXPLAIN: ('new settings accepted and '
+                                    'applied on running Thermod but they '
+                                    'cannot be saved to filesystem so, on '
+                                    'daemon restart, they will be lost, '
+                                    'try again in a couple of minutes')})
+    
+    except asyncio.CancelledError:
+        logger.debug('an asynchronous operation has been cancelled due to '
+                     'daemon shutdown or client disconnection')
+        
+        # TODO if the client has already closed the connection, the response
+        # is useless, find a way to separate the two behaviours.
+        message = 'Thermod is shutting down'
+        response = json_response(status=530,
+                                 reason=message,
+                                 data={RSP_ERROR: message,
+                                       RSP_EXPLAIN: message})
+    
+    except Exception as e:
+        # this is an unhandled exception, a critical message is printed
+        if request.method == 'POST':
+            logger.critical('cannot update settings, the POST request '
+                            'produced an unhandled {} exception',
+                            type(e).__name__, exc_info=True)
+        
+        else:
+            logger.critical('the {} request produced an unhandled '
+                            '{} exception', request.method,
+                                            type(e).__name__,
+                                            exc_info=True)
+        
+        message = 'Cannot process the request'
+        response = json_response(status=500,
+                                 reason=message,
+                                 data={RSP_ERROR: message,
+                                       RSP_EXPLAIN: '{}: {}'.format(message, e)})
+    
+    finally:
+        logger.debug('sending back response')
+    
+    return response
 
 
 async def GET_handler(request):
