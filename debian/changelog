@@ -1,3 +1,12 @@
+thermod (1.1.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Remove files related to thermod-monitor-buttonled.
+  * Add git-buildpackage config file to debian folder.
+  * Fix recursive chown in postinst script.
+
+ -- Simone Rossetto <simros85@gmail.com>  Fri, 22 Jun 2018 08:09:15 +0200
+
 thermod (1.0.0-1) unstable; urgency=medium
 
   * First stable release.
