@@ -26,7 +26,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2018-05-12'
+__updated__ = '2018-06-21'
 
 
 # logger common settings
@@ -110,7 +110,10 @@ ThermodStatus = namedtuple('ThermodStatus',
  * `timestamp` is the current time in seconds since the epoch
  * `status` is the status of the thermostat (see `timetable.JSON_ALL_STATUSES`)
  * `heating_status` is the status of the heating (it's an int: 1=ON, 0=OFF)
- * TODO completare
+ * `current_temperature` is the current temperature in the choosen degree scale
+ * `target_temperature` is the temperature to be reached
+ * `error` if an error occurred this is the error (`None` if no error)
+ * `explain` a longer description of the error, if available
 """
 
 # Set default values for ThermodStatus and ThermodError tuples (timestamp is
