@@ -43,7 +43,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-06-21'
+__updated__ = '2018-06-22'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -70,7 +70,7 @@ __updated__ = '2018-06-21'
 # PiAnalogZeroThermometer, così da poterlo usare in qualasiasi termometro:
 # potrebbe essere fatto con un Decorator.
 
-# TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento
+# TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (ONGOING)
 # TODO [Roadmap 2.0.0] chiamare le temperature t0, t1 e t2
 # TODO [Roadmap 2.0.0] modificare client web per permettere di impostare tre livelli di
 # temperatura per ogni singolo quarto d'ora

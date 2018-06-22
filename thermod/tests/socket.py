@@ -27,18 +27,17 @@ import unittest
 import requests
 import threading
 import asyncio
-import time
 
-from thermod import socket, common, timetable
+from thermod import socket, timetable
 from thermod.timetable import TimeTable
 from thermod.heating import BaseHeating
 from thermod.socket import ControlSocket
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2018-05-12'
-__url_settings__ = 'http://localhost:4344/settings'
-__url_heating__ = 'http://localhost:4344/status'
+__updated__ = '2018-06-22'
+__url_settings__ = 'http://localhost:4345/settings'
+__url_heating__ = 'http://localhost:4345/status'
 
 
 class SocketThread(threading.Thread):
@@ -51,19 +50,21 @@ class SocketThread(threading.Thread):
         self.thermometer = thermometer
         self.lock = lock
     
-    def run(self):
+    def start(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         
         self.socket = ControlSocket(self.timetable,
                                     self.heating,
                                     self.thermometer,
-                                    common.SOCKET_DEFAULT_HOST,
-                                    common.SOCKET_DEFAULT_PORT,
+                                    'localhost',
+                                    4345,  # using different port to run test while real thermod is running
                                     self.lock,
                                     self.loop)
         self.socket.start()
-        
+        super().start()
+    
+    def run(self):
         try:
             self.loop.run_forever()
         
@@ -90,7 +91,6 @@ class TestSocket(unittest.TestCase):
         
         self.socket = SocketThread(self.timetable, self.heating, self.thermometer, self.lock)
         self.socket.start()
-        time.sleep(1)
     
     
     def tearDown(self):
@@ -101,7 +101,7 @@ class TestSocket(unittest.TestCase):
     
     def test_get_settings(self):
         # wrong url
-        wrong = requests.get('http://localhost:4344/wrong')
+        wrong = requests.get('http://localhost:4345/wrong')
         self.assertEqual(wrong.status_code, 404)
         wrong.close()
         
@@ -119,7 +119,7 @@ class TestSocket(unittest.TestCase):
     
     def test_get_heating(self):
         # wrong url
-        wrong = requests.get('http://localhost:4344/wrong')
+        wrong = requests.get('http://localhost:4345/wrong')
         self.assertEqual(wrong.status_code, 404)
         wrong.close()
         
@@ -137,7 +137,7 @@ class TestSocket(unittest.TestCase):
     
     def test_post_wrong_messages(self):
         # wrong url
-        wrong = requests.post('http://localhost:4344/wrong', {})
+        wrong = requests.post('http://localhost:4345/wrong', {})
         self.assertEqual(wrong.status_code, 404)
         wrong.close()
         
