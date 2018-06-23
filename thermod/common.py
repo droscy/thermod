@@ -25,7 +25,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2018-06-21'
+__updated__ = '2018-06-23'
 
 
 # logger common settings
@@ -84,22 +84,24 @@ TIMESTAMP_MAX_VALUE = _tmv
 """Max value for a POSIX timestamp in runnin platform."""
 
 
+# TODO in version 2.0 change heating_status with heatcool_status in ThermodStatus
 ThermodStatus = namedtuple('ThermodStatus',
-                           ['timestamp', 'status', 'heating_status',
+                           ['timestamp', 'status', 'cooling', 'heating_status',
                             'current_temperature', 'target_temperature',
                             'error', 'explain'])
 """Contain current global status of the thermostat.
 
  * `timestamp` is the current time in seconds since the epoch
  * `status` is the status of the thermostat (see `timetable.JSON_ALL_STATUSES`)
- * `heating_status` is the status of the heating (it's an int: 1=ON, 0=OFF)
+ * `cooling` if thermod is working with cooling system instead of heating
+ * `heating_status` is the status of the heating/cooling (it's an integer: 1=ON, 0=OFF)
  * `current_temperature` is the current temperature in the choosen degree scale
  * `target_temperature` is the temperature to be reached
  * `error` if an error occurred this is the error (`None` if no error)
  * `explain` a longer description of the error, if available
 """
 
-# Set default values for ThermodStatus and ThermodError tuples (timestamp is
+# Set default values for ThermodStatus tuple (timestamp is
 # always required, thus the '-1' in len function below).
 ThermodStatus.__new__.__defaults__ = (None,) * (len(ThermodStatus._fields) - 1)
 

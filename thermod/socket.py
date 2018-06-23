@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2018-05-13'
+__updated__ = '2018-06-23'
 __version__ = '2.2.1'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -56,6 +56,7 @@ REQ_SETTINGS_TMIN = tt.JSON_TMIN_STR
 REQ_SETTINGS_TMAX = tt.JSON_TMAX_STR
 REQ_SETTINGS_DIFFERENTIAL = tt.JSON_DIFFERENTIAL
 REQ_SETTINGS_GRACE_TIME = tt.JSON_GRACE_TIME
+REQ_SETTINGS_COOLING = tt.JSON_COOLING
 
 REQ_MONITOR_NAME = 'name'
 
@@ -87,7 +88,7 @@ class ControlSocket(object):
 
     # TODO rivedere i test di questa classe
     
-    def __init__(self, timetable, heating, thermometer, host, port, lock, loop):
+    def __init__(self, timetable, heating, cooling, thermometer, host, port, lock, loop):
         baselogger.debug('initializing control socket')
         
         if not isinstance(lock, asyncio.Condition):
@@ -102,6 +103,7 @@ class ControlSocket(object):
         
         self.app['timetable'] = timetable
         self.app['heating'] = heating
+        self.app['cooling'] = cooling
         self.app['thermometer'] = thermometer
         
         self.app.router.add_get('/{action}', GET_handler)
@@ -318,6 +320,7 @@ async def GET_handler(request):
     lock = request.app['lock']
     timetable = request.app['timetable']
     heating = request.app['heating']
+    cooling = request.app['cooling']
     thermometer = request.app['thermometer']
     
     action = request.match_info['action']
@@ -346,12 +349,13 @@ async def GET_handler(request):
                 last_updt = time.time()
                 status = ThermodStatus(last_updt,
                                        timetable.status,
-                                       heating.status,
+                                       timetable.cooling,
+                                       (heating.status if not timetable.cooling else cooling.status),
                                        timetable.degrees(thermometer.temperature),
                                        timetable.target_temperature(last_updt))
         
         except HeatingError as he:
-            message = 'Heating Error'
+            message = 'Heating/Cooling Error'
             logger.warning('{}: {} ({})', message.lower(), he,
                            (he.suberror if he.suberror else 'no other information'))
             
@@ -433,6 +437,8 @@ async def POST_handler(request):
         * `differential` to update the differential value
         
         * `grace_time` to update the grace time
+        
+        * `cooling` to update the cooling setting
     
     Any request that produces an error in updating internal settings,
     restores the old state except when the settings were correcly updated
@@ -519,6 +525,9 @@ async def POST_handler(request):
                         elif var == REQ_SETTINGS_GRACE_TIME:
                             timetable.grace_time = value
                             newvalues[var] = timetable.grace_time
+                        elif var == REQ_SETTINGS_COOLING:
+                            timetable.cooling = value
+                            newvalues[var] = timetable.cooling
                         else:
                             logger.debug('invalid field `{}` ignored', var)
                     

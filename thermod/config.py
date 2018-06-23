@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-05-06'
+__updated__ = '2018-06-23'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -49,7 +49,7 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
 
 
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval', 'mode',
-                                   'heating', 'thermometer', 'host', 'port',
+                                   'heating', 'cooling', 'thermometer', 'host', 'port',
                                    'email', 'error_code'])
 """Tuple used to transfer settings from config file to main daemon."""
 
@@ -171,6 +171,34 @@ def parse_main_settings(cfg):
         # once they will be created.
         else:
             raise ValueError('invalid value `{}` for heating manager'.format(heating['manager']))
+        
+        logger.debug('parsing cooling settings')
+        cooling = {'manager': cfg.get('cooling', 'cooling', fallback=None)}
+        if cooling['manager'] is None or cooling['manager'] == 'heating':
+            # do nothing, the daemon handles this automatically
+            pass
+        
+        elif cooling['manager'] == 'scripts':
+            cooling['on'] = cfg.get('cooling/scripts', 'switchon')
+            cooling['off'] = cfg.get('cooling/scripts', 'switchoff')
+            cooling['status'] = cfg.get('cooling/scripts', 'status')
+        
+        elif cooling['manager'] == 'PiPinsRelay':
+            # The user choose to use the internal class for Raspberry Pi
+            # heating instead of external scripts.
+            
+            _level = cfg.get('cooling/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
+            if _level not in ('high', 'low'):
+                raise ValueError('the switch_on_level must be `high` or `low`, '
+                                 '`{}` provided'.format(_level))
+            
+            cooling['pins'] = [int(p) for p in cfg.get('cooling/PiPinsRelay', 'pins', fallback='').split(',')]
+            cooling['level'] = _level[0]  # only the first letter of _level is used
+        
+        # An `elif` can be added with additional specific heating classes
+        # once they will be created.
+        else:
+            raise ValueError('invalid value `{}` for cooling manager'.format(cooling['manager']))
         
         logger.debug('parsing thermometer settings')
         _t_ref = cfg.get('thermometer', 't_ref')
@@ -308,7 +336,7 @@ def parse_main_settings(cfg):
         logger.debug('main settings parsed')
     
     return Settings(enabled, debug, tt_file, interval, mode,
-                    heating, thermometer, host, port,
+                    heating, cooling, thermometer, host, port,
                     email, error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

@@ -38,7 +38,7 @@ except ImportError:
     GPIO = False
 
 __date__ = '2015-12-30'
-__updated__ = '2018-05-12'
+__updated__ = '2018-06-23'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -141,6 +141,13 @@ class BaseHeating(object):
         """
         
         return self._switch_off_time
+
+
+class FakeHeating(BaseHeating):
+    """Fake implementation of a heating."""
+    # Actually the BaseHeating is already a fake implementation, subclassed
+    # only to print the log messages with the corrent class name.
+    pass
 
 
 class ScriptHeating(BaseHeating):
