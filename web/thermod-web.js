@@ -20,6 +20,12 @@
 // thermod settings
 var settings;
 
+// capitalize only first letter
+String.prototype.ucfirst = function()
+{
+    return this.charAt(0).toUpperCase() + this.slice(1);
+}
+
 // map tmax temperature to 'heating on' in hours/quarters buttons
 function is_on(temp)
 {
@@ -104,6 +110,9 @@ function get_heating_status_and_refresh()
 			$('#current-status').prop('value', (data['heating_status']==1 ? 'On' : 'Off'));
 			$('#current-temperature').prop('value', data['current_temperature'].toFixed(1));
 			$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(1) : 'n.a.'));
+			
+			var device = settings['cooling'] ? 'cooling' : 'heating';
+			$('label[for=current-status]').text(device.ucfirst());
 		},
 		error: function(jqXHR, textStatus, errorThrown)
 		{
@@ -138,6 +147,20 @@ $(function()
 	$('#days input').checkboxradio({icon: false});
 	$('.hour').button({disabled: true, icon: false});
 	$('.quarter').button({disabled: true, icon: false});
+	
+	$('#device').selectmenu(
+	{
+		disabled: true,
+		change: function()
+		{
+			var device = $('#device option:selected').prop('value');
+			
+			if(device == 'cooling')
+				settings['cooling'] = true;
+			else
+				settings['cooling'] = false;
+		}
+	});
 
 	$('.set-temperatures').spinner(
 	{
@@ -322,6 +345,10 @@ $(function()
 			settings = data;
 			target_status_refresh();
 			$('#' + today).prop('checked', true).change();
+			
+			var device = settings['cooling'] ? 'cooling' : 'heating';
+			$('#device option[value=' + device + ']').prop('selected', true);
+			$('label[for=current-status]').text(device.ucfirst());
 
 			$('#tmax').prop('value', settings['temperatures']['tmax'].toFixed(1));
 			$('#tmin').prop('value', settings['temperatures']['tmin'].toFixed(1));
@@ -336,6 +363,7 @@ $(function()
 			$('#days').controlgroup('option', 'disabled', false);
 			$('.hour').button('option', 'disabled', false);
 			$('.quarter').button('option', 'disabled', false).button('refresh');
+			$('#device').selectmenu('option', 'disabled', false).selectmenu('refresh');
 			$('.set-temperatures').spinner('option', 'disabled', false);
 			$('#differential').spinner('option', 'disabled', false);
 			$('#grace-time').spinner('option', 'disabled', false);

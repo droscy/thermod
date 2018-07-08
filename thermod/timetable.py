@@ -35,8 +35,8 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2018-06-23'
-__version__ = '1.9'
+__updated__ = '2018-07-08'
+__version__ = '1.10'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -855,6 +855,11 @@ class TimeTable(object):
     def target_temperature(self, target_time=None):
         """Return the target temperature at specific `target_time`.
         
+        NB: when `self._cooling` is `True`, `tmax` and `tmin` values are
+        inverted because those values are used with the meaning of ON and OFF,
+        so when the set temperature is `tmax` it means both "heating on" and
+        "cooling on".
+        
         @param target_time must be a `datetime` object
         @return the target temperature at specific `target_time`, if the
             current status is ON or OFF the returned value is `None`.
@@ -885,7 +890,16 @@ class TimeTable(object):
             hour = utils.json_format_hour(target_time.hour)
             quarter = int(target_time.minute // 15)
             
-            target = self.degrees(self._timetable[day][hour][quarter])
+            target = self._timetable[day][hour][quarter]
+            
+            # in case of cooling, the meaning of tmax and tmin are inverted
+            if self._cooling:
+                if target == JSON_TMAX_STR:
+                    target = JSON_TMIN_STR
+                elif target == JSON_TMIN_STR:
+                    target = JSON_TMAX_STR
+            
+            target = self.degrees(target)
             logger.debug('day: {}, hour: {}, quarter: {}, '
                          'target_temperature: {}', day, hour, quarter, target)
         
@@ -1039,6 +1053,7 @@ class TimeTable(object):
         return ShouldBeOn(should_be_on,
                           ThermodStatus(target_time.timestamp(),
                                         self._status,
+                                        self._cooling,
                                         heatcool_status,
                                         current,
                                         realtgt))

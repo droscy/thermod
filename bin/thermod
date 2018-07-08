@@ -44,7 +44,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-06-23'
+__updated__ = '2018-07-08'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -622,9 +622,13 @@ finally:
 # run the main loop
 try:
     logger.debug('starting main cycle')
-    main_loop.run_until_complete(thermostat_cycle(timetable, heating, thermometer, masterlock, main_loop))
+    main_loop.run_until_complete(thermostat_cycle(timetable, heating, cooling, thermometer, masterlock, main_loop))
 
-# TODO check if other exceptions could be rised
+# TODO check for specific exceptions
+except Exception as e:
+    logger.critical('cannot start main cycle: {}', e, exc_info=True)
+    main_return_code = common.RET_CODE_RUN_OTHER_ERR
+
 finally:
     logger.debug('finalizing daemon shutdown')
     
