@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2018-06-23'
-__version__ = '2.2.1'
+__updated__ = '2018-07-19'
+__version__ = '2.2.2'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -62,14 +62,8 @@ REQ_MONITOR_NAME = 'name'
 
 RSP_MESSAGE = 'message'
 RSP_VERSION = 'version'
-RSP_ERROR = ThermodStatus._fields[5]
-RSP_EXPLAIN = ThermodStatus._fields[6]
-
-RSP_STATUS_TIMESTAMP = ThermodStatus._fields[0]
-RSP_STATUS_STATUS = ThermodStatus._fields[1]
-RSP_STATUS_HEATING_STATUS = ThermodStatus._fields[2]
-RSP_STATUS_CURR_TEMP = ThermodStatus._fields[3]
-RSP_STATUS_TARGET_TEMP = ThermodStatus._fields[4]
+RSP_ERROR = 'error'
+RSP_EXPLAIN = 'explain'
 
 
 class ClientAddressLogAdapter(logging.LoggerAdapter):
