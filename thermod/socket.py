@@ -38,7 +38,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2018-07-19'
+__updated__ = '2018-07-20'
 __version__ = '2.2.2'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -188,6 +188,11 @@ async def exceptions_middleware(app, handler):
             except KeyError:
                 #logger.debug('no Origin header found in request, no need for Access-Control-Allow-Origin in response')
                 pass
+        
+        # Note: the messages printed to logger by the following exceptions can
+        # be used in the fail2ban filter to jail out malicious accesses. If
+        # those message will be changed, remember to also change the filter
+        # in file etc/fail2ban.filter.
         
         except HTTPNotFound as htnf:
             message = 'Invalid Request'
