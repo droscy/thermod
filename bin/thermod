@@ -56,7 +56,7 @@ __updated__ = '2018-08-03'
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterne
 
-# TODO [Roadmap 1.2.0] scrivere Scheduler
+# TODO [Roadmap 1.2.0] scrivere Pi1WireThermometer
 # TODO [Roadmap 1.2.0] aggiungere modalità di funzionamento estivo (ONGOING)
 # TODO [Roadmap 1.2.0] fare client testuale
 # TODO [Roadmap 1.2.0] creare manpage per questo file e per il client testuale
@@ -66,12 +66,17 @@ __updated__ = '2018-08-03'
 # TODO [Roadmap 1.2.1] modificare client web per permettere lo switch verso lo
 # stato "ON" impostando però un timeout
 
+# TODO [Roadmap 1.3.0] scrivere Scheduler
 # TODO [Roadmap 1.3.0] scrivere NetThermometer
-# TODO [Roadmap 1.3.0] scrivere Pi1WireThermometer
 
 # TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (ONGOING faststart branch)
-# TODO [Roadmap 2.0.0] chiamare le temperature t0, t1 e t2
-# TODO [Roadmap 2.0.0] modificare client web per permettere di impostare tre livelli di
+# TODO [Roadmap 2.0.0] fare in modo che tutto il sistema possa far vedere le temperature in fahrenheit anche
+# anche se i termometri lavorano in celsius, ossia aggiungere un parametro al file di config
+# per far specificare la temperature "di lavoro" e la temperatura del termometro, quindi
+# la property 'temperature' deve ritornare il valore nella scala "di lavoro"
+
+# TODO [Roadmap 2.1.0] chiamare le temperature t0, t1 e t2
+# TODO [Roadmap 2.1.0] modificare client web per permettere di impostare tre livelli di
 # temperatura per ogni singolo quarto d'ora
 
 script_path = os.path.dirname(os.path.realpath(__file__))

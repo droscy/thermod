@@ -45,10 +45,12 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-05-30'
+__updated__ = '2018-08-03'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
+
+# conversion functions
 
 def celsius2fahrenheit(value):
     """Convert celsius temperature to fahrenheit degrees."""
@@ -58,6 +60,8 @@ def fahrenheit2celsius(value):
     """Convert fahrenheit temperature to celsius degrees."""
     return ((value - 32.0) / 1.8)
 
+
+# errors/exceptions
 
 class ThermometerError(RuntimeError):
     """Main exception for thermomter-related errors.
@@ -84,6 +88,9 @@ class ScriptThermometerError(ThermometerError, ScriptError):
         self.suberror = suberror
         self.script = script
 
+
+
+# thermometers
 
 class BaseThermometer(object):
     """Basic implementation of a thermometer.
@@ -206,9 +213,6 @@ class FakeThermometer(BaseThermometer):
         else:
             return round(celsius2fahrenheit(t), 2)
 
-
-
-# BaseThermometer real implementations
 
 class ScriptThermometer(BaseThermometer):
     """Manage the real thermometer through an external script.
@@ -333,9 +337,7 @@ class ScriptThermometer(BaseThermometer):
                                          'invalid value', str(vte),
                                          self._script[0])
         
-        # No round(t, 2) on returned value because the external script can be
-        # connected to a very sensitive and calibrated thermometer.
-        logger.debug('current temperature: {:.2f}', t)
+        logger.debug('current temperature is {:.2f}', t)
         return t
 
 
@@ -535,8 +537,8 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         logger.debug('retrieving temperatures from A/D converter')
         temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
-        
         std = numpy.std(temperatures)
+        
         logger.debug('checking standard deviation of raw temperatures {} -> {:.1f}', temperatures, std)
         
         if std < self._stddev and self._printed_warning_std is True:
@@ -549,10 +551,11 @@ class PiAnalogZeroThermometer(BaseThermometer):
                            'greater than the maximum allowed value of {:.1f} '
                            'degrees'.format(std, self._stddev))
         
-        # The median excludes a possible single outlier. We round the value
-        # only with two decimals because additional decimals are meaningless.
-        logger.debug('returning median of raw temperatures')
-        return round(numpy.median(temperatures) if len(temperatures)>2 else numpy.mean(temperatures), 2)
+        # the median excludes a possible single outlier
+        raw = (numpy.median(temperatures) if len(temperatures)>2 else numpy.mean(temperatures))
+        
+        logger.debug('current median of raw temperatures is {:.2f}', raw)
+        return raw
     
     def __del__(self):
         """Close hardware channels."""
@@ -566,7 +569,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
 
 
 
-# BaseThermometer decorators
+# decorators
 
 class ThermometerBaseDecorator(BaseThermometer):
     """Base decorator for subclasses of BaseThermometer.
@@ -663,11 +666,15 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
         
         @exception ThermometerError when the just read value is NOT similar
         """
+        
         newtemp = self.decorated.raw_temperature
         avgtemp = numpy.mean(self.last_raw_temperatures)
-        logger.debug('new raw temperature is {:.2f}, old average value is {:.2f}', newtemp, avgtemp)
+        delta = abs(newtemp - avgtemp)
         
-        if abs(newtemp - avgtemp) >= self.delta:
+        logger.debug('new temperature is {:.2f}, old average value '
+                     'is {:.2f}, delta is {:.2f}', newtemp, avgtemp, delta)
+        
+        if delta >= self.delta:
             raise ThermometerError('the just read temperature ({} degrees) has '
                                    'been ignored because it is more than {} '
                                    'degrees away from the average value of the '
@@ -675,7 +682,7 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
                                    .format(newtemp, self.delta, avgtemp),
                                    'this is probably a hardware fault')
         
-        logger.debug('appending the new raw temperature to the similarity checker queue')
+        logger.debug('appending the new temperature to the similarity checker queue')
         self.last_raw_temperatures.append(newtemp)
         
         return newtemp
@@ -770,7 +777,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         while True:
             temp = self.decorated.raw_temperature
             self._temperatures.append(temp)
-            logger.debug('added new temperature to the averaging queue '
+            logger.debug('added new raw temperature to the averaging queue '
                          '({:.2f} -> {:.2f})', temp, self._calibrate(temp))
             
             await sleep(self._short_interval, loop=self._loop)
@@ -797,7 +804,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         to compute how many temperatures to exclude.
         """
         
-        logger.debug('retriving current average raw temperature')
+        logger.debug('retriving average of last temperatures')
         
         if self._fail_exception is not None:
             # If an exception has been raised inside the averaging task, we rise
@@ -815,7 +822,9 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             temperatures.sort()
             shortened = temperatures[skip:(elements-skip)]
         
-        return round(numpy.mean(shortened), 2)  # additional decimal are meaningless
+        raw = numpy.mean(shortened)
+        logger.debug('the average of last temperatures is {:.2f}', raw)
+        return raw
     
     def close(self):
         """Stop the temperature updating task."""
