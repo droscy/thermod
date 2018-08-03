@@ -96,9 +96,9 @@ systemctl [start|stop] thermod.service
 
 
 ## Fail2ban filter and jail
-If [fail2ban]{https://www.fail2ban.org/} is in use, specific filter and jail
-are available to protect the system against multiple invalid requests to
-*Thermod* socket in order to slow down (possibly avoid) exploitations of bugs.
+If [fail2ban](https://www.fail2ban.org/) is in use, specific filter and jail
+are available to protect the system against multiple invalid requests
+in order to slow down (and possibly avoid) exploitations of bugs.
 
 To enable *Thermod* jail copy the two file `etc/fail2ban.filter` and
 `etc/fail2ban.jail` respectively to `/etc/fail2ban/filter.d/thermod.conf` and

@@ -25,7 +25,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2018-06-23'
+__updated__ = '2018-07-24'
 
 
 # logger common settings
@@ -84,7 +84,8 @@ TIMESTAMP_MAX_VALUE = _tmv
 """Max value for a POSIX timestamp in runnin platform."""
 
 
-# TODO in version 2.0 change heating_status with heatcool_status in ThermodStatus
+# TODO in version 2.0 change status and heating_status with mode and status respectively
+# this requires some changes in timetable class too.
 ThermodStatus = namedtuple('ThermodStatus',
                            ['timestamp', 'status', 'cooling', 'heating_status',
                             'current_temperature', 'target_temperature',

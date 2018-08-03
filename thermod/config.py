@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-07-08'
+__updated__ = '2018-08-03'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -158,7 +158,7 @@ def parse_main_settings(cfg):
         
         heating['on'] = cfg.get('heating/scripts', 'switchon')
         heating['off'] = cfg.get('heating/scripts', 'switchoff')
-        heating['status'] = cfg.get('heating/scripts', 'status')
+        heating['status'] = cfg.get('heating/scripts', 'status', fallback=None)
         
         _level = cfg.get('heating/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
         if _level not in ('high', 'low'):
@@ -178,7 +178,7 @@ def parse_main_settings(cfg):
             
         cooling['on'] = cfg.get('cooling/scripts', 'switchon')
         cooling['off'] = cfg.get('cooling/scripts', 'switchoff')
-        cooling['status'] = cfg.get('cooling/scripts', 'status')
+        cooling['status'] = cfg.get('cooling/scripts', 'status', fallback=None)
         
         _level = cfg.get('cooling/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
         if _level not in ('high', 'low'):

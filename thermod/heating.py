@@ -38,7 +38,7 @@ except ImportError:
     GPIO = False
 
 __date__ = '2015-12-30'
-__updated__ = '2018-06-23'
+__updated__ = '2018-08-03'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -146,7 +146,7 @@ class BaseHeating(object):
 class FakeHeating(BaseHeating):
     """Fake implementation of a heating."""
     # Actually the BaseHeating is already a fake implementation, subclassed
-    # only to print the log messages with the corrent class name.
+    # only to print the log messages with the correct class name.
     pass
 
 
@@ -184,7 +184,10 @@ class ScriptHeating(BaseHeating):
         The first three parameters must be strings containing the full paths to
         the scripts with options (like `/usr/local/bin/switchoff -j -v`) or an
         array with the script to be executed followed by the options
-        (like `['/usr/local/bin/switchoff', '-j', '-v']`).
+        (like `['/usr/local/bin/switchoff', '-j', '-v']`). The `status` can
+        also be `None` if such script is not available: in this case Thermod
+        will cache the last status after execution of `switchon` or `switchoff`
+        scripts, a switch should be executed before any other actions.
         
         If the scripts must be executed with '--debug' option appended, set the
         `debug` parameter to `True`.
@@ -223,8 +226,10 @@ class ScriptHeating(BaseHeating):
             self._status_script = deepcopy(status)
         elif isinstance(status, str):
             self._status_script = shlex.split(status, comments=True)
+        elif status is None:
+            self._status_script = [None]
         else:
-            raise TypeError('the status parameter must be string or list')
+            raise TypeError('the status parameter must be string or list or None')
         
         if debug:
             logger.debug('appending {} to scripts command', ScriptHeating.DEBUG_OPTION)
@@ -235,7 +240,9 @@ class ScriptHeating(BaseHeating):
         logger.debug('checking executability of provided scripts')
         check_script(self._switch_on_script[0])
         check_script(self._switch_off_script[0])
-        check_script(self._status_script[0])
+        
+        if self._status_script[0] is not None:
+            check_script(self._status_script[0])
         
         logger.debug('{} initialized with scripts ON=`{}`, OFF=`{}` and STATUS=`{}`',
                      self.__class__.__name__,
@@ -250,7 +257,7 @@ class ScriptHeating(BaseHeating):
                     on=self._switch_on_script,
                     off=self._switch_off_script,
                     status=self._status_script,
-                    debug=(ScriptHeating.DEBUG_OPTION in self._status_script))
+                    debug=(ScriptHeating.DEBUG_OPTION in self._switch_on_script))
     
     def switch_on(self):
         """Switch on the heating executing the `switch-on` script."""
@@ -320,9 +327,17 @@ class ScriptHeating(BaseHeating):
         logger.debug('heating switched off at {}', self._switch_off_time)
     
     def force_status_update(self):
-        """Execute the `status` script and update internal status."""
+        """Execute the `status` script and update internal status.
+        
+        @exception HeatingError when the `status` script is `None`
+        @exception ScriptHeatingError when an error is reported by the
+            `status` script
+        """
         
         logger.debug('retriving current status of the heating')
+        
+        if self._status_script[0] is None:
+            raise HeatingError('no status script set in config file')
         
         try:
             raw = subprocess.check_output(self._status_script, shell=False)
