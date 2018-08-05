@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-08-03'
+__updated__ = '2018-08-05'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -203,9 +203,10 @@ def parse_main_settings(cfg):
                        'avgtask': cfg.getboolean('thermometer', 'avgtask', fallback=False),
                        'avgint': cfg.getint('thermometer', 'avgint', fallback=3),
                        'avgtime': cfg.getint('thermometer', 'avgtime', fallback=6),
-                       'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33)}
+                       'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33),
+                       'stddev': cfg.getfloat('thermometer', 'stddev', fallback=2.0)}
         
-        if thermometer['script'][0] != '/' and thermometer['script'] not in ('PiAnalogZero'):
+        if thermometer['script'][0] != '/' and thermometer['script'] not in ('PiAnalogZero', '1Wire'):
             # If the first char is a / it denotes the beginning of a filesystem
             # path, so the value is acceptable. If the path is not a valid
             # script, the error will be managed later.
@@ -224,11 +225,8 @@ def parse_main_settings(cfg):
         
         thermometer['scale'] = _scale[0]  # only the first letter of _scale is used
         
-        thermometer['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
-        thermometer['stddev'] = cfg.getfloat('thermometer/PiAnalogZero', 'stddev', fallback=2.0)
-        
-        if thermometer['stddev'] <= 0:
-            raise ValueError('advanced parameter `stddev` must be positive')
+        thermometer['azchannels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
+        thermometer['w1devices'] = [dev.strip() for dev in cfg.get('thermometer/1Wire', 'devices', fallback='').split(',')]
         
         if thermometer['script'] == 'PiAnalogZero':
             # In version 1.0.0 of Thermod the PiAnalogZero thermometer made use
@@ -244,6 +242,10 @@ def parse_main_settings(cfg):
                 thermometer['avgint'] = cfg.getint('thermometer/PiAnalogZero', 'realint', fallback=thermometer['avgint'])
                 thermometer['avgtime'] = cfg.getint('thermometer/PiAnalogZero', 'avgtime', fallback=thermometer['avgtime'])
                 thermometer['avgskip'] = cfg.getfloat('thermometer/PiAnalogZero', 'skipval', fallback=thermometer['avgskip'])
+            
+            # For backward compatibility of PiAnalogZero section in Thermod 1.2.0
+            # we check if the config file still have older stddev setting.
+            thermometer['stddev'] = cfg.getfloat('thermometer/PiAnalogZero', 'stddev', fallback=thermometer['stddev'])
         
         # Checking here the avg* settings because they can have been overwritten
         # by older settings of PiAnalogZero section.
@@ -255,6 +257,9 @@ def parse_main_settings(cfg):
         
         if thermometer['avgskip'] < 0 or thermometer['avgskip'] > 1:
             raise ValueError('advanced parameter `avgskip` must be a float number between 0 and 1')
+        
+        if thermometer['stddev'] <= 0:
+            raise ValueError('advanced parameter `stddev` must be positive')
         
         # parsing socket settings
         logger.debug('parsing socket settings')

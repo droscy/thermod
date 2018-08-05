@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-08-03'
+__updated__ = '2018-08-05'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -112,8 +112,9 @@ class BaseThermometer(object):
 
     DEGREE_CELSIUS = 'c'
     DEGREE_FAHRENHEIT = 'f'
+    DEGREE_SCALE_LIST = [DEGREE_CELSIUS, DEGREE_FAHRENHEIT]
     
-    def __init__(self, scale=DEGREE_CELSIUS, t_ref=[], t_raw=[], calibration=None):
+    def __init__(self, scale, t_ref=[], t_raw=[], calibration=None):
         """Init the thermometer with a choosen degree scale.
         
         @param scale degree scale to be used
@@ -123,6 +124,9 @@ class BaseThermometer(object):
         @param calibration e callable object to calibrate the temperature (if
             both `t_ref` and `t_raw` are valid, this parameter is ignored)
         """
+        
+        if scale not in BaseThermometer.DEGREE_SCALE_LIST:
+            raise ValueError('invalid degree scale {}'.format(scale))
         
         logger.debug('initializing {} with {} degrees',
                      self.__class__.__name__,
@@ -283,7 +287,7 @@ class ScriptThermometer(BaseThermometer):
     def raw_temperature(self):
         """Retrive the current temperature executing the script.
         
-        The return value is a float number. Many exceptions can be raised
+        The returned value is a float number. Many exceptions can be raised
         if the script cannot be executed or if the script exits with errors.
         """
         logger.debug('retriving current temperature')
@@ -296,7 +300,7 @@ class ScriptThermometer(BaseThermometer):
             t = float(tstr)
         
         except subprocess.CalledProcessError as cpe:  # error in subprocess
-            suberr = 'the temperature script exited with return code {}'.format(cpe.returncode)
+            suberr = 'the thermometer script exited with return code {}'.format(cpe.returncode)
             logger.debug(suberr)
             
             try:
@@ -318,16 +322,16 @@ class ScriptThermometer(BaseThermometer):
             raise ScriptThermometerError('cannot execute script', str(pe), self._script[0])
         
         except JSONDecodeError as jde:  # error in json.loads()
-            logger.debug('the script output is not in JSON format')
+            logger.debug('the thermometer script output is not in JSON format')
             raise ScriptThermometerError('script output is invalid, cannot get '
                                          'current temperature', str(jde),
                                          self._script[0])
         
         except KeyError as ke:  # error in retriving element from out dict
-            logger.debug('the output of temperature script lacks the `{}` item',
+            logger.debug('the output of thermometer script lacks the `{}` item',
                          ScriptThermometer.JSON_TEMPERATURE)
             
-            raise ScriptThermometerError('the temperature script has not '
+            raise ScriptThermometerError('the thermometer script has not '
                                          'returned the current temperature',
                                          str(ke), self._script[0])
             
@@ -455,12 +459,21 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         super().__init__(scale, t_ref, t_raw, calibration)
         
+        if not isinstance(channels, list):
+            raise TypeError('channels must be a list of integers in range 0-7')
+        
         if len(channels) == 0:
-            raise ValueError('missing input channel for PiAnalogZero thermometer')
+            raise ValueError('missing input channel(s) for PiAnalogZero thermometer')
         
         for c in channels:
-            if c < 0 or c > 7:
-                raise ValueError('input channels for PiAnalogZero must be in range 0-7, {} given'.format(c))
+            try:
+                if c < 0 or c > 7:
+                    raise ValueError('input channels for PiAnalogZero must be '
+                                     'in range 0-7, {} given'.format(c))
+            
+            except TypeError:
+                raise TypeError('input channels for PiAnalogZero must be '
+                                'integers in range 0-7, {} given'.format(c))
         
         # voltage reference value
         self._vref = ((3.32/(3.32+7.5))*3.3*1000)
@@ -505,6 +518,8 @@ class PiAnalogZeroThermometer(BaseThermometer):
         # Only the first time an abnormal raw temperature is read a warning
         # message is printed. This variable is used as a check for it.
         self._printed_warning_std = False
+        
+        logger.debug('{} initialized', self.__class__.__name__)
     
     def __repr__(self, *args, **kwargs):
         return ('<{module}.{cls}({channels!r}, {scale!r}, '
@@ -549,7 +564,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
             logger.info('raw temperatures are {}', temperatures)
             logger.warning('standard deviation of raw temperatures is {:.1f}, '
                            'greater than the maximum allowed value of {:.1f} '
-                           'degrees'.format(std, self._stddev))
+                           'degrees', std, self._stddev)
         
         # the median excludes a possible single outlier
         raw = (numpy.median(temperatures) if len(temperatures)>2 else numpy.mean(temperatures))
@@ -567,6 +582,119 @@ class PiAnalogZeroThermometer(BaseThermometer):
             # an exception was raised in __init__() method, the object is incomplete
             pass
 
+
+class Wire1Thermometer(BaseThermometer):
+    """Read temperatures from a 1-Wire thermometers like DS18B20."""
+    
+    def __init__(self,
+                 devices,
+                 scale=BaseThermometer.DEGREE_CELSIUS,
+                 t_ref=[],
+                 t_raw=[],
+                 stddev=2.0,
+                 calibration=None):
+        """Init Wire1Thermometer object reading temperatures from `devices`.
+        
+        @param devices the list of 1-Wire devices to read the temperature from
+            (the devices are in /sys/bus/w1/devices folder) or a list of full
+            paths to 'w1_slave' files
+        @param scale degree scale to be used
+        @param t_ref list of reference values for temperature calibration
+        @param t_raw list of raw temperatures read by the thermometer
+            corresponding to values in `t_ref`
+        @param stddev maximum standard deviation between temperatures to
+            consider a thermometer not broken
+        @param calibration a callable object to calibrate the temperature
+            (if both `t_ref` and `t_raw` are valid, this parameter is
+            ignored)
+        
+        @exception ValueError if no devices provided
+        @exception FileNotFoundError if the device cannot be read
+        """
+        
+        super().__init__(scale, t_ref, t_raw, calibration)
+        
+        if not isinstance(devices, list):
+            raise TypeError('devices must be a list of strings')
+        
+        if len(devices) == 0:
+            raise ValueError('missing 1-Wire devices to read temperature from')
+        
+        self._devices = []
+        
+        for dev in devices:
+            path = (dev if dev[0] == '/' else '/sys/bus/w1/devices/{}/w1_slave'.format(dev))
+            with open(path, 'r'):
+                self._devices.append(path)
+        
+        self._stddev = stddev
+        
+        # Only the first time an abnormal raw temperature is read a warning
+        # message is printed. This variable is used as a check for it.
+        self._printed_warning_std = False
+        
+        logger.debug('{} initialized with devices: `{}`',
+                     self.__class__.__name__,
+                     self._devices)
+    
+    def __repr__(self, *args, **kwargs):
+        return ('<{module}.{cls}({devices!r}, {scale!r}, '
+                'stddev={stddev!r}, calibration={calib!r})>'.format(
+                    module=self.__module__,
+                    cls=self.__class__.__name__,
+                    devices=self._devices,
+                    scale=self._scale,
+                    stddev=self._stddev,
+                    calib=self._calibrate))
+    
+    @property
+    def raw_temperature(self):
+        """The current raw temperature as measured by physical thermometer.
+        
+        If more than one device is provided during object creation, the
+        returned temperature is the median value of all devices (the mean
+        value if there are only two devices).
+        
+        A standard deviation between all values is also used to exclude from
+        the computation broken physical thermometers.
+        """
+        
+        temperatures = []
+        
+        for dev in self._devices:
+            try:
+                with open(dev, 'r') as f:
+                    data = f.readlines()
+                
+                if data[0].strip()[-3:] == 'YES':
+                    temperatures.append(float(data[1].split("=")[1]) / 1000)
+                
+                else:
+                    logger.warning('1-wire device {} not ready, keep going without it', dev)
+                
+            except IOError as ioe:
+                logger.warning('cannot access 1-wire device {}: {}', dev, ioe)
+                logger.info('keep going without device {}', dev)
+        
+        std = numpy.std(temperatures)
+        
+        logger.debug('checking standard deviation of raw temperatures {} -> {:.1f}', temperatures, std)
+        
+        if std < self._stddev and self._printed_warning_std is True:
+            self._printed_warning_std = False
+        
+        elif std >= self._stddev and self._printed_warning_std is False:
+            self._printed_warning_std = True
+            logger.info('raw temperatures are {}', temperatures)
+            logger.warning('standard deviation of raw temperatures is {:.1f}, '
+                           'greater than the maximum allowed value of {:.1f} '
+                           'degrees', std, self._stddev)
+        
+        # the median excludes a possible single outlier
+        raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
+        
+        logger.debug('current median of raw temperatures is {:.2f}', raw)
+        return raw
 
 
 # decorators

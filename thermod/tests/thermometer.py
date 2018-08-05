@@ -23,9 +23,10 @@ import os
 import logging
 import tempfile
 import unittest
-from thermod.thermometer import ScriptThermometer, ThermometerError, celsius2fahrenheit, fahrenheit2celsius
+from thermod.thermometer import ScriptThermometer, ThermometerError, \
+    celsius2fahrenheit, fahrenheit2celsius, Wire1Thermometer
 
-__updated__ = '2016-02-10'
+__updated__ = '2018-08-05'
 
 
 class TestThermometer(unittest.TestCase):
@@ -34,6 +35,9 @@ class TestThermometer(unittest.TestCase):
     def setUp(self):
         self.script = os.path.join(tempfile.gettempdir(), 'thermod-test-temperature.py')
         self.temperature_data = os.path.join(tempfile.gettempdir(), 'thermod-test-temperature.data')
+        self.w1_data_1 = os.path.join(tempfile.gettempdir(), 'thermod-test-temperature-w1-1.data')
+        self.w1_data_2 = os.path.join(tempfile.gettempdir(), 'thermod-test-temperature-w1-2.data')
+        self.w1_data_3 = os.path.join(tempfile.gettempdir(), 'thermod-test-temperature-w1-3.data')
         
         with open(self.temperature_data, 'w') as file:
             file.write('20.10')
@@ -59,8 +63,25 @@ print(json.dumps({'temperature': t, 'error': error}))
 exit(retcode)
 ''' % self.temperature_data)
         
+        with open(self.w1_data_1, 'w') as file:
+            file.write(
+'''81 01 4b 46 7f ff 0f 10 71 : crc=71 YES
+81 01 4b 46 7f ff 0f 10 71 t=24062
+''')
+        with open(self.w1_data_2, 'w') as file:
+            file.write(
+'''80 01 4b 46 7f ff 10 10 c6 : crc=c6 YES
+80 01 4b 46 7f ff 10 10 c6 t=24000
+''')
+        with open(self.w1_data_3, 'w') as file:
+            file.write(
+'''80 01 4b 46 7f ff 10 10 c6 : crc=c6 YES
+80 01 4b 46 7f ff 10 10 c6 t=36000
+''')
+        
         os.chmod(self.script,0o700)
         self.thermometer = ScriptThermometer(self.script)
+        self.w1thermo = Wire1Thermometer([self.w1_data_1, self.w1_data_2])
     
     def tearDown(self):
         try:
@@ -72,6 +93,21 @@ exit(retcode)
             os.remove(self.temperature_data)
         except FileNotFoundError:
             pass
+        
+        try:
+            os.remove(self.w1_data_1)
+        except FileNotFoundError:
+            pass
+        
+        try:
+            os.remove(self.w1_data_2)
+        except FileNotFoundError:
+            pass
+        
+        try:
+            os.remove(self.w1_data_3)
+        except FileNotFoundError:
+            pass
     
     def test_temperature_script(self):
         self.assertAlmostEqual(self.thermometer.temperature, 20.10, delta=0.01)
@@ -81,6 +117,32 @@ exit(retcode)
                 file.write('{:.2f}'.format(t))
             
             self.assertAlmostEqual(self.thermometer.temperature, t, delta=0.01)
+    
+    def test_w1_temperatures(self):
+        self.assertAlmostEqual(self.w1thermo.temperature, 24.03, delta=0.01)
+        
+        os.remove(self.w1_data_2)
+        self.assertAlmostEqual(self.w1thermo.temperature, 24.06, delta=0.01)
+    
+    def test_w1_temperatures_outlier(self):
+        self.assertAlmostEqual(self.w1thermo.temperature, 24.03, delta=0.01)
+        
+        self.w1thermo = Wire1Thermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
+        self.assertAlmostEqual(self.w1thermo.temperature, 24.06, delta=0.01)
+        
+        self.w1thermo = Wire1Thermometer([self.w1_data_2, self.w1_data_3])
+        self.assertAlmostEqual(self.w1thermo.temperature, 30.00, delta=0.01)
+    
+    def test_w1_init_error(self):
+        with self.assertRaises(TypeError):
+            self.w1thermo = Wire1Thermometer('string')
+        
+        with self.assertRaises(ValueError):
+            self.w1thermo = Wire1Thermometer([])
+        
+        with self.assertRaises(FileNotFoundError):
+            os.remove(self.w1_data_3)
+            self.w1thermo = Wire1Thermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
     
     def test_conversion_methods(self):
         self.assertAlmostEqual(celsius2fahrenheit(0), 32, delta=0.01)

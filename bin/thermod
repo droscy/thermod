@@ -36,7 +36,7 @@ from thermod import common, config
 from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
     PiAnalogZeroThermometer, SimilarityCheckerThermometerDecorator, \
-    AveragingTaskThermometerDecorator
+    AveragingTaskThermometerDecorator, Wire1Thermometer
 from thermod.heating import ScriptHeating, PiPinsRelayHeating, HeatingError
 from thermod.cooling import ScriptCooling, PiPinsRelayCooling, FakeCooling
 from thermod.timetable import TimeTable, JsonValueError
@@ -44,7 +44,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-08-03'
+__updated__ = '2018-08-05'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -56,12 +56,13 @@ __updated__ = '2018-08-03'
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterne
 
-# TODO [Roadmap 1.2.0] scrivere Pi1WireThermometer
+# TODO [Roadmap 1.2.0] IMPORTANTE separare blocchi catch nell'inizializzazione degli oggetti base
+# TODO [Roadmap 1.2.0] scrivere Wire1Thermometer (ONGOING)
 # TODO [Roadmap 1.2.0] aggiungere modalità di funzionamento estivo (ONGOING)
 # TODO [Roadmap 1.2.0] fare client testuale
 # TODO [Roadmap 1.2.0] creare manpage per questo file e per il client testuale
 
-# TODO [Roadmap 1.2.1] scrivere test per PiAnalogZeroThermometer e per i Decorator
+# TODO [Roadmap 1.2.1] scrivere test per PiAnalogZeroThermometer, Wire1Thermometer e per i Decorator
 # TODO [Roadmap 1.2.1] impostare un timeout quando tramite pulsante si mette su "ON"
 # TODO [Roadmap 1.2.1] modificare client web per permettere lo switch verso lo
 # stato "ON" impostando però un timeout
@@ -70,6 +71,8 @@ __updated__ = '2018-08-03'
 # TODO [Roadmap 1.3.0] scrivere NetThermometer
 
 # TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (ONGOING faststart branch)
+# TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status
+# TODO [Roadmap 2.0.0] rimuovere to_celsius() e to_fahrenheit() dai termometri (adesso c'è un decorator)
 # TODO [Roadmap 2.0.0] fare in modo che tutto il sistema possa far vedere le temperature in fahrenheit anche
 # anche se i termometri lavorano in celsius, ossia aggiungere un parametro al file di config
 # per far specificare la temperature "di lavoro" e la temperatura del termometro, quindi
@@ -266,11 +269,18 @@ try:
                                         settings.thermometer['t_raw'])
         
     elif settings.thermometer['script'] == 'PiAnalogZero':
-        thermometer = PiAnalogZeroThermometer(settings.thermometer['channels'],
+        thermometer = PiAnalogZeroThermometer(settings.thermometer['azchannels'],
                                               settings.thermometer['scale'],
                                               settings.thermometer['t_ref'],
                                               settings.thermometer['t_raw'],
                                               settings.thermometer['stddev'])
+        
+    elif settings.thermometer['script'] == '1Wire':
+        thermometer = Wire1Thermometer(settings.thermometer['w1devices'],
+                                       settings.thermometer['scale'],
+                                       settings.thermometer['t_ref'],
+                                       settings.thermometer['t_raw'],
+                                       settings.thermometer['stddev'])
     
     # An `elif` can be added with additional specific thermometer classes
     # once they will be created.

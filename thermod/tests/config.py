@@ -23,7 +23,7 @@ import os
 import unittest
 import thermod.config as cnf
 
-__updated__ = '2018-07-08'
+__updated__ = '2018-08-05'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -69,8 +69,9 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.thermometer['avgint'], 3)
         self.assertEqual(settings.thermometer['avgtime'], 6)
         self.assertEqual(settings.thermometer['avgskip'], 0.33)
-        self.assertEqual(settings.thermometer['channels'], [0, 1, 2])
         self.assertEqual(settings.thermometer['stddev'], 2.0)
+        self.assertEqual(settings.thermometer['azchannels'], [0, 1, 2])
+        self.assertEqual(settings.thermometer['w1devices'], ['28-000008e33449', '28-000008e3890d'])
         
         self.assertEqual(settings.host, 'localhost')
         self.assertEqual(settings.port, 4344)
