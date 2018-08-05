@@ -24,7 +24,8 @@ import logging
 import tempfile
 import unittest
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
-    celsius2fahrenheit, fahrenheit2celsius, Wire1Thermometer
+    celsius2fahrenheit, fahrenheit2celsius, Wire1Thermometer, \
+    ScaleChangerThermometerDecorator, BaseThermometer
 
 __updated__ = '2018-08-05'
 
@@ -143,6 +144,10 @@ exit(retcode)
         with self.assertRaises(FileNotFoundError):
             os.remove(self.w1_data_3)
             self.w1thermo = Wire1Thermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
+    
+    def test_scale_changer(self):
+        termo = ScaleChangerThermometerDecorator(self.w1thermo, BaseThermometer.DEGREE_FAHRENHEIT)
+        self.assertEqual(termo.temperature, 75.26)
     
     def test_conversion_methods(self):
         self.assertAlmostEqual(celsius2fahrenheit(0), 32, delta=0.01)

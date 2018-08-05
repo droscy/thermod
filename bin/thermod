@@ -57,12 +57,12 @@ __updated__ = '2018-08-05'
 # per eseguire in modo asincrono le chiamate agli script esterne
 
 # TODO [Roadmap 1.2.0] IMPORTANTE separare blocchi catch nell'inizializzazione degli oggetti base
-# TODO [Roadmap 1.2.0] scrivere Wire1Thermometer (ONGOING)
+# TODO [Roadmap 1.2.0] scrivere Wire1Thermometer e suoi test (ONGOING)
 # TODO [Roadmap 1.2.0] aggiungere modalità di funzionamento estivo (ONGOING)
 # TODO [Roadmap 1.2.0] fare client testuale
 # TODO [Roadmap 1.2.0] creare manpage per questo file e per il client testuale
 
-# TODO [Roadmap 1.2.1] scrivere test per PiAnalogZeroThermometer, Wire1Thermometer e per i Decorator
+# TODO [Roadmap 1.2.1] scrivere test per PiAnalogZeroThermometer e per i Decorator
 # TODO [Roadmap 1.2.1] impostare un timeout quando tramite pulsante si mette su "ON"
 # TODO [Roadmap 1.2.1] modificare client web per permettere lo switch verso lo
 # stato "ON" impostando però un timeout

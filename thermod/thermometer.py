@@ -341,7 +341,7 @@ class ScriptThermometer(BaseThermometer):
                                          'invalid value', str(vte),
                                          self._script[0])
         
-        logger.debug('current temperature is {:.2f}', t)
+        logger.debug('current temperature is {:.3f}', t)
         return t
 
 
@@ -569,8 +569,8 @@ class PiAnalogZeroThermometer(BaseThermometer):
         # the median excludes a possible single outlier
         raw = (numpy.median(temperatures) if len(temperatures)>2 else numpy.mean(temperatures))
         
-        logger.debug('current median of raw temperatures is {:.2f}', raw)
-        return raw
+        logger.debug('current median of raw temperatures is {:.3f}', raw)
+        return round(raw, 4)  # additional decimals are meaningless (MCP3008 is not so sensitive)
     
     def __del__(self):
         """Close hardware channels."""
@@ -693,7 +693,7 @@ class Wire1Thermometer(BaseThermometer):
         # the median excludes a possible single outlier
         raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
         
-        logger.debug('current median of raw temperatures is {:.2f}', raw)
+        logger.debug('current median of raw temperatures is {:.3f}', raw)
         return raw
 
 
@@ -755,6 +755,62 @@ class ThermometerBaseDecorator(BaseThermometer):
         self.decorated.close()
 
 
+class ScaleChangerThermometerDecorator(ThermometerBaseDecorator):
+    """Adjust the degree scale of the thermometer to another scale.
+    
+    This decorator can be used when the thermometer reads temperature in
+    a scale and the whole system wants another scale.
+    """
+    
+    def __init__(self, thermometer, convert_to_scale):
+        """Init this decorator to convert temperatures to `convert_to_scale`.
+        
+        @param thermometer the BaseThermometer to be decorated
+        @param convert_to_scale the degree scale to convert temperatures to
+        """
+        
+        super().__init__(thermometer)
+        
+        if convert_to_scale not in BaseThermometer.DEGREE_SCALE_LIST:
+            raise ValueError('invalid degree scale `{}` to convert temperatures to'.format(convert_to_scale))
+        
+        self._to_scale = convert_to_scale
+        
+        if self._scale == self._to_scale:
+            logger.debug('no conversion required, the system uses the same degree scale of the thermometer')
+        
+        else:
+            logger.debug('converting all temperatures from {} to {}',
+                         ('celsius' if self._scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'),
+                         ('celsius' if self._to_scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'))
+    
+    def __repr__(self, *args, **kwargs):
+        return '<{}.{}({!r}, {})>'.format(self.__module__,
+                                          self.__class__.__name__,
+                                          self.decorated,
+                                          self._to_scale)
+    
+    @property
+    def raw_temperature(self):
+        """Return the raw temperature converted to the wanted degree scale."""
+        
+        orig = self.decorated.raw_temperature
+        
+        if self._scale == BaseThermometer.DEGREE_CELSIUS and self._to_scale == BaseThermometer.DEGREE_FAHRENHEIT:
+            converted = celsius2fahrenheit(orig)
+            logger.debug('converting temperature {:.3f} to fahrenheit {:.3f}', orig, converted)
+        
+        elif self._scale == BaseThermometer.DEGREE_FAHRENHEIT and self._to_scale == BaseThermometer.DEGREE_CELSIUS:
+            converted = fahrenheit2celsius(orig)
+            logger.debug('converting temperature {:.3f} to celsius {:.3f}', orig, converted)
+        
+        else:
+            # no conversion required, no debug message
+            converted = orig
+        
+        return converted
+
+
 class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
     """Check if the last read temperature is similar to the average of older values.
     
@@ -799,14 +855,14 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
         avgtemp = numpy.mean(self.last_raw_temperatures)
         delta = abs(newtemp - avgtemp)
         
-        logger.debug('new temperature is {:.2f}, old average value '
-                     'is {:.2f}, delta is {:.2f}', newtemp, avgtemp, delta)
+        logger.debug('new temperature is {:.3f}, old average value '
+                     'is {:.3f}, delta is {:.3f}', newtemp, avgtemp, delta)
         
         if delta >= self.delta:
-            raise ThermometerError('the just read temperature ({} degrees) has '
-                                   'been ignored because it is more than {} '
+            raise ThermometerError('the just read temperature ({:.3f} degrees) '
+                                   'has been ignored because it is more than {} '
                                    'degrees away from the average value of the '
-                                   'previous temperatures ({} degrees)'
+                                   'previous temperatures ({:.3f} degrees)'
                                    .format(newtemp, self.delta, avgtemp),
                                    'this is probably a hardware fault')
         
@@ -906,7 +962,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             temp = self.decorated.raw_temperature
             self._temperatures.append(temp)
             logger.debug('added new raw temperature to the averaging queue '
-                         '({:.2f} -> {:.2f})', temp, self._calibrate(temp))
+                         '({:.3f} -> {:.3f})', temp, self._calibrate(temp))  # TODO rimuovere valore calibrato qui
             
             await sleep(self._short_interval, loop=self._loop)
     
@@ -951,7 +1007,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             shortened = temperatures[skip:(elements-skip)]
         
         raw = numpy.mean(shortened)
-        logger.debug('the average of last temperatures is {:.2f}', raw)
+        logger.debug('the average of last temperatures is {:.3f}', raw)
         return raw
     
     def close(self):
