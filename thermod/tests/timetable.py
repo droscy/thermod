@@ -78,10 +78,8 @@ class TestTimeTable(unittest.TestCase):
         self.timetable = TimeTable()
         self.heating = BaseHeating()
     
-    
     def tearDown(self):
         pass
-    
     
     def test_filepath(self):
         # empty tiletable
@@ -102,6 +100,11 @@ class TestTimeTable(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.timetable.filepath = invalid_json_file
             self.timetable.reload()
+        
+        try:
+            os.remove(invalid_json_file)
+        except FileNotFoundError:
+            pass
     
     
     def test_status(self):

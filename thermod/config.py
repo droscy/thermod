@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-08-05'
+__updated__ = '2018-08-06'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -48,9 +48,10 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
                      os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
 
 
-Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval', 'mode',
-                                   'heating', 'cooling', 'thermometer', 'host', 'port',
-                                   'email', 'error_code'])
+Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
+                                   'scale', 'mode', 'heating', 'cooling',
+                                   'thermometer', 'host', 'port', 'email',
+                                   'error_code'])
 """Tuple used to transfer settings from config file to main daemon."""
 
 
@@ -149,6 +150,14 @@ def parse_main_settings(cfg):
         interval = cfg.getint('global', 'interval')
         mode = cfg.getint('global', 'mode', fallback=1)
         
+        # parsing working scale
+        _scale = cfg.get('global', 'scale', fallback='celsius').casefold()
+        if _scale not in ('celsius', 'fahrenheit'):
+            raise ValueError('the working degree scale must be `celsius` or '
+                             '`fahrenheit`, `{}` provided'.format(_scale))
+        
+        scale = _scale[0]  # only the first letter of _scale is used
+        
         # parsing heating settings
         logger.debug('parsing heating settings')
         heating = {'manager': cfg.get('heating', 'heating')}
@@ -192,7 +201,8 @@ def parse_main_settings(cfg):
         logger.debug('parsing thermometer settings')
         _t_ref = cfg.get('thermometer', 't_ref')
         _t_raw = cfg.get('thermometer', 't_raw')
-        thermometer = {'script': cfg.get('thermometer', 'thermometer'),
+        thermometer = {'thermometer': cfg.get('thermometer', 'thermometer'),
+                       'calibration': cfg.getboolean('thermometer', 'calibration', fallback=False),
                        't_ref': [float(t) for t in _t_ref.split(',')] if _t_ref else [],
                        't_raw': [float(t) for t in _t_raw.split(',')] if _t_raw else [],
                        'similcheck': cfg.getboolean('thermometer', 'similarity_check', fallback=True),
@@ -206,11 +216,11 @@ def parse_main_settings(cfg):
                        'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33),
                        'stddev': cfg.getfloat('thermometer', 'stddev', fallback=2.0)}
         
-        if thermometer['script'][0] != '/' and thermometer['script'] not in ('PiAnalogZero', '1Wire'):
+        if thermometer['thermometer'][0] != '/' and thermometer['thermometer'] not in ('PiAnalogZero', '1Wire'):
             # If the first char is a / it denotes the beginning of a filesystem
             # path, so the value is acceptable. If the path is not a valid
             # script, the error will be managed later.
-            raise ValueError('invalid value `{}` for thermometer'.format(thermometer['script']))
+            raise ValueError('invalid value `{}` for thermometer'.format(thermometer['thermometer']))
         
         if thermometer['simillen'] < 1:
             raise ValueError('advanced parameter `similarity_queuelen` must be a positive integer')
@@ -220,15 +230,15 @@ def parse_main_settings(cfg):
         
         _scale = cfg.get('thermometer', 'scale', fallback='celsius').casefold()
         if _scale not in ('celsius', 'fahrenheit'):
-                raise ValueError('the degree scale must be `celsius` or '
-                                 '`fahrenheit`, `{}` provided'.format(_scale))
+                raise ValueError('the degree scale of the thermometer must be '
+                                 '`celsius` or `fahrenheit`, `{}` provided'.format(_scale))
         
         thermometer['scale'] = _scale[0]  # only the first letter of _scale is used
         
         thermometer['azchannels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
         thermometer['w1devices'] = [dev.strip() for dev in cfg.get('thermometer/1Wire', 'devices', fallback='').split(',')]
         
-        if thermometer['script'] == 'PiAnalogZero':
+        if thermometer['thermometer'] == 'PiAnalogZero':
             # In version 1.0.0 of Thermod the PiAnalogZero thermometer made use
             # of a class-builtin averaging task so, now that the averaging task
             # is a separate decorator, we enable it by default unless the user
@@ -324,7 +334,7 @@ def parse_main_settings(cfg):
         error_code = common.RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return Settings(enabled, debug, tt_file, interval, mode,
+    return Settings(enabled, debug, tt_file, interval, scale, mode,
                     heating, cooling, thermometer, host, port,
                     email, error_code)
 

@@ -23,7 +23,7 @@ import os
 import unittest
 import thermod.config as cnf
 
-__updated__ = '2018-08-05'
+__updated__ = '2018-08-06'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -60,7 +60,7 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.cooling['pins'], [24])
         self.assertEqual(settings.cooling['level'], 'l')
         
-        self.assertEqual(settings.thermometer['script'], '/etc/thermod/get-temperature')
+        self.assertEqual(settings.thermometer['thermometer'], '/etc/thermod/get-temperature')
         self.assertEqual(settings.thermometer['scale'], 'c')
         self.assertEqual(settings.thermometer['similcheck'], True)
         self.assertEqual(settings.thermometer['simillen'], 12)
