@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-08-05'
+__updated__ = '2018-08-07'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -812,6 +812,62 @@ class ScaleAdapterThermometerDecorator(ThermometerBaseDecorator):
             converted = orig
         
         return converted
+
+
+class MedianTempThermometerDecorator(ThermometerBaseDecorator):
+    """Return the median of a list of temperatures returned by a thermometer.
+    
+    Whenever the method `raw_temperature` of a subclass of BaseThermometer
+    returns a list of temperatures instead of a single value, this decorator
+    can be used to compute the median of the list and to return it (if the list
+    contains only two values, the mean is returned insted of the median).
+    
+    In addition the standard deviation of the values in the list is checked,
+    if it is greater than a threshold a warning is printed to the log because
+    probably the hardware is failing.
+    """
+    
+    def __init__(self, thermometer, stddev=2.0)
+        super().__init__(thermometer)
+        self._stddev = stddev
+        
+        # Only the first time an abnormal raw temperature is read a warning
+        # message is printed. This variable is used as a check for it.
+        self._printed_warning_std = False
+    
+    @property
+    def raw_temperature(self):
+        temperatures = self.decorated.raw_temperature
+        
+        try:
+            if len(temperatures) > 1:
+                std = numpy.std(temperatures)
+                
+                logger.debug('checking standard deviation of raw temperatures {} -> {:.2f}', temperatures, std)
+                
+                if std < self._stddev and self._printed_warning_std is True:
+                    self._printed_warning_std = False
+                
+                elif std >= self._stddev and self._printed_warning_std is False:
+                    self._printed_warning_std = True
+                    logger.info('raw temperatures are {}', temperatures)
+                    logger.warning('standard deviation of raw temperatures is {:.2f}, '
+                                   'greater than the maximum allowed value of {:.2f} '
+                                   'degrees', std, self._stddev)
+                
+                # the median excludes a possible single outlier
+                raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
+                logger.debug('current median of raw temperatures is {:.2f}', raw)
+            
+            else:
+                logger.debug('the decorated thermometer returns a single temperature')
+                raw = temperatures[0]
+        
+        except TypeError:
+            logger.debug('the decorated thermometer doesn\'t return a list of temperatures')
+            raw = temperatures
+        
+        return raw
 
 
 class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
