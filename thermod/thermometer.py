@@ -567,9 +567,9 @@ class PiAnalogZeroThermometer(BaseThermometer):
             elif std >= self._stddev and self._printed_warning_std is False:
                 self._printed_warning_std = True
                 logger.info('temperatures are {}', temperatures)
-                logger.warning('standard deviation of raw temperatures is {:.2f}, '
-                               'greater than the maximum allowed value of {:.2f} '
-                               'degrees', std, self._stddev)
+                logger.warning('standard deviation of temperatures is {:.2f}, '
+                               'greater than the maximum allowed value of {:.2f}',
+                               std, self._stddev)
             
             # the median excludes a possible single outlier
             raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
@@ -579,7 +579,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
             logger.debug('there is only one temperature, returning it')
             raw = temperatures[0]
         
-        logger.debug('returning raw A/D temperature {:.2f}', raw)
+        logger.debug('returning A/D temperature ({:.2f})', raw)
         return round(raw, 4)  # additional decimals are meaningless (MCP3008 is not so sensitive)
     
     def __del__(self):
@@ -701,9 +701,9 @@ class Wire1Thermometer(BaseThermometer):
             elif std >= self._stddev and self._printed_warning_std is False:
                 self._printed_warning_std = True
                 logger.info('temperatures are {}', temperatures)
-                logger.warning('standard deviation of raw temperatures is {:.2f}, '
-                               'greater than the maximum allowed value of {:.2f} '
-                               'degrees', std, self._stddev)
+                logger.warning('standard deviation of temperatures is {:.2f}, '
+                               'greater than the maximum allowed value of {:.2f}',
+                               std, self._stddev)
             
             # the median excludes a possible single outlier
             raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
@@ -713,7 +713,7 @@ class Wire1Thermometer(BaseThermometer):
             logger.debug('there is only one temperature, returning it')
             raw = temperatures[0]
         
-        logger.debug('returning raw 1-Wire temperature {:.2f}', raw)
+        logger.debug('returning 1-Wire temperature ({:.2f})', raw)
         return raw
 
 
@@ -796,12 +796,12 @@ class ScaleAdapterThermometerDecorator(ThermometerBaseDecorator):
         
         self._to_scale = convert_to_scale
         
-        if self._scale == self._to_scale:
+        if self.decorated._scale == self._to_scale:
             logger.debug('no conversion required, the system uses the same degree scale of the thermometer')
         
         else:
             logger.debug('converting all temperatures from {} to {}',
-                         ('celsius' if self._scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'),
+                         ('celsius' if self.decorated._scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'),
                          ('celsius' if self._to_scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'))
     
     def __repr__(self, *args, **kwargs):
@@ -816,11 +816,13 @@ class ScaleAdapterThermometerDecorator(ThermometerBaseDecorator):
         
         orig = self.decorated.raw_temperature
         
-        if self._scale == BaseThermometer.DEGREE_CELSIUS and self._to_scale == BaseThermometer.DEGREE_FAHRENHEIT:
+        if (self.decorated._scale == BaseThermometer.DEGREE_CELSIUS
+                and self._to_scale == BaseThermometer.DEGREE_FAHRENHEIT):
             converted = celsius2fahrenheit(orig)
             logger.debug('converting temperature {:.2f} to fahrenheit {:.2f}', orig, converted)
         
-        elif self._scale == BaseThermometer.DEGREE_FAHRENHEIT and self._to_scale == BaseThermometer.DEGREE_CELSIUS:
+        elif (self.decorated._scale == BaseThermometer.DEGREE_FAHRENHEIT
+                and self._to_scale == BaseThermometer.DEGREE_CELSIUS):
             converted = fahrenheit2celsius(orig)
             logger.debug('converting temperature {:.2f} to celsius {:.2f}', orig, converted)
         
@@ -981,9 +983,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         while True:
             temp = self.decorated.raw_temperature
             self._temperatures.append(temp)
-            logger.debug('added new raw temperature to the averaging queue '
-                         '({:.2f} -> {:.2f})', temp, self._calibrate(temp))  # TODO rimuovere valore calibrato qui
-            
+            logger.debug('added new temperature ({:.2f}) to the averaging queue', temp)
             await sleep(self._short_interval, loop=self._loop)
     
     def _update_temperatures_callback(self, averaging_task):
