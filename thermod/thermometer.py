@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-08-07'
+__updated__ = '2018-08-08'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -59,47 +59,6 @@ def celsius2fahrenheit(value):
 def fahrenheit2celsius(value):
     """Convert fahrenheit temperature to celsius degrees."""
     return ((value - 32.0) / 1.8)
-
-def stddev_check_and_get_median(temperatures, maxstd):
-    """Return the median of `temperatures` if their std deviation is below `maxstd`.
-    
-    Check if the standard deviation of `temperatures` is below `maxstd` value
-    and return the median value of `temperatures` (mean value if there are only
-    two temperatures).
-    
-    @param temperatures list of temperatures to be checked
-    @param maxstd maximum value for standard deviation of `temperatures`
-    @return median value of `temperatures` (mean value if there are only
-        two temperatures)
-    """
-    
-    logger.debug('checking standard deviation of temperatures {}', temperatures)
-    
-    if len(temperatures) > 1:
-        std = numpy.std(temperatures)
-        
-        logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, maxstd)
-        
-        # TODO risolvere il self._printed_warning_std qui
-        if std < maxstd and self._printed_warning_std is True:
-            self._printed_warning_std = False
-        
-        elif std >= maxstd and self._printed_warning_std is False:
-            self._printed_warning_std = True
-            logger.info('temperatures are {}', temperatures)
-            logger.warning('standard deviation of raw temperatures is {:.2f}, '
-                           'greater than the maximum allowed value of {:.2f} '
-                           'degrees', std, maxstd)
-        
-        # the median excludes a possible single outlier
-        median = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
-        logger.debug('current median of temperatures is {:.2f}', median)
-    
-    else:
-        logger.debug('there is only one temperature, returning it')
-        median = temperatures[0]
-    
-    return median
 
 
 # errors/exceptions
@@ -594,7 +553,32 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         logger.debug('retrieving temperatures from A/D converter')
         temperatures = [(((adc.value * self._vref) - 500) / 10) for adc in self._adc]
-        raw = stddev_check_and_get_median(temperatures, self._stddev)
+        
+        logger.debug('checking standard deviation of temperatures {}', temperatures)
+        
+        if len(temperatures) > 1:
+            std = numpy.std(temperatures)
+            
+            logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
+            
+            if std < self._stddev and self._printed_warning_std is True:
+                self._printed_warning_std = False
+            
+            elif std >= self._stddev and self._printed_warning_std is False:
+                self._printed_warning_std = True
+                logger.info('temperatures are {}', temperatures)
+                logger.warning('standard deviation of raw temperatures is {:.2f}, '
+                               'greater than the maximum allowed value of {:.2f} '
+                               'degrees', std, self._stddev)
+            
+            # the median excludes a possible single outlier
+            raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
+            logger.debug('current median of temperatures is {:.2f}', raw)
+        
+        else:
+            logger.debug('there is only one temperature, returning it')
+            raw = temperatures[0]
+        
         logger.debug('returning raw A/D temperature {:.2f}', raw)
         return round(raw, 4)  # additional decimals are meaningless (MCP3008 is not so sensitive)
     
@@ -704,7 +688,31 @@ class Wire1Thermometer(BaseThermometer):
                 logger.warning('cannot access 1-wire device {}: {}', dev, ioe)
                 logger.info('keep going without device {}', dev)
         
-        raw = stddev_check_and_get_median(temperatures, self._stddev)
+        logger.debug('checking standard deviation of temperatures {}', temperatures)
+        
+        if len(temperatures) > 1:
+            std = numpy.std(temperatures)
+            
+            logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
+            
+            if std < self._stddev and self._printed_warning_std is True:
+                self._printed_warning_std = False
+            
+            elif std >= self._stddev and self._printed_warning_std is False:
+                self._printed_warning_std = True
+                logger.info('temperatures are {}', temperatures)
+                logger.warning('standard deviation of raw temperatures is {:.2f}, '
+                               'greater than the maximum allowed value of {:.2f} '
+                               'degrees', std, self._stddev)
+            
+            # the median excludes a possible single outlier
+            raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
+            logger.debug('current median of temperatures is {:.2f}', raw)
+        
+        else:
+            logger.debug('there is only one temperature, returning it')
+            raw = temperatures[0]
+        
         logger.debug('returning raw 1-Wire temperature {:.2f}', raw)
         return raw
 
