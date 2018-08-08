@@ -23,7 +23,7 @@ import os
 import unittest
 import thermod.config as cnf
 
-__updated__ = '2018-08-06'
+__updated__ = '2018-08-08'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -45,6 +45,7 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.debug, False)
         self.assertEqual(settings.interval, 30)
         self.assertEqual(settings.mode, 2)
+        self.assertEqual(settings.scale, 'c')  # TODO use DEGREE_CELSIUS when DEGREE_CELSIUS will be moved in common.py module
         
         self.assertEqual(settings.heating['manager'], 'scripts')
         self.assertEqual(settings.heating['on'], '/etc/thermod/switch-heating --on -j -s -q')
@@ -69,9 +70,10 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.thermometer['avgint'], 3)
         self.assertEqual(settings.thermometer['avgtime'], 6)
         self.assertEqual(settings.thermometer['avgskip'], 0.33)
-        self.assertEqual(settings.thermometer['stddev'], 2.0)
-        self.assertEqual(settings.thermometer['azchannels'], [0, 1, 2])
-        self.assertEqual(settings.thermometer['w1devices'], ['28-000008e33449', '28-000008e3890d'])
+        self.assertEqual(settings.thermometer['az']['channels'], [0, 1, 2])
+        self.assertEqual(settings.thermometer['az']['stddev'], 2.0)
+        self.assertEqual(settings.thermometer['w1']['devices'], ['28-000008e33449', '28-000008e3890d'])
+        self.assertEqual(settings.thermometer['w1']['stddev'], 2.0)
         
         self.assertEqual(settings.host, 'localhost')
         self.assertEqual(settings.port, 4344)
