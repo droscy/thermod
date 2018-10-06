@@ -1,0 +1,13 @@
+# Fail2Ban jail for Thermod socket
+
+# Change the port number to match your Thermod configuration and logpath
+# if you use a custom log file.
+
+[thermod]
+enabled  = true
+port     = 4344
+filter   = thermod
+logpath  = /var/log/daemon.log
+maxretry = 10
+
+# vim: fileencoding=utf-8

@@ -1,0 +1,19 @@
+# Fail2Ban filter for Thermod socket invalid messages
+
+[INCLUDES]
+before = common.conf
+
+[Definition]
+_daemon = thermod.socket
+
+failregex = ^%(__prefix_line)sWARNING\s+\('<HOST>', \d+\) invalid request "[^"]+" received$
+            ^%(__prefix_line)sWARNING\s+\('<HOST>', \d+\) method "[^"]+" not implemented$
+            ^%(__prefix_line)s(WARNING|CRITICAL)\s+\('<HOST>', \d+\) cannot update settings,
+            ^%(__prefix_line)sCRITICAL\s+\('<HOST>', \d+\) the [A-Z]+ request produced an unhandled \S+ exception$
+
+ignoreregex =
+
+[Init]
+journalmatch = _SYSTEMD_UNIT=thermod.service
+
+# vim: fileencoding=utf-8

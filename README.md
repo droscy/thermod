@@ -2,7 +2,7 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.1.0<br/>
+Thermod v1.2.0<br/>
 Copyright (C) 2018 Simone Rossetto <simros85@gmail.com><br/>
 GNU General Public License v3
 
@@ -92,6 +92,22 @@ To manually start/stop *Thermod* daemon execute:
 
 ```bash
 systemctl [start|stop] thermod.service
+```
+
+
+## Fail2ban filter and jail
+If [fail2ban](https://www.fail2ban.org/) is in use, specific filter and jail
+are available to protect the system against multiple invalid requests
+in order to slow down (and possibly avoid) exploitations of bugs.
+
+To enable *Thermod* jail copy the two file `etc/fail2ban.filter` and
+`etc/fail2ban.jail` respectively to `/etc/fail2ban/filter.d/thermod.conf` and
+`/etc/fail2ban/jail.d/thermod.conf` and restart *fail2ban* daemon.
+
+```bash
+cp etc/fail2ban.filter /etc/fail2ban/filter.d/thermod.conf
+cp etc/fail2ban.jail /etc/fail2ban/jail.d/thermod.conf
+systemctl restart fail2ban.service
 ```
 
 

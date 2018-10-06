@@ -25,7 +25,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2018-06-21'
+__updated__ = '2018-08-06'
 
 
 # logger common settings
@@ -55,13 +55,16 @@ RET_CODE_TT_NOT_FOUND = 20
 RET_CODE_TT_READ_ERR = 21
 RET_CODE_TT_INVALID_SYNTAX = 22
 RET_CODE_TT_INVALID_CONTENT = 23
-RET_CODE_OS_INIT_ERR = 24
-RET_CODE_HW_INIT_ERR = 25
+RET_CODE_TT_INIT_ERR = 24
 RET_CODE_SCRIPT_INIT_ERR = 26
 RET_CODE_INIT_ERR = 29
 RET_CODE_SOCKET_PORT_ERR = 30
 RET_CODE_SOCKET_START_ERR = 31
 RET_CODE_SOCKET_STOP_ERR = 32
+RET_CODE_SOCKET_INIT_ERR = 33
+RET_CODE_THERMO_INIT_ERR = 40
+RET_CODE_HEAT_INIT_ERR = 41
+RET_CODE_COOL_INIT_ERR = 42
 RET_CODE_RUN_INVALID_STATE = 50
 RET_CODE_RUN_INVALID_VALUE = 51
 RET_CODE_RUN_HEATING_ERR = 52
@@ -84,22 +87,25 @@ TIMESTAMP_MAX_VALUE = _tmv
 """Max value for a POSIX timestamp in runnin platform."""
 
 
+# TODO in version 2.0 change status and heating_status with mode and status respectively
+# this requires some changes in timetable class too.
 ThermodStatus = namedtuple('ThermodStatus',
-                           ['timestamp', 'status', 'heating_status',
+                           ['timestamp', 'status', 'cooling', 'heating_status',
                             'current_temperature', 'target_temperature',
                             'error', 'explain'])
 """Contain current global status of the thermostat.
 
  * `timestamp` is the current time in seconds since the epoch
  * `status` is the status of the thermostat (see `timetable.JSON_ALL_STATUSES`)
- * `heating_status` is the status of the heating (it's an int: 1=ON, 0=OFF)
+ * `cooling` if thermod is working with cooling system instead of heating
+ * `heating_status` is the status of the heating/cooling (it's an integer: 1=ON, 0=OFF)
  * `current_temperature` is the current temperature in the choosen degree scale
  * `target_temperature` is the temperature to be reached
  * `error` if an error occurred this is the error (`None` if no error)
  * `explain` a longer description of the error, if available
 """
 
-# Set default values for ThermodStatus and ThermodError tuples (timestamp is
+# Set default values for ThermodStatus tuple (timestamp is
 # always required, thus the '-1' in len function below).
 ThermodStatus.__new__.__defaults__ = (None,) * (len(ThermodStatus._fields) - 1)
 

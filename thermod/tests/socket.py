@@ -31,10 +31,11 @@ import time
 
 import thermod.socket as socket
 from thermod import TimeTable, BaseHeating, ControlSocket, utils, common, timetable
+from thermod.cooling import BaseCooling
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2017-12-22'
+__updated__ = '2018-08-06'
 __url_settings__ = 'http://localhost:4344/settings'
 __url_heating__ = 'http://localhost:4344/status'
 
@@ -42,10 +43,11 @@ __url_heating__ = 'http://localhost:4344/status'
 class SocketThread(threading.Thread):
     """Thread to execut the socket and its loop"""
     
-    def __init__(self, timetable, heating, thermometer, lock):
+    def __init__(self, timetable, heating, cooling, thermometer, lock):
         super().__init__()
         self.timetable = timetable
         self.heating = heating
+        self.cooling = cooling
         self.thermometer = thermometer
         self.lock = lock
     
@@ -55,6 +57,7 @@ class SocketThread(threading.Thread):
         
         self.socket = ControlSocket(self.timetable,
                                     self.heating,
+                                    self.cooling,
                                     self.thermometer,
                                     common.SOCKET_DEFAULT_HOST,
                                     common.SOCKET_DEFAULT_PORT,
@@ -84,9 +87,10 @@ class TestSocket(unittest.TestCase):
         self.timetable.save()
         
         self.heating = BaseHeating()
+        self.cooling = BaseCooling()
         self.thermometer = FakeThermometer()
         
-        self.socket = SocketThread(self.timetable, self.heating, self.thermometer, self.lock)
+        self.socket = SocketThread(self.timetable, self.heating, self.cooling, self.thermometer, self.lock)
         self.socket.start()
         time.sleep(1)
     
@@ -128,9 +132,9 @@ class TestSocket(unittest.TestCase):
         r.close()
         
         # check returned heating informations
-        self.assertEqual(heating[socket.RSP_STATUS_HEATING_STATUS], self.heating.status)
-        self.assertAlmostEqual(heating[socket.RSP_STATUS_CURR_TEMP], self.thermometer.temperature, delta=0.1)
-        self.assertEqual(heating[socket.RSP_STATUS_TARGET_TEMP], self.timetable.target_temperature())
+        self.assertEqual(heating['heating_status'], self.heating.status)
+        self.assertAlmostEqual(heating['current_temperature'], self.thermometer.temperature, delta=0.1)
+        self.assertEqual(heating['target_temperature'], self.timetable.target_temperature())
     
     
     def test_post_wrong_messages(self):

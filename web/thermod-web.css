@@ -68,7 +68,8 @@ body.loading #loading { display: block; }
 #settings ul li label { float: left; width: 10ex; text-align: right; margin: 0.5ex 1ex 0 0; }
 #temperature-settings { margin: 0 0 2em 0; }
 #other-settings { margin: 0; }
-.set-temperatures, .set-other { float: left; text-align: center; }
+#device-button { width: 8em; }
+.set-temperatures, .set-other, #device { float: left; text-align: center; }
 
 /* save */
 #buttons { font-size: 90%; padding: 1em 1.4em; background: #eee; margin-top: 1em; }
