@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-08-08'
+__updated__ = '2018-10-06'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -55,15 +55,7 @@ __updated__ = '2018-08-08'
 # TODO rivedere test del socket che con il nuovo python e/o aiohttp non funzionano
 
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
-# per eseguire in modo asincrono le chiamate agli script esterne
-
-# TODO [Roadmap 1.2.0] IMPORTANTE separare blocchi catch nell'inizializzazione degli oggetti base (ONGOING)
-# TODO [Roadmap 1.2.0] scrivere Wire1Thermometer e suoi test (ONGOING)
-# TODO [Roadmap 1.2.0] aggiungere modalità di funzionamento estivo (ONGOING)
-# TODO [Roadmap 1.2.0] fare in modo che tutto il sistema possa far vedere le temperature in fahrenheit (ONGOING con decorator)
-# anche se i termometri lavorano in celsius, ossia aggiungere un parametro al file di config
-# per far specificare la temperature "di lavoro" e la temperatura del termometro, quindi
-# la property 'temperature' deve ritornare il valore nella scala "di lavoro"
+# per eseguire in modo asincrono le chiamate agli script esterni
 
 # TODO [Roadmap 1.2.1] scrivere test per PiAnalogZeroThermometer e per i Decorator
 # TODO [Roadmap 1.2.1] fare client testuale

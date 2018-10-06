@@ -110,9 +110,19 @@ function get_heating_status_and_refresh()
 			$('#current-status').prop('value', (data['heating_status']==1 ? 'On' : 'Off'));
 			$('#current-temperature').prop('value', data['current_temperature'].toFixed(1));
 			$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(1) : 'n.a.'));
-			
-			var device = settings['cooling'] ? 'cooling' : 'heating';
-			$('label[for=current-status]').text(device.ucfirst());
+
+			if(data['cooling'])
+			{
+				$('label[for=current-status]').text('Cooling');
+				$('#target-status option[value=t0]').text('Fastfreeze');
+			}
+			else
+			{
+				$('label[for=current-status]').text('Heating');
+				$('#target-status option[value=t0]').text('Antifreeze');
+			}
+
+			$('#target-status').selectmenu('refresh');
 		},
 		error: function(jqXHR, textStatus, errorThrown)
 		{
@@ -345,10 +355,15 @@ $(function()
 			settings = data;
 			target_status_refresh();
 			$('#' + today).prop('checked', true).change();
-			
+
 			var device = settings['cooling'] ? 'cooling' : 'heating';
 			$('#device option[value=' + device + ']').prop('selected', true);
 			$('label[for=current-status]').text(device.ucfirst());
+
+			if(settings['cooling'])
+				$('#target-status option[value=t0]').text('Fastfreeze');
+			else
+				$('#target-status option[value=t0]').text('Antifreeze');
 
 			$('#tmax').prop('value', settings['temperatures']['tmax'].toFixed(1));
 			$('#tmin').prop('value', settings['temperatures']['tmin'].toFixed(1));

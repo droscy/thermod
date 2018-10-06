@@ -2,7 +2,7 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.1.0+dev<br/>
+Thermod v1.2.0<br/>
 Copyright (C) 2018 Simone Rossetto <simros85@gmail.com><br/>
 GNU General Public License v3
 
