@@ -174,7 +174,7 @@ class BaseThermometer(object):
         
         No calibration adjustment must be performed in this method.
         
-        @exception ThermometerError if an error occurred in retriving temperature
+        @exception ThermometerError if an error occurred in retrieving temperature
         """
         
         raise NotImplementedError()
@@ -291,7 +291,7 @@ class ScriptThermometer(BaseThermometer):
         if the script cannot be executed or if the script exits with errors.
         """
         
-        logger.debug('retriving current temperature')
+        logger.debug('retrieving current temperature')
         
         try:
             raw = subprocess.check_output(self._script, shell=False)
@@ -328,7 +328,7 @@ class ScriptThermometer(BaseThermometer):
                                          'current temperature', str(jde),
                                          self._script[0])
         
-        except KeyError as ke:  # error in retriving element from out dict
+        except KeyError as ke:  # error in retrieving element from out dict
             logger.debug('the output of thermometer script lacks the `{}` item',
                          ScriptThermometer.JSON_TEMPERATURE)
             
@@ -669,7 +669,7 @@ class Wire1Thermometer(BaseThermometer):
         the computation broken physical thermometers.
         """
         
-        logger.debug('retriving temperature from 1-Wire devices')
+        logger.debug('retrieving temperature from 1-Wire devices')
         
         temperatures = []
         
@@ -1008,7 +1008,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         to compute how many temperatures to exclude.
         """
         
-        logger.debug('retriving average of last temperatures')
+        logger.debug('retrieving average of last temperatures')
         
         if self._fail_exception is not None:
             # If an exception has been raised inside the averaging task, we rise

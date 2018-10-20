@@ -785,7 +785,7 @@ class TimeTable(object):
                      'temperature "{}"', day, hour, quarter, temperature)
             
         # get day name
-        logger.debug('retriving day name')
+        logger.debug('retrieving day name')
         _day = utils.json_get_day_name(day)
         
         # check hour validity
