@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-10-06'
+__updated__ = '2018-10-10'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -57,6 +57,7 @@ __updated__ = '2018-10-06'
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterni
 
+# TODO [Roadmap 1.2.1] trovare un miodo per non mostrare il selettore Heating/Cooling su web quando non c'è un cooling in thermod.conf
 # TODO [Roadmap 1.2.1] scrivere test per PiAnalogZeroThermometer e per i Decorator
 # TODO [Roadmap 1.2.1] fare client testuale
 # TODO [Roadmap 1.2.1] creare manpage per questo file e per il client testuale
