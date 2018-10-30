@@ -35,7 +35,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2018-07-08'
+__updated__ = '2018-10-29'
 __version__ = '1.10'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -661,7 +661,7 @@ class TimeTable(object):
         behaves differently: when the temperature if over target it returns `True`.
         """
         
-        logger.debug('reading current cooling setting')
+        logger.debug('checking if system is in cooling mode: {}', self._cooling)
         return self._cooling
     
     

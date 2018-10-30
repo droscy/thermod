@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-10-10'
+__updated__ = '2018-10-29'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -68,6 +68,7 @@ __updated__ = '2018-10-10'
 # TODO [Roadmap 1.3.0] modificare client web per permettere lo switch verso lo
 # stato "ON" impostando però un timeout
 
+# TODO [Roadmap 2.0.0] rimuovere error_code dalla tupla Settings in config.py
 # TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (ONGOING faststart branch)
 # TODO [Roadmap 2.0.0] muovere le variabili DEGREE* fuori da BaseThermometer perché usate anche da altre parti
 # TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status
@@ -150,7 +151,7 @@ if main_return_code != common.RET_CODE_OK:
 
 
 # parsing main settings
-settings = config.parse_main_settings(cfg)
+(settings, main_return_code) = config.parse_main_settings(cfg)
 debug = settings.debug or args.debug
 
 if main_return_code != common.RET_CODE_OK:
