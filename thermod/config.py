@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-10-29'
+__updated__ = '2018-10-30'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -304,11 +304,11 @@ def parse_main_settings(cfg):
         eserver = cfg.get('email', 'server').split(':')
         euser = cfg.get('email', 'user', fallback='')
         epwd = cfg.get('email', 'password', fallback='')
-        email = {'server': (len(eserver)>1 and (eserver[0], eserver[1]) or eserver[0]),
+        email = {'server': ((eserver[0], eserver[1]) if len(eserver)>1 else eserver[0]),
                  'sender': cfg.get('email', 'sender'),
                  'recipients': [rcpt for (_, rcpt) in cfg.items('email/rcpt')],
                  'subject': cfg.get('email', 'subject', fallback='Thermod alert'),
-                 'credentials': ((euser or epwd) and (euser, epwd) or None)}
+                 'credentials': ((euser, epwd) if (euser or epwd) else None)}
         
         global _fake_RPi_Heating, _fake_RPi_Thermometer
         _fake_RPi_Heating = cfg.getboolean('debug', 'fake_rpi_heating', fallback=False)
