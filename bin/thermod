@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-10-29'
+__updated__ = '2018-11-22'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -57,10 +57,10 @@ __updated__ = '2018-10-29'
 # TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
 # per eseguire in modo asincrono le chiamate agli script esterni
 
-# TODO [Roadmap 1.2.1] trovare un miodo per non mostrare il selettore Heating/Cooling su web quando non c'è un cooling in thermod.conf
-# TODO [Roadmap 1.2.1] scrivere test per PiAnalogZeroThermometer e per i Decorator
-# TODO [Roadmap 1.2.1] fare client testuale
-# TODO [Roadmap 1.2.1] creare manpage per questo file e per il client testuale
+# TODO [Roadmap 1.2.2] scrivere test per PiAnalogZeroThermometer e per i Decorator
+# TODO [Roadmap 1.2.2] fare client testuale (con manpage)
+# TODO [Roadmap 1.2.2] aggiungere dpkg-divert per /etc/services nel pacchetto debian
+# come mostrato qui https://unix.stackexchange.com/questions/197379/is-there-a-system-wide-extension-to-etc-services-that-does-not-get-replaced-o
 
 # TODO [Roadmap 1.3.0] scrivere Scheduler
 # TODO [Roadmap 1.3.0] scrivere NetThermometer
@@ -68,7 +68,8 @@ __updated__ = '2018-10-29'
 # TODO [Roadmap 1.3.0] modificare client web per permettere lo switch verso lo
 # stato "ON" impostando però un timeout
 
-# TODO [Roadmap 2.0.0] rimuovere error_code dalla tupla Settings in config.py
+# TODO [Roadmap 2.0.0] rimuovere error_code dalla tupla Settings in config.py (IMPORTANTE)
+# TODO [Roadmap 2.0.0] trovare un modo per non mostrare il selettore Heating/Cooling su web quando non c'è un cooling in thermod.conf
 # TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (ONGOING faststart branch)
 # TODO [Roadmap 2.0.0] muovere le variabili DEGREE* fuori da BaseThermometer perché usate anche da altre parti
 # TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status

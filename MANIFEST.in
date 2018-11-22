@@ -7,5 +7,6 @@ include CHANGELOG.md
 recursive-include thermod *.py
 include bin/*
 include etc/*
+include doc/*
 include samples/*
 recursive-include web *
