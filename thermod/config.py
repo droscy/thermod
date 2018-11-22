@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-08-08'
+__updated__ = '2018-10-30'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -48,11 +48,16 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
                      os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
 
 
+# TODO in version 2.0 remove the error_code from Settings, it is not used by
+# the main daemon (but could be used by third parties app)
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
                                    'scale', 'mode', 'heating', 'cooling',
                                    'thermometer', 'host', 'port', 'email',
                                    'error_code'])
-"""Tuple used to transfer settings from config file to main daemon."""
+"""Tuple used to transfer settings from config file to main daemon.
+
+@deprecated the `error_code` (last element of the tuple) will be removed in version 2.0.
+"""
 
 
 def read_config_file(config_files=None):
@@ -131,7 +136,8 @@ def parse_main_settings(cfg):
     
     @param cfg configparser.ConfigParser object to parse data from
     
-    @return `thermod.utils.Settings` tuple with the main settings and an error
+    @return a tuple with two elements: the first is a `thermod.utils.Settings`
+        tuple with the just parsed main settings, the second is the error
         code that can be used as POSIX return value (if no error occurred the
         error code is 0)
     
@@ -169,6 +175,9 @@ def parse_main_settings(cfg):
         heating['off'] = cfg.get('heating/scripts', 'switchoff')
         heating['status'] = cfg.get('heating/scripts', 'status', fallback=None)
         
+        if heating['status'] == '':
+            heating['status'] = None
+        
         _level = cfg.get('heating/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
         if _level not in ('high', 'low'):
             raise ValueError('the switch_on_level for heating must be `high` '
@@ -179,15 +188,20 @@ def parse_main_settings(cfg):
         
         # parsing cooling settings
         logger.debug('parsing cooling settings')
-        cooling = {'manager': cfg.get('cooling', 'cooling', fallback=None)}
+        cooling = {'manager': cfg.get('cooling', 'cooling', fallback='')}
         
-        if (cooling['manager'] is not None
-                and cooling['manager'] not in ('heating', 'scripts', 'PiPinsRelay')):
+        if cooling['manager'] == '':
+            cooling['manager'] = None
+        
+        elif cooling['manager'] not in ('heating', 'scripts', 'PiPinsRelay'):
             raise ValueError('invalid value `{}` for cooling system'.format(cooling['manager']))
             
         cooling['on'] = cfg.get('cooling/scripts', 'switchon')
         cooling['off'] = cfg.get('cooling/scripts', 'switchoff')
         cooling['status'] = cfg.get('cooling/scripts', 'status', fallback=None)
+        
+        if cooling['status'] == '':
+            cooling['status'] = None
         
         _level = cfg.get('cooling/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
         if _level not in ('high', 'low'):
@@ -290,11 +304,11 @@ def parse_main_settings(cfg):
         eserver = cfg.get('email', 'server').split(':')
         euser = cfg.get('email', 'user', fallback='')
         epwd = cfg.get('email', 'password', fallback='')
-        email = {'server': (len(eserver)>1 and (eserver[0], eserver[1]) or eserver[0]),
+        email = {'server': ((eserver[0], eserver[1]) if len(eserver)>1 else eserver[0]),
                  'sender': cfg.get('email', 'sender'),
                  'recipients': [rcpt for (_, rcpt) in cfg.items('email/rcpt')],
                  'subject': cfg.get('email', 'subject', fallback='Thermod alert'),
-                 'credentials': ((euser or epwd) and (euser, epwd) or None)}
+                 'credentials': ((euser, epwd) if (euser or epwd) else None)}
         
         global _fake_RPi_Heating, _fake_RPi_Thermometer
         _fake_RPi_Heating = cfg.getboolean('debug', 'fake_rpi_heating', fallback=False)
@@ -338,8 +352,8 @@ def parse_main_settings(cfg):
         error_code = common.RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return Settings(enabled, debug, tt_file, interval, scale, mode,
-                    heating, cooling, thermometer, host, port,
-                    email, error_code)
+    return (Settings(enabled, debug, tt_file, interval, scale, mode,
+                     heating, cooling, thermometer, host, port,
+                     email, error_code), error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

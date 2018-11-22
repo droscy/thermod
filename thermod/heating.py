@@ -334,7 +334,7 @@ class ScriptHeating(BaseHeating):
             `status` script
         """
         
-        logger.debug('retriving current status of the heating')
+        logger.debug('retrieving current status of the heating')
         
         if self._status_script[0] is None:
             raise HeatingError('no status script set in config file')
@@ -374,7 +374,7 @@ class ScriptHeating(BaseHeating):
                                      'current status', str(jde),
                                      self._status_script[0])
         
-        except KeyError as ke:  # error in retriving element from output dict
+        except KeyError as ke:  # error in retrieving element from output dict
             logger.debug('the script output lacks the `{}` item',
                          ScriptHeating.JSON_STATUS)
             

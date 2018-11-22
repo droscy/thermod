@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-08-08'
+__updated__ = '2018-11-10'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -174,7 +174,7 @@ class BaseThermometer(object):
         
         No calibration adjustment must be performed in this method.
         
-        @exception ThermometerError if an error occurred in retriving temperature
+        @exception ThermometerError if an error occurred in retrieving temperature
         """
         
         raise NotImplementedError()
@@ -291,7 +291,7 @@ class ScriptThermometer(BaseThermometer):
         if the script cannot be executed or if the script exits with errors.
         """
         
-        logger.debug('retriving current temperature')
+        logger.debug('retrieving current temperature')
         
         try:
             raw = subprocess.check_output(self._script, shell=False)
@@ -328,7 +328,7 @@ class ScriptThermometer(BaseThermometer):
                                          'current temperature', str(jde),
                                          self._script[0])
         
-        except KeyError as ke:  # error in retriving element from out dict
+        except KeyError as ke:  # error in retrieving element from out dict
             logger.debug('the output of thermometer script lacks the `{}` item',
                          ScriptThermometer.JSON_TEMPERATURE)
             
@@ -566,10 +566,9 @@ class PiAnalogZeroThermometer(BaseThermometer):
             
             elif std >= self._stddev and self._printed_warning_std is False:
                 self._printed_warning_std = True
-                logger.info('temperatures are {}', temperatures)
-                logger.warning('standard deviation of temperatures is {:.2f}, '
+                logger.warning('standard deviation of temperatures {} is {:.2f}, '
                                'greater than the maximum allowed value of {:.2f}',
-                               std, self._stddev)
+                               [round(t, 2) for t in temperatures], std, self._stddev)
             
             # the median excludes a possible single outlier
             raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
@@ -669,7 +668,7 @@ class Wire1Thermometer(BaseThermometer):
         the computation broken physical thermometers.
         """
         
-        logger.debug('retriving temperature from 1-Wire devices')
+        logger.debug('retrieving temperature from 1-Wire devices')
         
         temperatures = []
         
@@ -949,10 +948,9 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
                                    maxlen=int(self._averaging_time * 60 / self._short_interval))
         
         # start averaging task
-        logger.debug('creating averaging task')
         self._loop = (loop if loop is not None else get_event_loop())
-        self._averaging_task = self._loop.create_task(self._update_temperatures())
-        self._averaging_task.add_done_callback(self._update_temperatures_callback)
+        self._averaging_task = None
+        self._create_averaging_task()
     
     def __repr__(self, *args, **kwargs):
         return ('<{module}.{cls}(thermometer={decorated!r}, '
@@ -966,6 +964,17 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
                                          avgtime=self._averaging_time,
                                          skipval=self._skipval,
                                          loop=self._loop))
+    
+    def _create_averaging_task(self):
+        """Create an averaging task if no task has already been created."""
+        
+        if self._averaging_task is None:
+            logger.debug('creating averaging task')
+            self._averaging_task = self._loop.create_task(self._update_temperatures())
+            self._averaging_task.add_done_callback(self._update_temperatures_callback)
+        
+        else:
+            logger.debug('an averaging task is already running, cannot create a new one')
     
     async def _update_temperatures(self):
         """Start a loop to update the list of last measured temperatures.
@@ -996,8 +1005,11 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             logger.debug('temperature updating cycle stopped')
         
         except Exception as e:
-            logger.debug('unknown error in temperature updating cycle')
+            logger.debug('generic exception in temperature updating cycle')
             self._fail_exception = e
+        
+        finally:
+            self._averaging_task = None
     
     @property
     def raw_temperature(self):
@@ -1008,12 +1020,21 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         to compute how many temperatures to exclude.
         """
         
-        logger.debug('retriving average of last temperatures')
+        logger.debug('retrieving average of last temperatures')
         
         if self._fail_exception is not None:
-            # If an exception has been raised inside the averaging task, we rise
-            # it here in order to be propagated to the main loop.
-            raise self._fail_exception
+            # An exception has been raised inside the averaging task, we restart
+            # the task because the error could have been transient and we raise
+            # the exception again here in order to be propagated to the
+            # main loop. Then we reset the exception.
+            
+            self._create_averaging_task()
+            
+            try:
+                raise self._fail_exception
+            
+            finally:
+                self._fail_exception = None
         
         skip = int(round(self._temperatures.maxlen * self._skipval / 2, 0))  # least and greatest temperatures to be excluded
         elements = len(self._temperatures)
@@ -1033,7 +1054,9 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
     def close(self):
         """Stop the temperature updating task."""
         logger.debug('stopping temperature updating cycle')
-        self._averaging_task.cancel()
+        
+        if self._averaging_task is not None:
+            self._averaging_task.cancel()
         
         # forwarding the call to the decorated thermometer
         self.decorated.close()

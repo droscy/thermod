@@ -1,0 +1,112 @@
+.\"
+.\" Thermod manpage
+.\"
+.\" process with groff -man -Tascii thermod.1
+.\" or with groff -t -e -mandoc -Tps thermod.1 > thermod.ps
+.\" or with nroff -man thermod.1 | less
+.\"
+.
+.
+.\" Compatibility for legacy Unix systems
+.de TQ
+.  br
+.  ns
+.  TP \\$1\" no doublequotes around argument!
+..
+.
+.
+.TH thermod 1 "November 2018" "1.2.1" "User Commands"
+.SH NAME
+thermod \- programmable thermostat daemon for smart-heating automation
+
+.SH DESCRIPTION
+A thermostat that can be connected to any heating or cooling system.
+The switch on/off can be done through a relay, IR signals or a custom
+script. The temperatures can be read using a 1-Wire thermometer, an
+Analog Zero Board connected to a Raspberry Pi or any custom script.
+
+The interaction with the termostat is done through HTTP protocol for
+low level operations. A web interface is provided to access the
+programming panel in a user-friendly way.
+
+.SH SYNOPSIS
+.SY thermod
+.OP \-C CONFIG
+.OP \-L LOG
+.OP \-\-debug
+.OP \-\-daemon
+.OP \-\-help
+.OP \-\-version
+.YS
+
+.SH OPTIONS
+.TP
+.BI \-C\  CONFIG
+.TQ 
+.BI \-\-config\  CONFIG
+read configuration from CONFIG file (full path)
+.TP
+.BI \-L\  LOG
+.TQ 
+.BI \-\-log\  LOG
+write log messages to LOG file (full path)
+.TP
+.BI \-D
+.TQ
+.BI \-\-debug
+start monitor in debug mode
+.TP
+.BI \-\-daemon
+write log messages to syslog and honor 'enabled'
+setting in config file (can be used when started from
+systemd)
+.TP
+.BI \-h
+.TQ
+.BI \-\-help
+show help message and exit
+.TP
+.BI \-v
+.TQ
+.BI \-\-version
+show program's version number and exit
+
+.SH RETURNED\ VALUES
+.IP - 2
+.B 0
+no error
+.IP - 2
+.B 6
+daemon disabled in configuration file
+.IP - 2
+.B >=10
+syntax errors in configuration file
+.IP - 2
+.B >=20
+errors initializing internal objects
+.IP - 2
+.B >=30
+errors opening the communication socket
+.IP - 2
+.B >=40
+errors in external systems (heating, cooling, thermometer)
+.IP - 2
+.B >=50
+other errors during normal runtime
+.IP - 2
+.B >=60
+errors during daemon shutdown
+.IP - 2
+.B 130
+daemon stopped with keyboard Ctrl+C
+
+.SH COPYRIGHT
+Copyright (C) 2018
+.MT simros85@gmail.com
+Simone Rossetto
+.ME
+
+GNU General Public License v3
+.ce 0
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY.
