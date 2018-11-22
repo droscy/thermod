@@ -1,5 +1,10 @@
 # Thermod Changelog
 
+## 1.2.1
+
+  * Fix crash when cooling setting is empty
+  * Add auto-restart of averaging task in case of hardware errors
+
 ## 1.2.0
 
   * Add support for cooling system
