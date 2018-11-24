@@ -11,7 +11,7 @@ override_dh_auto_build-indep:
 
 override_dh_auto_clean:
 	dh_auto_clean
-	rm -fr doc/
+	rm -fr doc/html/
 
 override_dh_installinit:
 	dh_installinit --noscripts
