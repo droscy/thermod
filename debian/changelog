@@ -1,3 +1,10 @@
+thermod (1.2.1-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Install manpage.
+
+ -- Simone Rossetto <simros85@gmail.com>  Sun, 25 Nov 2018 22:31:34 +0100
+
 thermod (1.2.0-1) unstable; urgency=medium
 
   * New upstream release.
