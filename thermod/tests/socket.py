@@ -31,13 +31,14 @@ import asyncio
 from thermod import socket, timetable
 from thermod.timetable import TimeTable
 from thermod.heating import BaseHeating
+from thermod.cooling import BaseCooling
 from thermod.socket import ControlSocket
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
 __updated__ = '2018-12-19'
-__url_settings__ = 'http://localhost:4344/settings'
-__url_heating__ = 'http://localhost:4344/status'
+__url_settings__ = 'http://localhost:4345/settings'
+__url_heating__ = 'http://localhost:4345/status'
 
 
 class SocketThread(threading.Thread):

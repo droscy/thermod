@@ -22,8 +22,9 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import unittest
 import thermod.config as cnf
+import thermod.common as common
 
-__updated__ = '2018-08-08'
+__updated__ = '2018-12-19'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -40,7 +41,8 @@ class TestHeating(unittest.TestCase):
         (cfg, err) = cnf.read_config_file(os.path.join('etc', cnf.MAIN_CONFIG_FILENAME))
         self.assertEqual(err, 0)
         
-        settings = cnf.parse_main_settings(cfg)
+        (settings, error_code) = cnf.parse_main_settings(cfg)
+        self.assertEqual(error_code, common.RET_CODE_OK)
         self.assertEqual(settings.enabled, False)
         self.assertEqual(settings.debug, False)
         self.assertEqual(settings.interval, 30)

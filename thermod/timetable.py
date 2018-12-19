@@ -921,7 +921,7 @@ class TimeTable(object):
             
         # get day name
         logger.debug('retrieving day name')
-        _day = utils.json_get_day_name(day)
+        _day = json_get_day_name(day)
         
         # check hour validity
         logger.debug('checking and formatting hour')
