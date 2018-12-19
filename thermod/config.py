@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-05-06'
+__updated__ = '2018-10-30'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -48,10 +48,16 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
                      os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
 
 
-Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval', 'mode',
-                                   'heating', 'thermometer', 'host', 'port',
-                                   'email', 'error_code'])
-"""Tuple used to transfer settings from config file to main daemon."""
+# TODO in version 2.0 remove the error_code from Settings, it is not used by
+# the main daemon (but could be used by third parties app)
+Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
+                                   'scale', 'mode', 'heating', 'cooling',
+                                   'thermometer', 'host', 'port', 'email',
+                                   'error_code'])
+"""Tuple used to transfer settings from config file to main daemon.
+
+@deprecated the `error_code` (last element of the tuple) will be removed in version 2.0.
+"""
 
 
 def read_config_file(config_files=None):
@@ -130,7 +136,8 @@ def parse_main_settings(cfg):
     
     @param cfg configparser.ConfigParser object to parse data from
     
-    @return `thermod.utils.Settings` tuple with the main settings and an error
+    @return a tuple with two elements: the first is a `thermod.utils.Settings`
+        tuple with the just parsed main settings, the second is the error
         code that can be used as POSIX return value (if no error occurred the
         error code is 0)
     
@@ -141,6 +148,7 @@ def parse_main_settings(cfg):
         raise TypeError('ConfigParser object is required to parse main settings')
     
     try:
+        # parsing main settings
         logger.debug('parsing main settings')
         enabled = cfg.getboolean('global', 'enabled')
         debug = cfg.getboolean('global', 'debug')
@@ -148,34 +156,67 @@ def parse_main_settings(cfg):
         interval = cfg.getint('global', 'interval')
         mode = cfg.getint('global', 'mode', fallback=1)
         
+        # parsing working scale
+        _scale = cfg.get('global', 'scale', fallback='celsius').casefold()
+        if _scale not in ('celsius', 'fahrenheit'):
+            raise ValueError('the working degree scale must be `celsius` or '
+                             '`fahrenheit`, `{}` provided'.format(_scale))
+        
+        scale = _scale[0]  # only the first letter of _scale is used
+        
+        # parsing heating settings
         logger.debug('parsing heating settings')
         heating = {'manager': cfg.get('heating', 'heating')}
-        if heating['manager'] == 'scripts':
-            heating['on'] = cfg.get('heating/scripts', 'switchon')
-            heating['off'] = cfg.get('heating/scripts', 'switchoff')
-            heating['status'] = cfg.get('heating/scripts', 'status')
         
-        elif heating['manager'] == 'PiPinsRelay':
-            # The user choose to use the internal class for Raspberry Pi
-            # heating instead of external scripts.
+        if heating['manager'] not in ('scripts', 'PiPinsRelay'):
+            raise ValueError('invalid value `{}` for heating'.format(heating['manager']))
+        
+        heating['on'] = cfg.get('heating/scripts', 'switchon')
+        heating['off'] = cfg.get('heating/scripts', 'switchoff')
+        heating['status'] = cfg.get('heating/scripts', 'status', fallback=None)
+        
+        if heating['status'] == '':
+            heating['status'] = None
+        
+        _level = cfg.get('heating/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
+        if _level not in ('high', 'low'):
+            raise ValueError('the switch_on_level for heating must be `high` '
+                             'or `low`, `{}` provided'.format(_level))
+        
+        heating['pins'] = [int(p) for p in cfg.get('heating/PiPinsRelay', 'pins', fallback='').split(',')]
+        heating['level'] = _level[0]  # only the first letter of _level is used
+        
+        # parsing cooling settings
+        logger.debug('parsing cooling settings')
+        cooling = {'manager': cfg.get('cooling', 'cooling', fallback='')}
+        
+        if cooling['manager'] == '':
+            cooling['manager'] = None
+        
+        elif cooling['manager'] not in ('heating', 'scripts', 'PiPinsRelay'):
+            raise ValueError('invalid value `{}` for cooling system'.format(cooling['manager']))
             
-            _level = cfg.get('heating/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
-            if _level not in ('high', 'low'):
-                raise ValueError('the switch_on_level must be `high` or `low`, '
-                                 '`{}` provided'.format(_level))
-            
-            heating['pins'] = [int(p) for p in cfg.get('heating/PiPinsRelay', 'pins', fallback='').split(',')]
-            heating['level'] = _level[0]  # only the first letter of _level is used
+        cooling['on'] = cfg.get('cooling/scripts', 'switchon')
+        cooling['off'] = cfg.get('cooling/scripts', 'switchoff')
+        cooling['status'] = cfg.get('cooling/scripts', 'status', fallback=None)
         
-        # An `elif` can be added with additional specific heating classes
-        # once they will be created.
-        else:
-            raise ValueError('invalid value `{}` for heating manager'.format(heating['manager']))
+        if cooling['status'] == '':
+            cooling['status'] = None
         
+        _level = cfg.get('cooling/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
+        if _level not in ('high', 'low'):
+            raise ValueError('the switch_on_level for cooling must be `high` '
+                             'or `low`, `{}` provided'.format(_level))
+        
+        cooling['pins'] = [int(p) for p in cfg.get('cooling/PiPinsRelay', 'pins', fallback='').split(',')]
+        cooling['level'] = _level[0]  # only the first letter of _level is used
+        
+        # parsing thermometer setting
         logger.debug('parsing thermometer settings')
         _t_ref = cfg.get('thermometer', 't_ref')
         _t_raw = cfg.get('thermometer', 't_raw')
-        thermometer = {'script': cfg.get('thermometer', 'thermometer'),
+        thermometer = {'thermometer': cfg.get('thermometer', 'thermometer'),
+                       'calibration': cfg.getboolean('thermometer', 'calibration', fallback=False),
                        't_ref': [float(t) for t in _t_ref.split(',')] if _t_ref else [],
                        't_raw': [float(t) for t in _t_raw.split(',')] if _t_raw else [],
                        'similcheck': cfg.getboolean('thermometer', 'similarity_check', fallback=True),
@@ -186,7 +227,14 @@ def parse_main_settings(cfg):
                        'avgtask': cfg.getboolean('thermometer', 'avgtask', fallback=False),
                        'avgint': cfg.getint('thermometer', 'avgint', fallback=3),
                        'avgtime': cfg.getint('thermometer', 'avgtime', fallback=6),
-                       'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33)}
+                       'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33),
+                       'stddev': cfg.getfloat('thermometer', 'stddev', fallback=2.0)}
+        
+        if thermometer['thermometer'][0] != '/' and thermometer['thermometer'] not in ('PiAnalogZero', '1Wire'):
+            # If the first char is a / it denotes the beginning of a filesystem
+            # path, so the value is acceptable. If the path is not a valid
+            # script, the error will be managed later.
+            raise ValueError('invalid value `{}` for thermometer'.format(thermometer['thermometer']))
         
         if thermometer['simillen'] < 1:
             raise ValueError('advanced parameter `similarity_queuelen` must be a positive integer')
@@ -196,26 +244,26 @@ def parse_main_settings(cfg):
         
         _scale = cfg.get('thermometer', 'scale', fallback='celsius').casefold()
         if _scale not in ('celsius', 'fahrenheit'):
-                raise ValueError('the degree scale must be `celsius` or '
-                                 '`fahrenheit`, `{}` provided'.format(_scale))
+                raise ValueError('the degree scale of the thermometer must be '
+                                 '`celsius` or `fahrenheit`, `{}` provided'.format(_scale))
         
         thermometer['scale'] = _scale[0]  # only the first letter of _scale is used
         
-        if thermometer['script'][0] == '/':
-            # If the first char is a / it denotes the beginning of a filesystem
-            # path, so the value is acceptable and no additional parameters
-            # are required.
-            pass
+        thermometer['az'] = {}
+        thermometer['az']['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
+        thermometer['az']['stddev'] = cfg.getfloat('thermometer/PiAnalogZero', 'stddev', fallback=2.0)
         
-        elif thermometer['script'] == 'PiAnalogZero':
-            # The user choose to use the internal class for Raspberry Pi
-            # thermometer instead of an external script.
-            thermometer['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
-            thermometer['stddev'] = cfg.getfloat('thermometer/PiAnalogZero', 'stddev', fallback=2.0)
-            
-            if thermometer['stddev'] <= 0:
-                raise ValueError('advanced parameter `stddev` must be positive')
-            
+        thermometer['w1'] = {}
+        thermometer['w1']['devices'] = [dev.strip() for dev in cfg.get('thermometer/1Wire', 'devices', fallback='').split(',')]
+        thermometer['w1']['stddev'] = cfg.getfloat('thermometer/1Wire', 'stddev', fallback=2.0)
+        
+        if thermometer['az']['stddev'] <= 0:
+            raise ValueError('advanced parameter `stddev` for PiAnalogZero must be positive')
+        
+        if thermometer['w1']['stddev'] <= 0:
+            raise ValueError('advanced parameter `stddev` for 1Wire must be positive')
+        
+        if thermometer['thermometer'] == 'PiAnalogZero':
             # In version 1.0.0 of Thermod the PiAnalogZero thermometer made use
             # of a class-builtin averaging task so, now that the averaging task
             # is a separate decorator, we enable it by default unless the user
@@ -230,11 +278,6 @@ def parse_main_settings(cfg):
                 thermometer['avgtime'] = cfg.getint('thermometer/PiAnalogZero', 'avgtime', fallback=thermometer['avgtime'])
                 thermometer['avgskip'] = cfg.getfloat('thermometer/PiAnalogZero', 'skipval', fallback=thermometer['avgskip'])
         
-        # An `elif` can be added with additional specific thermometer classes
-        # once they will be created.
-        else:
-            raise ValueError('invalid value `{}` for thermometer'.format(thermometer['script']))
-        
         # Checking here the avg* settings because they can have been overwritten
         # by older settings of PiAnalogZero section.
         if thermometer['avgint'] < 1:
@@ -246,6 +289,7 @@ def parse_main_settings(cfg):
         if thermometer['avgskip'] < 0 or thermometer['avgskip'] > 1:
             raise ValueError('advanced parameter `avgskip` must be a float number between 0 and 1')
         
+        # parsing socket settings
         logger.debug('parsing socket settings')
         host = cfg.get('socket', 'host', fallback=common.SOCKET_DEFAULT_HOST)
         port = cfg.getint('socket', 'port', fallback=common.SOCKET_DEFAULT_PORT)
@@ -255,15 +299,16 @@ def parse_main_settings(cfg):
             # the daemon and the resulting log file can be messy
             raise OverflowError('socket port {:d} is outside range 0-65535'.format(port))
         
+        # parsing email settings
         logger.debug('parsing email settings')
         eserver = cfg.get('email', 'server').split(':')
         euser = cfg.get('email', 'user', fallback='')
         epwd = cfg.get('email', 'password', fallback='')
-        email = {'server': (len(eserver)>1 and (eserver[0], eserver[1]) or eserver[0]),
+        email = {'server': ((eserver[0], eserver[1]) if len(eserver)>1 else eserver[0]),
                  'sender': cfg.get('email', 'sender'),
-                 'recipients': [rcpt for _,rcpt in cfg.items('email/rcpt')],
+                 'recipients': [rcpt for (_, rcpt) in cfg.items('email/rcpt')],
                  'subject': cfg.get('email', 'subject', fallback='Thermod alert'),
-                 'credentials': ((euser or epwd) and (euser, epwd) or None)}
+                 'credentials': ((euser, epwd) if (euser or epwd) else None)}
         
         global _fake_RPi_Heating, _fake_RPi_Thermometer
         _fake_RPi_Heating = cfg.getboolean('debug', 'fake_rpi_heating', fallback=False)
@@ -307,8 +352,8 @@ def parse_main_settings(cfg):
         error_code = common.RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return Settings(enabled, debug, tt_file, interval, mode,
-                    heating, thermometer, host, port,
-                    email, error_code)
+    return (Settings(enabled, debug, tt_file, interval, scale, mode,
+                     heating, cooling, thermometer, host, port,
+                     email, error_code), error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

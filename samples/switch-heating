@@ -148,7 +148,7 @@ def comunicate(device, command, response=None, timeout=5):
         
         logger.debug('command sent')
         
-        logger.debug('retriving status message from relay')
+        logger.debug('retrieving status message from relay')
         status = relay.read(relay_cmd_size)
         
         if response is not None and (status != response):

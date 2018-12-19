@@ -35,7 +35,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonVal
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2018-05-12'
+__updated__ = '2018-12-19'
 __version__ = '1.10'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -47,8 +47,9 @@ JSON_TEMPERATURES = 'temperatures'
 JSON_TIMETABLE = 'timetable'
 JSON_DIFFERENTIAL = 'differential'
 JSON_GRACE_TIME = 'grace_time'
+JSON_COOLING = 'cooling'
 JSON_ALL_SETTINGS = (JSON_STATUS, JSON_TEMPERATURES, JSON_TIMETABLE,
-                     JSON_DIFFERENTIAL, JSON_GRACE_TIME)
+                     JSON_DIFFERENTIAL, JSON_GRACE_TIME, JSON_COOLING)
 
 JSON_T0_STR = 't0'
 JSON_TMIN_STR = 'tmin'
@@ -84,6 +85,7 @@ JSON_SCHEMA = {
         'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
         'grace_time': {'type': ['number', 'null'], 'minimum': 0},
+        'cooling': {'type': 'boolean'},
         'temperatures': {
             'type': 'object',
             'properties': {
@@ -314,6 +316,7 @@ class TimeTable(object):
         self._mode = mode
         self._differential = 0.5
         self._grace_time = float('+Inf')  # disabled by default
+        self._cooling = False
         
         self._has_been_validated = False
         """Used to speedup validation.
@@ -389,7 +392,8 @@ class TimeTable(object):
                         and (self._timetable == other._timetable)
                         and (self._mode == other._mode)
                         and (self._differential == other._differential)
-                        and (self._grace_time == other._grace_time))
+                        and (self._grace_time == other._grace_time)
+                        and (self._cooling == other._cooling))
         
         except AttributeError:
             result = False
@@ -408,6 +412,7 @@ class TimeTable(object):
         new._mode = self._mode
         new._differential = self._differential
         new._grace_time = self._grace_time
+        new._cooling = self._cooling
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
@@ -429,6 +434,7 @@ class TimeTable(object):
         new._mode = self._mode
         new._differential = self._differential
         new._grace_time = self._grace_time
+        new._cooling = self._cooling
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
@@ -455,6 +461,7 @@ class TimeTable(object):
         settings = {JSON_STATUS: self._status,
                     JSON_DIFFERENTIAL: self._differential,
                     JSON_GRACE_TIME: self._grace_time,
+                    JSON_COOLING: self._cooling,
                     JSON_TEMPERATURES: self._temperatures,
                     JSON_TIMETABLE: self._timetable}
         
@@ -492,6 +499,9 @@ class TimeTable(object):
             # using grace_time setter to perform additional checks
             self.grace_time = state[JSON_GRACE_TIME]
         
+        if JSON_COOLING in state:
+            self._cooling = state[JSON_COOLING]
+        
         self._last_update_timestamp = time.time()
         
         # validating new state
@@ -510,6 +520,7 @@ class TimeTable(object):
             logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
             logger.debug('differential: {} deg', self._differential)
             logger.debug('grace time: {} sec', self._grace_time)
+            logger.debug('cooling: {}', self._cooling)
         
         logger.debug('new internal state set')
     
@@ -778,6 +789,37 @@ class TimeTable(object):
     
     
     @property
+    def cooling(self):
+        """Return `True` if currently the cooling system is used instead of heating.
+        
+        If this is `True` the `TimeTable.should_the_heating_be_on()` method
+        behaves differently: when the temperature if over target it returns `True`.
+        """
+        
+        logger.debug('checking if system is in cooling mode: {}', self._cooling)
+        return self._cooling
+    
+    
+    @cooling.setter
+    def cooling(self, value):
+        """Set to `True` if `TimeTable.should_the_heating_be_on()` must
+        return `True` when the temperature is over target."""
+        
+        logger.debug('setting the new cooling value')
+        
+        if value == True or value == False:
+            self._cooling = value
+        
+        else:
+            logger.debug('invalid new cooling setting: {}', value)
+            raise JsonValueError('the new cooling setting `{}` is invalid, '
+                                'it must be a boolean'.format(value))
+        
+        self._last_update_timestamp = time.time()
+        logger.debug('new cooling value set: {}', self._cooling)
+    
+    
+    @property
     def t0(self):
         """Return the current value for ``t0`` temperature."""
         logger.debug('reading current t0 temperature')
@@ -878,8 +920,8 @@ class TimeTable(object):
                      'temperature "{}"', day, hour, quarter, temperature)
             
         # get day name
-        logger.debug('retriving day name')
-        _day = json_get_day_name(day)
+        logger.debug('retrieving day name')
+        _day = utils.json_get_day_name(day)
         
         # check hour validity
         logger.debug('checking and formatting hour')
@@ -948,6 +990,11 @@ class TimeTable(object):
     def target_temperature(self, target_time=None):
         """Return the target temperature at specific `target_time`.
         
+        NB: when `self._cooling` is `True`, `tmax` and `tmin` values are
+        inverted because those values are used with the meaning of ON and OFF,
+        so when the set temperature is `tmax` it means both "heating on" and
+        "cooling on".
+        
         @param target_time must be a `datetime` object
         @return the target temperature at specific `target_time`, if the
             current status is ON or OFF the returned value is `None`.
@@ -978,7 +1025,16 @@ class TimeTable(object):
             hour = json_format_hour(target_time.hour)
             quarter = int(target_time.minute // 15)
             
-            target = self.degrees(self._timetable[day][hour][quarter])
+            target = self._timetable[day][hour][quarter]
+            
+            # in case of cooling, the meaning of tmax and tmin are inverted
+            if self._cooling:
+                if target == JSON_TMAX_STR:
+                    target = JSON_TMIN_STR
+                elif target == JSON_TMIN_STR:
+                    target = JSON_TMAX_STR
+            
+            target = self.degrees(target)
             logger.debug('day: {}, hour: {}, quarter: {}, '
                          'target_temperature: {}', day, hour, quarter, target)
         
@@ -1002,18 +1058,24 @@ class TimeTable(object):
     # manualmente da ogni oggetto che modifica il TimeTable, ma si può creare
     # un decoratore che esegue "self._lock.notify()" ogni volta che quel
     # metodo finisce correttamente.
-    def should_the_heating_be_on(self, current_temperature, heating_status):
-        """Check if the heating, now, should be on.
+    def should_the_heating_be_on(self, current_temperature, heatcool_status):
+        """Check if the heating/cooling, now, should be on.
+        
+        This method can be used with both heating and cooling. What makes the
+        difference in behaviour is the internal value of `TimeTable._cooling`
+        attribute: if it is `True` this method returns `True` when the current
+        temperature is above target, otherwise when the temperature is below
+        target.
         
         This method updates only the internal variable `self._last_tgt_temp_reached_timestamp`
         if appropriate conditions are met.
         
         @param current_temperature the current temperature of the room
-        @param heating_status current status of the heating (as returned from
-            `BaseHeating.status`)
+        @param heatcool_status current status of the heating/cooling (as
+            returned from `BaseHeating.status` or `BaseCooling.status`)
         
         @return an instance of ShouldBeOn with a boolean value
-            of `True` if the heating should be on, `False` otherwise
+            of `True` if the heating/cooling should be on, `False` otherwise
         
         @see ShouldBeOn for additional attributes of this class
         
@@ -1022,7 +1084,8 @@ class TimeTable(object):
             valid temperature
         """
         
-        logger.debug('checking should-be status of the heating')
+        logger.debug('checking should-be status of the {}',
+                     ('heating' if not self._cooling else 'cooling system'))
         
         should_be_on = None
         self._validate()
@@ -1049,20 +1112,35 @@ class TimeTable(object):
             # The working mode simply adjusts the real target temperature and
             # differential values to take into account thermal inertia.
             if self._mode == 1:
-                # switch on at target-diff, switch off at target+diff
+                # heating: switch on at target-diff, switch off at target+diff
+                # cooling: switch on at target+diff, switch off at target-diff
                 target = realtgt
+            
             elif self._mode == 2:
-                # switch on at target-2*diff, switch off at target
-                target = realtgt - diff
+                if not self._cooling:
+                    # switch on at target-2*diff, switch off at target
+                    target = realtgt - diff
+                
+                else:
+                    # switch on at target+2*diff, switch off at target
+                    target = realtgt + diff
+                    
             elif self._mode == 3:
-                # switch on at target-2*diff, switch off at target-diff
                 diff /= 2
-                target = realtgt - 3*diff
+                
+                if not self._cooling:
+                    # switch on at target-2*diff, switch off at target-diff
+                    target = realtgt - 3*diff
+                
+                else:
+                    # switch on at target+2*diff, switch off at target+diff
+                    target = realtgt + 3*diff
+                    
             else:
                 logger.warning('invalid working mode "{}", fallback to default mode "1"', self._mode)
                 target = realtgt
             
-            ison = bool(heating_status)
+            ison = bool(heatcool_status)
             nowts = target_time.timestamp()
             grace = self._grace_time
             
@@ -1081,23 +1159,37 @@ class TimeTable(object):
             tgtts = self._last_tgt_temp_reached_timestamp
             bltts = self._last_below_tgt_temp_timestamp
             
-            logger.debug('heating_on: {}, below_tgt_temperature_time: {}, '
+            logger.debug('{}_on: {}, below_tgt_temperature_time: {}, '
                          'tgt_temperature_time: {}, grace_time: {}',
+                         ('heating' if not self._cooling else 'cooling'),
                          ison, datetime.fromtimestamp(bltts),
                          datetime.fromtimestamp(tgtts), grace)
             
-            should_be_on = (
-                ((current <= (target - diff))
-                or ((current < target) and ((nowts - bltts) > grace))
-                or ((current < (target + diff)) and ison))
-                    and not (current >= target and (nowts - tgtts) > grace))
+            if not self._cooling:
+                should_be_on = (
+                    ((current <= (target - diff))
+                    or ((current < target) and ((nowts - bltts) > grace))
+                    or ((current < (target + diff)) and ison))
+                        and not (current >= target and (nowts - tgtts) > grace))
+            
+            else:
+                # In case of cooling system the meaning of tgtts and bltts are inverted
+                # the same way are inverted the major/minor signs.
+                should_be_on = (
+                    ((current >= (target + diff))
+                    or ((current > target) and ((nowts - tgtts) > grace))
+                    or ((current > (target - diff)) and ison))
+                        and not (current <= target and (nowts - bltts) > grace))
         
-        logger.debug('the heating should be {}', (should_be_on and 'ON' or 'OFF'))
+        logger.debug('the {} should be {}',
+                     ('heating' if not self._cooling else 'cooling system'),
+                     ('ON' if should_be_on else 'OFF'))
         
         return ShouldBeOn(should_be_on,
                           ThermodStatus(target_time.timestamp(),
                                         self._status,
-                                        heating_status,
+                                        self._cooling,
+                                        heatcool_status,
                                         current,
                                         realtgt))
 

@@ -20,7 +20,7 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 __date__ = '2016-03-27'
-__updated__ = '2018-06-22'
+__updated__ = '2018-12-19'
 
 __version__ = '2.0.0a1'
 """The main version of the whole Thermod daemon."""

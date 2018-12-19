@@ -23,11 +23,10 @@ import os
 import unittest
 import thermod.config as cnf
 
-__updated__ = '2018-05-06'
+__updated__ = '2018-08-08'
+
 
 # TODO write more tests for specific settings and possible errors
-
-
 class TestHeating(unittest.TestCase):
     """Test cases for `thermod.config` module."""
 
@@ -46,13 +45,23 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.debug, False)
         self.assertEqual(settings.interval, 30)
         self.assertEqual(settings.mode, 2)
+        self.assertEqual(settings.scale, 'c')  # TODO use DEGREE_CELSIUS when DEGREE_CELSIUS will be moved in common.py module
         
         self.assertEqual(settings.heating['manager'], 'scripts')
         self.assertEqual(settings.heating['on'], '/etc/thermod/switch-heating --on -j -s -q')
         self.assertEqual(settings.heating['off'], '/etc/thermod/switch-heating --off -j -s -q')
         self.assertEqual(settings.heating['status'], '/etc/thermod/switch-heating --status -j -s -q')
+        self.assertEqual(settings.heating['pins'], [23])
+        self.assertEqual(settings.heating['level'], 'l')
         
-        self.assertEqual(settings.thermometer['script'], '/etc/thermod/get-temperature')
+        self.assertEqual(settings.cooling['manager'], 'heating')
+        self.assertEqual(settings.cooling['on'], '/etc/thermod/switch-cooling --on -j -s -q')
+        self.assertEqual(settings.cooling['off'], '/etc/thermod/switch-cooling --off -j -s -q')
+        self.assertEqual(settings.cooling['status'], '/etc/thermod/switch-cooling --status -j -s -q')
+        self.assertEqual(settings.cooling['pins'], [24])
+        self.assertEqual(settings.cooling['level'], 'l')
+        
+        self.assertEqual(settings.thermometer['thermometer'], '/etc/thermod/get-temperature')
         self.assertEqual(settings.thermometer['scale'], 'c')
         self.assertEqual(settings.thermometer['similcheck'], True)
         self.assertEqual(settings.thermometer['simillen'], 12)
@@ -61,9 +70,19 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.thermometer['avgint'], 3)
         self.assertEqual(settings.thermometer['avgtime'], 6)
         self.assertEqual(settings.thermometer['avgskip'], 0.33)
+        self.assertEqual(settings.thermometer['az']['channels'], [0, 1, 2])
+        self.assertEqual(settings.thermometer['az']['stddev'], 2.0)
+        self.assertEqual(settings.thermometer['w1']['devices'], ['28-000008e33449', '28-000008e3890d'])
+        self.assertEqual(settings.thermometer['w1']['stddev'], 2.0)
         
         self.assertEqual(settings.host, 'localhost')
         self.assertEqual(settings.port, 4344)
+        
+        self.assertEqual(settings.email['server'], 'localhost')
+        self.assertEqual(settings.email['credentials'], None)
+        self.assertEqual(settings.email['sender'], 'Thermod <root@localhost>')
+        self.assertEqual(settings.email['subject'], 'Thermod alert')
+        self.assertEqual(settings.email['recipients'], ['Simone Rossetto <root@localhost>', 'other@localhost'])
 
 
 if __name__ == "__main__":

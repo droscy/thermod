@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2018-06-22'
-__version__ = '2.2.1'
+__updated__ = '2018-12-19'
+__version__ = '2.2.3'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -56,19 +56,21 @@ REQ_SETTINGS_TMIN = common.SOCKET_REQ_SETTINGS_TMIN
 REQ_SETTINGS_TMAX = common.SOCKET_REQ_SETTINGS_TMAX
 REQ_SETTINGS_DIFFERENTIAL = common.SOCKET_REQ_SETTINGS_DIFFERENTIAL
 REQ_SETTINGS_GRACE_TIME = common.SOCKET_REQ_SETTINGS_GRACE_TIME
+REQ_SETTINGS_COOLING = common.SOCKET_REQ_SETTINGS_COOLING
 
 REQ_MONITOR_NAME = common.SOCKET_REQ_MONITOR_NAME
 
 RSP_MESSAGE = common.SOCKET_RSP_MESSAGE
 RSP_VERSION = common.SOCKET_RSP_VERSION
-RSP_ERROR = ThermodStatus._fields[5]
-RSP_EXPLAIN = ThermodStatus._fields[6]
+RSP_ERROR = ThermodStatus._fields[6]
+RSP_EXPLAIN = ThermodStatus._fields[7]
 
 RSP_STATUS_TIMESTAMP = ThermodStatus._fields[0]
 RSP_STATUS_STATUS = ThermodStatus._fields[1]
-RSP_STATUS_HEATING_STATUS = ThermodStatus._fields[2]
-RSP_STATUS_CURR_TEMP = ThermodStatus._fields[3]
-RSP_STATUS_TARGET_TEMP = ThermodStatus._fields[4]
+RSP_STATUS_COOLING = ThermodStatus._fields[2]
+RSP_STATUS_HEATING_STATUS = ThermodStatus._fields[3]
+RSP_STATUS_CURR_TEMP = ThermodStatus._fields[4]
+RSP_STATUS_TARGET_TEMP = ThermodStatus._fields[5]
 
 
 class ClientAddressLogAdapter(logging.LoggerAdapter):
@@ -87,7 +89,7 @@ class ControlSocket(object):
 
     # TODO rivedere i test di questa classe
     
-    def __init__(self, timetable, heating, thermometer, host, port, lock, loop):
+    def __init__(self, timetable, heating, cooling, thermometer, host, port, lock, loop):
         baselogger.debug('initializing control socket')
         
         if not isinstance(lock, asyncio.Condition):
@@ -102,6 +104,7 @@ class ControlSocket(object):
         
         self.app['timetable'] = timetable
         self.app['heating'] = heating
+        self.app['cooling'] = cooling
         self.app['thermometer'] = thermometer
         
         self.app.router.add_get('/{action}', GET_handler)
@@ -192,6 +195,11 @@ async def exceptions_middleware(app, handler):
             except KeyError:
                 #logger.debug('no Origin header found in request, no need for Access-Control-Allow-Origin in response')
                 pass
+        
+        # Note: the messages printed to logger by the following exceptions
+        # can be used by fail2ban to jail out malicious accesses. If those
+        # messages will be changed, remember to also change the filters in
+        # file etc/fail2ban.filter.
         
         except HTTPNotFound as htnf:
             message = 'Invalid Request'
@@ -318,6 +326,7 @@ async def GET_handler(request):
     lock = request.app['lock']
     timetable = request.app['timetable']
     heating = request.app['heating']
+    cooling = request.app['cooling']
     thermometer = request.app['thermometer']
     
     action = request.match_info['action']
@@ -346,12 +355,13 @@ async def GET_handler(request):
                 last_updt = time.time()
                 status = ThermodStatus(last_updt,
                                        timetable.status,
-                                       heating.status,
+                                       timetable.cooling,
+                                       (heating.status if not timetable.cooling else cooling.status),
                                        timetable.degrees(thermometer.temperature),
                                        timetable.target_temperature(last_updt))
         
         except HeatingError as he:
-            message = 'Heating Error'
+            message = 'Heating/Cooling Error'
             logger.warning('{}: {} ({})', message.lower(), he,
                            (he.suberror if he.suberror else 'no other information'))
             
@@ -433,6 +443,8 @@ async def POST_handler(request):
         * `differential` to update the differential value
         
         * `grace_time` to update the grace time
+        
+        * `cooling` to update the cooling setting
     
     Any request that produces an error in updating internal settings,
     restores the old state except when the settings were correcly updated
@@ -519,6 +531,9 @@ async def POST_handler(request):
                         elif var == REQ_SETTINGS_GRACE_TIME:
                             timetable.grace_time = value
                             newvalues[var] = timetable.grace_time
+                        elif var == REQ_SETTINGS_COOLING:
+                            timetable.cooling = value
+                            newvalues[var] = timetable.cooling
                         else:
                             logger.debug('invalid field `{}` ignored', var)
                     

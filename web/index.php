@@ -181,6 +181,13 @@
 				
 				<p>Set other settings</p>
 				<ul id="other-settings">
+					<li>
+						<label for="device">Device</label>
+						<select id="device" name="device">
+							<option value="heating">Heating</option>
+							<option value="cooling">Cooling</option>
+						</select>
+					</li>
 					<li><label for="differential">Differential</label> <input class="set-other" type="text" id="differential" name="differential" size="4" /> degrees</li>
 					<li><label for="grace-time">Grace time</label> <input class="set-other" type="text" id="grace-time" name="grace-time" size="4" /> minutes</li>
 				</ul>

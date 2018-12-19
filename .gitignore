@@ -5,10 +5,10 @@ __pycache__
 *.pyc
 .export_path
 *.egg-info
-doc/
+doc/html/
 dist/
 build/
 MANIFEST
 venv/
-README.htm*
+*.htm*
 web/src/
