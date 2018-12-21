@@ -1,5 +1,13 @@
 # Thermod Changelog
 
+## 2.0.0~development
+
+  * Changes that break retro-compatibility:
+    - 'import thermod' only imports constants and classes useful for clients and monitors
+    - remove 'error_code' from Settings class (it wasn't used anywhere)
+
+  * New features:
+
 ## 1.2.1
 
   * Fix crash when cooling setting is empty

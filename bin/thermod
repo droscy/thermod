@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-12-19'
+__updated__ = '2018-12-21'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -68,9 +68,9 @@ __updated__ = '2018-12-19'
 # TODO [Roadmap 1.3.0] modificare client web per permettere lo switch verso lo
 # stato "ON" impostando però un timeout
 
-# TODO [Roadmap 2.0.0] rimuovere error_code dalla tupla Settings in config.py (IMPORTANTE)
+# TODO [Roadmap 2.0.0] rimuovere error_code dalla tupla Settings in config.py (DONE)
 # TODO [Roadmap 2.0.0] trovare un modo per non mostrare il selettore Heating/Cooling su web quando non c'è un cooling in thermod.conf
-# TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (ONGOING faststart branch)
+# TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (DONE)
 # TODO [Roadmap 2.0.0] muovere le variabili DEGREE* fuori da BaseThermometer perché usate anche da altre parti
 # TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status
 # TODO [Roadmap 2.0.0] rimuovere to_celsius() e to_fahrenheit() dai termometri (adesso c'è un decorator)

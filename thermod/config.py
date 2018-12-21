@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-10-30'
+__updated__ = '2018-12-21'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -48,16 +48,10 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
                      os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
 
 
-# TODO in version 2.0 remove the error_code from Settings, it is not used by
-# the main daemon (but could be used by third parties app)
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
                                    'scale', 'mode', 'heating', 'cooling',
-                                   'thermometer', 'host', 'port', 'email',
-                                   'error_code'])
-"""Tuple used to transfer settings from config file to main daemon.
-
-@deprecated the `error_code` (last element of the tuple) will be removed in version 2.0.
-"""
+                                   'thermometer', 'host', 'port', 'email'])
+"""Tuple used to transfer settings from config file to main daemon."""
 
 
 def read_config_file(config_files=None):
@@ -353,7 +347,7 @@ def parse_main_settings(cfg):
         logger.debug('main settings parsed')
     
     return (Settings(enabled, debug, tt_file, interval, scale, mode,
-                     heating, cooling, thermometer, host, port,
-                     email, error_code), error_code)
+                     heating, cooling, thermometer, host, port, email),
+            error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

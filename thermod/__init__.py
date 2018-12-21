@@ -21,7 +21,11 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 from thermod.common import ThermodStatus, SOCKET_DEFAULT_PORT, \
     SOCKET_REQ_SETTINGS, SOCKET_REQ_STATUS, SOCKET_REQ_VERSION, \
-    SOCKET_REQ_MONITOR, SOCKET_REQ_MONITOR_NAME, SOCKET_RSP_VERSION
+    SOCKET_REQ_MONITOR, SOCKET_REQ_MONITOR_NAME, SOCKET_RSP_VERSION, \
+    SOCKET_RSP_MESSAGE, \
+    LogStyleAdapter, LOGGER_BASE_NAME, LOGGER_FMT_MSG, \
+    LOGGER_FMT_TIME, LOGGER_FMT_STYLE, LOGGER_FMT_MSG_SYSLOG, \
+    LOGGER_FMT_DATETIME
 
 # There is no import of other modules and classes because on slow platforms the
 # import of the whole thermod package can be very slow and there is no need
