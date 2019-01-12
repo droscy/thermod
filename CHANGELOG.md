@@ -6,6 +6,9 @@
     - `import thermod` only imports constants and classes useful for clients and monitors
     - remove `error_code` from `Settings` class (it wasn't used anywhere)
     - move `DEGREE*` variables in `common.py` module
+    - remove `to_celsius()` and `to_fahrenheit()` from thermometers
+      (there is `ScaleAdapterThermometerDecorator` to automatically
+      manage the conversion)
 
   * New features:
 

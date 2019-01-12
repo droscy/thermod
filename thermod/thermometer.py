@@ -183,20 +183,6 @@ class BaseThermometer(object):
     def close(self):
         """To be implemented in subclasses to handle possible hardware shutdown."""
         pass
-    
-    def to_celsius(self):
-        """Return the current temperature in Celsius degrees."""
-        if self._scale == DEGREE_CELSIUS:
-            return self.temperature
-        else:
-            return round(fahrenheit2celsius(self.temperature), 2)  # additional decimal are meaningless
-    
-    def to_fahrenheit(self):
-        """Return the current temperature in Fahrenheit dgrees."""
-        if self._scale == DEGREE_FAHRENHEIT:
-            return self.temperature
-        else:
-            return round(celsius2fahrenheit(self.temperature), 2)  # additional decimal are meaningless
 
 
 class FakeThermometer(BaseThermometer):

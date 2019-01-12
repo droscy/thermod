@@ -26,7 +26,7 @@ import unittest
 from thermod.common import DEGREE_CELSIUS, DEGREE_FAHRENHEIT
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
     celsius2fahrenheit, fahrenheit2celsius, Wire1Thermometer, \
-    ScaleAdapterThermometerDecorator, BaseThermometer, FakeThermometer
+    ScaleAdapterThermometerDecorator, FakeThermometer
 
 __updated__ = '2019-01-12'
 
@@ -150,8 +150,7 @@ exit(retcode)
         termo = ScaleAdapterThermometerDecorator(self.w1thermo, DEGREE_FAHRENHEIT)
         self.assertAlmostEqual(termo.temperature, 75.26, delta=0.01)
         
-        termo = ScaleAdapterThermometerDecorator(FakeThermometer(DEGREE_FAHRENHEIT),
-                                                 DEGREE_CELSIUS)
+        termo = ScaleAdapterThermometerDecorator(FakeThermometer(DEGREE_FAHRENHEIT), DEGREE_CELSIUS)
         self.assertAlmostEqual(termo.temperature, 20.00, delta=0.01)
         
         termo = ScaleAdapterThermometerDecorator(FakeThermometer(), DEGREE_CELSIUS)
@@ -160,10 +159,6 @@ exit(retcode)
     def test_conversion_methods(self):
         self.assertAlmostEqual(celsius2fahrenheit(0), 32, delta=0.01)
         self.assertAlmostEqual(fahrenheit2celsius(0), -17.78, delta=0.01)
-        
-        self.assertAlmostEqual(self.thermometer.temperature, 20.10, delta=0.01)
-        self.assertAlmostEqual(self.thermometer.to_celsius(), 20.10, delta=0.01)
-        self.assertAlmostEqual(self.thermometer.to_fahrenheit(), 68.18, delta=0.01)
     
     def test_errors_in_script(self):
         # missing 'temperature' field in JSON output
