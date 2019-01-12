@@ -26,7 +26,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2018-12-19'
+__updated__ = '2019-01-12'
 
 
 # logger common settings
@@ -96,6 +96,11 @@ SOCKET_REQ_MONITOR_NAME = 'name'
 
 SOCKET_RSP_MESSAGE = 'message'
 SOCKET_RSP_VERSION = 'version'
+
+# degree variables
+DEGREE_CELSIUS = 'c'
+DEGREE_FAHRENHEIT = 'f'
+DEGREE_SCALE_LIST = [DEGREE_CELSIUS, DEGREE_FAHRENHEIT]
 
 # timestamp max value for current platform
 try:

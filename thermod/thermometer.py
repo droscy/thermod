@@ -32,7 +32,8 @@ from collections import deque
 from random import random
 
 from . import config
-from .common import ScriptError, LogStyleAdapter, check_script
+from .common import ScriptError, LogStyleAdapter, check_script, \
+    DEGREE_CELSIUS, DEGREE_FAHRENHEIT, DEGREE_SCALE_LIST
 
 try:
     from spidev import SpiDev
@@ -44,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-11-10'
+__updated__ = '2019-01-12'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -109,10 +110,6 @@ class BaseThermometer(object):
     `t_raw` itself empty.
     """
     
-    DEGREE_CELSIUS = 'c'
-    DEGREE_FAHRENHEIT = 'f'
-    DEGREE_SCALE_LIST = [DEGREE_CELSIUS, DEGREE_FAHRENHEIT]
-    
     def __init__(self, scale, t_ref=[], t_raw=[], calibration=None):
         """Init the thermometer with a choosen degree scale.
         
@@ -124,12 +121,12 @@ class BaseThermometer(object):
             both `t_ref` and `t_raw` are valid, this parameter is ignored)
         """
         
-        if scale not in BaseThermometer.DEGREE_SCALE_LIST:
+        if scale not in DEGREE_SCALE_LIST:
             raise ValueError('invalid degree scale {}'.format(scale))
         
         logger.debug('initializing {} with {} degrees',
                      self.__class__.__name__,
-                     ('celsius' if scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'))
+                     ('celsius' if scale == DEGREE_CELSIUS else 'fahrenheit'))
         
         self._scale = scale
         
@@ -189,14 +186,14 @@ class BaseThermometer(object):
     
     def to_celsius(self):
         """Return the current temperature in Celsius degrees."""
-        if self._scale == BaseThermometer.DEGREE_CELSIUS:
+        if self._scale == DEGREE_CELSIUS:
             return self.temperature
         else:
             return round(fahrenheit2celsius(self.temperature), 2)  # additional decimal are meaningless
     
     def to_fahrenheit(self):
         """Return the current temperature in Fahrenheit dgrees."""
-        if self._scale == BaseThermometer.DEGREE_FAHRENHEIT:
+        if self._scale == DEGREE_FAHRENHEIT:
             return self.temperature
         else:
             return round(celsius2fahrenheit(self.temperature), 2)  # additional decimal are meaningless
@@ -205,13 +202,13 @@ class BaseThermometer(object):
 class FakeThermometer(BaseThermometer):
     """Fake thermometer that always returns 20.0 degrees celsius or 68.0 fahrenheit."""
     
-    def __init__(self, scale=BaseThermometer.DEGREE_CELSIUS):
+    def __init__(self, scale=DEGREE_CELSIUS):
         super().__init__(scale)
     
     @property
     def raw_temperature(self):
         t = 20.0
-        if self._scale == BaseThermometer.DEGREE_CELSIUS:
+        if self._scale == DEGREE_CELSIUS:
             return t
         else:
             return round(celsius2fahrenheit(t), 2)
@@ -238,7 +235,7 @@ class ScriptThermometer(BaseThermometer):
     JSON_TEMPERATURE = 'temperature'
     JSON_ERROR = 'error'
     
-    def __init__(self, script, debug=False, scale=BaseThermometer.DEGREE_CELSIUS, t_ref=[], t_raw=[], calibration=None):
+    def __init__(self, script, debug=False, scale=DEGREE_CELSIUS, t_ref=[], t_raw=[], calibration=None):
         """Initialiaze a script-based thermometer.
         
         The first parameter must be a string containing the full paths to
@@ -435,7 +432,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
     
     def __init__(self,
                  channels,
-                 scale=BaseThermometer.DEGREE_CELSIUS,
+                 scale=DEGREE_CELSIUS,
                  t_ref=[],
                  t_raw=[],
                  stddev=2.0,
@@ -596,7 +593,7 @@ class Wire1Thermometer(BaseThermometer):
     
     def __init__(self,
                  devices,
-                 scale=BaseThermometer.DEGREE_CELSIUS,
+                 scale=DEGREE_CELSIUS,
                  t_ref=[],
                  t_raw=[],
                  stddev=2.0,
@@ -789,7 +786,7 @@ class ScaleAdapterThermometerDecorator(ThermometerBaseDecorator):
         
         super().__init__(thermometer)
         
-        if convert_to_scale not in BaseThermometer.DEGREE_SCALE_LIST:
+        if convert_to_scale not in DEGREE_SCALE_LIST:
             raise ValueError('invalid degree scale `{}` to convert temperatures to'.format(convert_to_scale))
         
         self._to_scale = convert_to_scale
@@ -799,8 +796,8 @@ class ScaleAdapterThermometerDecorator(ThermometerBaseDecorator):
         
         else:
             logger.debug('converting all temperatures from {} to {}',
-                         ('celsius' if self.decorated._scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'),
-                         ('celsius' if self._to_scale == BaseThermometer.DEGREE_CELSIUS else 'fahrenheit'))
+                         ('celsius' if self.decorated._scale == DEGREE_CELSIUS else 'fahrenheit'),
+                         ('celsius' if self._to_scale == DEGREE_CELSIUS else 'fahrenheit'))
     
     def __repr__(self, *args, **kwargs):
         return '<{}.{}({!r}, {})>'.format(self.__module__,
@@ -814,13 +811,13 @@ class ScaleAdapterThermometerDecorator(ThermometerBaseDecorator):
         
         orig = self.decorated.raw_temperature
         
-        if (self.decorated._scale == BaseThermometer.DEGREE_CELSIUS
-                and self._to_scale == BaseThermometer.DEGREE_FAHRENHEIT):
+        if (self.decorated._scale == DEGREE_CELSIUS
+                and self._to_scale == DEGREE_FAHRENHEIT):
             converted = celsius2fahrenheit(orig)
             logger.debug('converting temperature {:.2f} to fahrenheit {:.2f}', orig, converted)
         
-        elif (self.decorated._scale == BaseThermometer.DEGREE_FAHRENHEIT
-                and self._to_scale == BaseThermometer.DEGREE_CELSIUS):
+        elif (self.decorated._scale == DEGREE_FAHRENHEIT
+                and self._to_scale == DEGREE_CELSIUS):
             converted = fahrenheit2celsius(orig)
             logger.debug('converting temperature {:.2f} to celsius {:.2f}', orig, converted)
         

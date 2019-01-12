@@ -23,11 +23,12 @@ import os
 import logging
 import tempfile
 import unittest
+from thermod.common import DEGREE_CELSIUS, DEGREE_FAHRENHEIT
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
     celsius2fahrenheit, fahrenheit2celsius, Wire1Thermometer, \
     ScaleAdapterThermometerDecorator, BaseThermometer, FakeThermometer
 
-__updated__ = '2018-08-06'
+__updated__ = '2019-01-12'
 
 
 class TestThermometer(unittest.TestCase):
@@ -146,14 +147,14 @@ exit(retcode)
             self.w1thermo = Wire1Thermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
     
     def test_scale_adapter(self):
-        termo = ScaleAdapterThermometerDecorator(self.w1thermo, BaseThermometer.DEGREE_FAHRENHEIT)
+        termo = ScaleAdapterThermometerDecorator(self.w1thermo, DEGREE_FAHRENHEIT)
         self.assertAlmostEqual(termo.temperature, 75.26, delta=0.01)
         
-        termo = ScaleAdapterThermometerDecorator(FakeThermometer(BaseThermometer.DEGREE_FAHRENHEIT),
-                                                 BaseThermometer.DEGREE_CELSIUS)
+        termo = ScaleAdapterThermometerDecorator(FakeThermometer(DEGREE_FAHRENHEIT),
+                                                 DEGREE_CELSIUS)
         self.assertAlmostEqual(termo.temperature, 20.00, delta=0.01)
         
-        termo = ScaleAdapterThermometerDecorator(FakeThermometer(), BaseThermometer.DEGREE_CELSIUS)
+        termo = ScaleAdapterThermometerDecorator(FakeThermometer(), DEGREE_CELSIUS)
         self.assertAlmostEqual(termo.temperature, 20.00, delta=0.01)
     
     def test_conversion_methods(self):
