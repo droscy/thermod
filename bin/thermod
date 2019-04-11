@@ -70,7 +70,7 @@ __updated__ = '2019-01-12'
 
 # TODO [Roadmap 2.0.0] registrare servizio su Avahi (o demone analogo)
 # TODO [Roadmap 2.0.0] rimuovere error_code dalla tupla Settings in config.py (DONE)
-# TODO [Roadmap 2.0.0] trovare un modo per non mostrare il selettore Heating/Cooling su web quando non c'è un cooling in thermod.conf
+# TODO [Roadmap 2.0.0] trovare un modo per non mostrare il selettore Heating/Cooling su web quando non c'è un cooling in thermod.conf (DONE)
 # TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (DONE)
 # TODO [Roadmap 2.0.0] muovere le variabili DEGREE* fuori da BaseThermometer perché usate anche da altre parti (DONE)
 # TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status

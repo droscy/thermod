@@ -35,8 +35,8 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonVal
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2018-12-19'
-__version__ = '1.10'
+__updated__ = '2019-04-11'
+__version__ = '1.11'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -85,7 +85,7 @@ JSON_SCHEMA = {
         'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
         'grace_time': {'type': ['number', 'null'], 'minimum': 0},
-        'cooling': {'type': 'boolean'},
+        'cooling': {'type': ['boolean', 'null']},
         'temperatures': {
             'type': 'object',
             'properties': {
@@ -316,7 +316,14 @@ class TimeTable(object):
         self._mode = mode
         self._differential = 0.5
         self._grace_time = float('+Inf')  # disabled by default
-        self._cooling = False
+        
+        self._cooling = None
+        """If cooling system is configured and if it's active.
+        
+        When this attribute is `None` it means that no cooling system is
+        configured, instead `True` and `False` mean that the cooling
+        system is available and that it is currently active or inactive.
+        """
         
         self._has_been_validated = False
         """Used to speedup validation.
@@ -500,6 +507,9 @@ class TimeTable(object):
             self.grace_time = state[JSON_GRACE_TIME]
         
         if JSON_COOLING in state:
+            # NOTE: the cooling setter must NOT be used here because cooling
+            # can be None, but the None value can be set only internally, not
+            # through the setter.
             self._cooling = state[JSON_COOLING]
         
         self._last_update_timestamp = time.time()
@@ -790,30 +800,42 @@ class TimeTable(object):
     
     @property
     def cooling(self):
-        """Return `True` if currently the cooling system is used instead of heating.
+        """Return `True` if the cooling system is currently active.
         
-        If this is `True` the `TimeTable.should_the_heating_be_on()` method
-        behaves differently: when the temperature if over target it returns `True`.
+        Return `False` if the cooling is NOT active (the heating is in use),
+        `None` if cooling system is not available.
+        
+        The behaviour of `TimeTable.should_the_heating_be_on()` method depends
+        on this value.
+
+        @see TimeTable.should_the_heating_be_on()
         """
         
-        logger.debug('checking if system is in cooling mode: {}', self._cooling)
+        logger.debug('checking if cooling is active: {}', self._cooling)
         return self._cooling
     
     
     @cooling.setter
     def cooling(self, value):
-        """Set to `True` if `TimeTable.should_the_heating_be_on()` must
-        return `True` when the temperature is over target."""
+        """Set to `True` to activate the cooling system, `False` to disable it.
+        
+        @exception JsonValueError if the provided value is invalid
+        @exception RuntimeError if the cooling system is not available
+        """
         
         logger.debug('setting the new cooling value')
         
-        if value == True or value == False:
+        if self._cooling is None:
+            logger.debug('cannot change cooling value because no cooling system available')
+            raise RuntimeError('no cooling system available')
+
+        elif value in (True, False):
             self._cooling = value
         
         else:
-            logger.debug('invalid new cooling setting: {}', value)
-            raise JsonValueError('the new cooling setting `{}` is invalid, '
-                                'it must be a boolean'.format(value))
+            logger.debug('invalid new cooling value: {}', value)
+            raise JsonValueError('the new cooling value `{}` is invalid, '
+                                 'it must be a boolean'.format(value))
         
         self._last_update_timestamp = time.time()
         logger.debug('new cooling value set: {}', self._cooling)
@@ -991,9 +1013,8 @@ class TimeTable(object):
         """Return the target temperature at specific `target_time`.
         
         NB: when `self._cooling` is `True`, `tmax` and `tmin` values are
-        inverted because those values are used with the meaning of ON and OFF,
-        so when the set temperature is `tmax` it means both "heating on" and
-        "cooling on".
+        inverted because they mean ON and OFF respectively, so when
+        `tmax` is set it means both "heating on" and "cooling on".
         
         @param target_time must be a `datetime` object
         @return the target temperature at specific `target_time`, if the

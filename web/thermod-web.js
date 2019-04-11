@@ -378,11 +378,14 @@ $(function()
 			$('#days').controlgroup('option', 'disabled', false);
 			$('.hour').button('option', 'disabled', false);
 			$('.quarter').button('option', 'disabled', false).button('refresh');
-			$('#device').selectmenu('option', 'disabled', false).selectmenu('refresh');
 			$('.set-temperatures').spinner('option', 'disabled', false);
 			$('#differential').spinner('option', 'disabled', false);
 			$('#grace-time').spinner('option', 'disabled', false);
 			$('#save').button('option', 'disabled', false);
+
+			// if cooling system is available the select menu will be enabled
+			if(settings['cooling'] != null)
+				$('#device').selectmenu('option', 'disabled', false).selectmenu('refresh');
 		},
 		error: function(jqXHR, textStatus, errorThrown)
 		{
