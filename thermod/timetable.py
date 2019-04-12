@@ -384,10 +384,8 @@ class TimeTable(object):
     def __eq__(self, other):
         """Check if two TimeTable objects have the same settings.
         
-        The check is performed only on `status`, main `temperatures`,
-        `timetable`, `differential`, `grace time` and `mode` values
-        because the other attributes are relative to the specific
-        usage of the TimeTable object.
+        The check is performed only on the same attributes used in
+        `TimeTable.__getstate__()` and `TimeTable.__setstate__()` methods.
         
         @param other the other TimeTable to be compared
         """
@@ -397,7 +395,6 @@ class TimeTable(object):
                         and (self._status == other._status)
                         and (self._temperatures == other._temperatures)
                         and (self._timetable == other._timetable)
-                        and (self._mode == other._mode)
                         and (self._differential == other._differential)
                         and (self._grace_time == other._grace_time)
                         and (self._cooling == other._cooling))
