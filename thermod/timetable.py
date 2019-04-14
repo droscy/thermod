@@ -35,20 +35,20 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonVal
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2019-04-11'
-__version__ = '1.11'
+__updated__ = '2019-04-14'
+__version__ = '2.0'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
 
 # Common names for timetable and socket messages fields.
-JSON_STATUS = 'status'
+JSON_MODE = 'mode'
 JSON_TEMPERATURES = 'temperatures'
 JSON_TIMETABLE = 'timetable'
 JSON_DIFFERENTIAL = 'differential'
 JSON_GRACE_TIME = 'grace_time'
 JSON_COOLING = 'cooling'
-JSON_ALL_SETTINGS = (JSON_STATUS, JSON_TEMPERATURES, JSON_TIMETABLE,
+JSON_ALL_SETTINGS = (JSON_MODE, JSON_TEMPERATURES, JSON_TIMETABLE,
                      JSON_DIFFERENTIAL, JSON_GRACE_TIME, JSON_COOLING)
 
 JSON_T0_STR = 't0'
@@ -56,14 +56,14 @@ JSON_TMIN_STR = 'tmin'
 JSON_TMAX_STR = 'tmax'
 JSON_ALL_TEMPERATURES = (JSON_T0_STR, JSON_TMIN_STR, JSON_TMAX_STR)
 
-JSON_STATUS_ON = 'on'
-JSON_STATUS_OFF = 'off'
-JSON_STATUS_AUTO = 'auto'
-JSON_STATUS_T0 = JSON_T0_STR
-JSON_STATUS_TMIN = JSON_TMIN_STR
-JSON_STATUS_TMAX = JSON_TMAX_STR
-JSON_ALL_STATUSES = (JSON_STATUS_ON, JSON_STATUS_OFF, JSON_STATUS_AUTO,
-                     JSON_STATUS_T0, JSON_STATUS_TMIN, JSON_STATUS_TMAX)
+JSON_MODE_ON = 'on'
+JSON_MODE_OFF = 'off'
+JSON_MODE_AUTO = 'auto'
+JSON_MODE_T0 = JSON_T0_STR
+JSON_MODE_TMIN = JSON_TMIN_STR
+JSON_MODE_TMAX = JSON_TMAX_STR
+JSON_ALL_MODES = (JSON_MODE_ON, JSON_MODE_OFF, JSON_MODE_AUTO,
+                  JSON_MODE_T0, JSON_MODE_TMIN, JSON_MODE_TMAX)
 
 # The keys of the following dict are the same numbers returned by %w of
 # strftime(), while the names are used to avoid errors with different locales.
@@ -82,7 +82,7 @@ JSON_SCHEMA = {
     'description': 'Timetable file for Thermod daemon',
     'type': 'object',
     'properties': {
-        'status': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
+        'mode': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
         'grace_time': {'type': ['number', 'null'], 'minimum': 0},
         'cooling': {'type': ['boolean', 'null']},
@@ -107,7 +107,8 @@ JSON_SCHEMA = {
             'required': ['monday', 'tuesday', 'wednesday', 'thursday',
                          'friday', 'saturday', 'sunday'],
             'additionalProperties': False}},
-    'required': ['status', 'temperatures', 'timetable'],
+        'version': {'type': 'integer', 'minimum': 1},
+    'required': ['mode', 'temperatures', 'timetable'],
     'additionalProperties': False,
     'definitions': {
         'day': {
@@ -265,20 +266,20 @@ def json_reject_invalid_float(value):
 
 
 class ShouldBeOn(int):
-    """Behaves as a boolean with a Thermod status attribute."""
+    """Behaves as a boolean with a Thermod mode attribute."""
     
     def __new__(cls, should_be_on, *args, **kwargs):
         return int.__new__(cls, bool(should_be_on))
     
-    def __init__(self, should_be_on, status=None):
-        self.status = status
+    def __init__(self, should_be_on, mode=None):
+        self.mode = mode
     
     def __repr__(self, *args, **kwargs):
-        return '<{module}.{cls}({should!r}, {status!r})>'.format(
+        return '<{module}.{cls}({should!r}, {mode!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     should=bool(self),
-                    status=self.status)
+                    mode=self.mode)
     
     def __str__(self, *args, **kwargs):
         return str(bool(self))
@@ -292,7 +293,7 @@ class ShouldBeOn(int):
 class TimeTable(object):
     """Represent the timetable to control the heating."""
     
-    def __init__(self, filepath=None, mode=1):
+    def __init__(self, filepath=None, inertia=1):
         """Init the timetable.
         
         The timetable can be initialized empty, if `filepath` is `None`,
@@ -309,11 +310,11 @@ class TimeTable(object):
         
         logger.debug('initializing {}', self.__class__.__name__)
 
-        self._status = None
+        self._mode = None
         self._temperatures = {}
         self._timetable = {}
         
-        self._mode = mode
+        self._inertia = inertia
         self._differential = 0.5
         self._grace_time = float('+Inf')  # disabled by default
         
@@ -374,11 +375,11 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return '<{module}.{cls}({filepath!r}, {mode!r})>'.format(
+        return '<{module}.{cls}({filepath!r}, {inertia!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     filepath=self.filepath,
-                    mode=self._mode)
+                    inertia=self._inertia)
     
     
     def __eq__(self, other):
@@ -392,7 +393,7 @@ class TimeTable(object):
         
         try:
             result = (isinstance(other, self.__class__)
-                        and (self._status == other._status)
+                        and (self._mode == other._mode)
                         and (self._temperatures == other._temperatures)
                         and (self._timetable == other._timetable)
                         and (self._differential == other._differential)
@@ -410,10 +411,10 @@ class TimeTable(object):
         
         new = self.__class__()
         
-        new._status = self._status
+        new._mode = self._mode
         new._temperatures = self._temperatures
         new._timetable = self._timetable
-        new._mode = self._mode
+        new._inertia = self._inertia
         new._differential = self._differential
         new._grace_time = self._grace_time
         new._cooling = self._cooling
@@ -432,10 +433,10 @@ class TimeTable(object):
         
         new = self.__class__()
         
-        new._status = self._status
+        new._mode = self._mode
         new._temperatures = deepcopy(self._temperatures)
         new._timetable = deepcopy(self._timetable)
-        new._mode = self._mode
+        new._inertia = self._inertia
         new._differential = self._differential
         new._grace_time = self._grace_time
         new._cooling = self._cooling
@@ -462,7 +463,7 @@ class TimeTable(object):
         
         logger.debug('retrieving internal state')
             
-        settings = {JSON_STATUS: self._status,
+        settings = {JSON_MODE: self._mode,
                     JSON_DIFFERENTIAL: self._differential,
                     JSON_GRACE_TIME: self._grace_time,
                     JSON_COOLING: self._cooling,
@@ -492,7 +493,7 @@ class TimeTable(object):
         
         logger.debug('setting new internal state')
         
-        self._status = state[JSON_STATUS]
+        self._mode = state[JSON_MODE]
         self._temperatures = deepcopy(state[JSON_TEMPERATURES])
         self._timetable = deepcopy(state[JSON_TIMETABLE])
         
@@ -523,7 +524,7 @@ class TimeTable(object):
         finally:
             # TODO with exceptions the transactional fires later than this code
             # block, thus these debug messages will contain the new values, always!
-            logger.debug('current status: {}', self._status)
+            logger.debug('current mode: {}', self._mode)
             logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
             logger.debug('differential: {} deg', self._differential)
             logger.debug('grace time: {} sec', self._grace_time)
@@ -695,30 +696,30 @@ class TimeTable(object):
     
     
     @property
-    def status(self):
-        """Return the current status."""
-        logger.debug('reading current status')
-        return self._status
+    def mode(self):
+        """Return the current mode."""
+        logger.debug('reading current mode')
+        return self._mode
     
     
-    @status.setter
-    def status(self, status):
-        """Set a new status."""
+    @mode.setter
+    def mode(self, mode):
+        """Set a new mode."""
         
-        logger.debug('setting a new status')
+        logger.debug('setting a new mode')
         
-        if status.lower() not in JSON_ALL_STATUSES:
-            logger.debug('invalid new status: {}', status)
+        if mode.lower() not in JSON_ALL_MODES:
+            logger.debug('invalid new mode: {}', mode)
             raise JsonValueError(
-                'the new status `{}` is invalid, it must be one of [{}]. '
+                'the new mode `{}` is invalid, it must be one of [{}]. '
                 'Falling back to the previous one: `{}`.'.format(
-                    status,
-                    ', '.join(JSON_ALL_STATUSES),
-                    self._status))
+                    mode,
+                    ', '.join(JSON_ALL_MODES),
+                    self._mode))
         
-        self._status = status.lower()
+        self._mode = mode.lower()
         self._last_update_timestamp = time.time()
-        logger.debug('new status set: {}', self._status)
+        logger.debug('new mode set: {}', self._mode)
     
     
     @property
@@ -1015,7 +1016,7 @@ class TimeTable(object):
         
         @param target_time must be a `datetime` object
         @return the target temperature at specific `target_time`, if the
-            current status is ON or OFF the returned value is `None`.
+            current mode is ON or OFF the returned value is `None`.
         """
         
         if target_time is None:
@@ -1032,12 +1033,12 @@ class TimeTable(object):
         
         target = None  # default value for always ON or OFF
         
-        if self._status in JSON_ALL_TEMPERATURES:
+        if self._mode in JSON_ALL_TEMPERATURES:
             # target temperature is set manually
-            target = self.degrees(self._temperatures[self._status])
+            target = self.degrees(self._temperatures[self._mode])
             logger.debug('target_temperature: {}', target)
         
-        elif self._status == JSON_STATUS_AUTO:
+        elif self._mode == JSON_MODE_AUTO:
             # target temperature is retrived from timetable
             day = json_get_day_name(target_time.strftime('%w'))
             hour = json_format_hour(target_time.hour)
@@ -1113,13 +1114,13 @@ class TimeTable(object):
         realtgt = None
         current = self.degrees(current_temperature)
         diff = self.degrees(self._differential)
-        logger.debug('status: {}, current_temperature: {}, differential: {}',
-                     self._status, current, diff)
+        logger.debug('mode: {}, current_temperature: {}, differential: {}',
+                     self._mode, current, diff)
         
-        if self._status == JSON_STATUS_ON:  # always on
+        if self._mode == JSON_MODE_ON:  # always on
             should_be_on = True
         
-        elif self._status == JSON_STATUS_OFF:  # always off
+        elif self._mode == JSON_MODE_OFF:  # always off
             should_be_on = False
         
         else:  # checking against current temperature and timetable
@@ -1127,14 +1128,14 @@ class TimeTable(object):
             # the real target temperature get from timetable
             realtgt = self.target_temperature(target_time)
             
-            # The working mode simply adjusts the real target temperature and
-            # differential values to take into account thermal inertia.
-            if self._mode == 1:
+            # The _inertia attribute simply adjusts the real target temperature
+            # and differential values to take into account thermal inertia.
+            if self._inertia == 1:
                 # heating: switch on at target-diff, switch off at target+diff
                 # cooling: switch on at target+diff, switch off at target-diff
                 target = realtgt
             
-            elif self._mode == 2:
+            elif self._inertia == 2:
                 if not self._cooling:
                     # switch on at target-2*diff, switch off at target
                     target = realtgt - diff
@@ -1143,7 +1144,7 @@ class TimeTable(object):
                     # switch on at target+2*diff, switch off at target
                     target = realtgt + diff
                     
-            elif self._mode == 3:
+            elif self._inertia == 3:
                 diff /= 2
                 
                 if not self._cooling:
@@ -1155,7 +1156,7 @@ class TimeTable(object):
                     target = realtgt + 3*diff
                     
             else:
-                logger.warning('invalid working mode "{}", fallback to default mode "1"', self._mode)
+                logger.warning('invalid inertia "{}", fallback to default value "1"', self._inertia)
                 target = realtgt
             
             ison = bool(heatcool_status)
@@ -1205,7 +1206,7 @@ class TimeTable(object):
         
         return ShouldBeOn(should_be_on,
                           ThermodStatus(target_time.timestamp(),
-                                        self._status,
+                                        self._mode,
                                         self._cooling,
                                         heatcool_status,
                                         current,

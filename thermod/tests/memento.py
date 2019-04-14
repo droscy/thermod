@@ -32,7 +32,7 @@ from thermod.heating import BaseHeating
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2018-05-12'
+__updated__ = '2019-04-14'
 
 
 class MementoTable(TimeTable):
@@ -43,7 +43,7 @@ class MementoTable(TimeTable):
         """New method without control on errors."""
         
         # storing new values
-        self._status = state[timetable.JSON_STATUS]
+        self._mode = state[timetable.JSON_MODE]
         self._temperatures = copy.deepcopy(state[timetable.JSON_TEMPERATURES])
         self._timetable = copy.deepcopy(state[timetable.JSON_TIMETABLE])
         
@@ -80,15 +80,15 @@ class TestMemento(unittest.TestCase):
         pass
     
     
-    def test01_memento_status(self):
+    def test01_memento_mode(self):
         tt1 = self.timetable
         tt2 = copy.deepcopy(self.timetable)
         self.assertEqual(tt1, tt2)
         
-        # change the status and restore
+        # change the mode and restore
         restore = memento(tt1)
-        tt1.status = timetable.JSON_STATUS_OFF
-        self.assertEqual(tt1.status, timetable.JSON_STATUS_OFF)
+        tt1.mode = timetable.JSON_MODE_OFF
+        self.assertEqual(tt1.mode, timetable.JSON_MODE_OFF)
         self.assertNotEqual(tt1, tt2)  # they now differ
         restore()
         self.assertEqual(tt1, tt2)  # they are equal again
@@ -135,18 +135,23 @@ class TestMemento(unittest.TestCase):
     #    self.assertEqual(tt1, tt2)  # they are equal again
     
     
-    def test03_transactional_status(self):
+    def test03_transactional_mode(self):
         mt1 = self.mttable
         mt2 = copy.deepcopy(mt1)
         self.assertEqual(mt1, mt2)
         
         sett = mt1.__getstate__()
-        sett[timetable.JSON_STATUS] = 'invalid'
+        sett[timetable.JSON_MODE] = 'invalid'
         
         with self.assertRaises(jsonschema.ValidationError):
             # set an invalid state, exception raised
             mt2.__setstate__(sett)
         
+        # TODO questo test NON ha senso perché adesso 'mode' non è più usato nel confronto
+        # tra due TimeTable, quindi la sua modifica on può essere usata per verificare
+        # la transazionalità, vanno controllati tutti i test!!
+        # Oppure tornare al vecchio modo di verifica uguaglianza tra TimeTable.
+
         # the __setstate__ failed, so the previous state is restored
         self.assertEqual(mt1, mt2)
     
@@ -188,7 +193,7 @@ class TestMemento(unittest.TestCase):
     def test06_threading(self):
         self.timetable = None  # just to clear and avoid errors
         self.mttable.tmax = 30
-        self.mttable.status = timetable.JSON_STATUS_TMAX
+        self.mttable.mode = timetable.JSON_MODE_TMAX
         
         # initial status, the heating should be on
         self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status))
@@ -197,7 +202,7 @@ class TestMemento(unittest.TestCase):
         lock = threading.Condition()
         
         # creating updating thread
-        thread = threading.Thread(target=self.thread_change_status, args=(lock,))
+        thread = threading.Thread(target=self.thread_change_mode, args=(lock,))
         
         # The lock is acquired, then the thread that changes a parameter is
         # executed. It should wait. An invalid paramether is then stored,
@@ -226,11 +231,11 @@ class TestMemento(unittest.TestCase):
         self.assertFalse(thread.is_alive())  # exit join() for lock releasing
         self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status))  # new settings of thread
     
-    def thread_change_status(self, lock):
+    def thread_change_mode(self, lock):
         self.assertTrue(self.mttable.should_the_heating_be_on(20, self.heating.status))
         
         with lock:
-            self.mttable.status = timetable.JSON_STATUS_OFF
+            self.mttable.mode = timetable.JSON_MODE_OFF
             self.assertFalse(self.mttable.should_the_heating_be_on(20, self.heating.status))
 
       

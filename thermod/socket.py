@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2018-12-19'
-__version__ = '2.2.3'
+__updated__ = '2019-04-14'
+__version__ = '2.3'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -50,7 +50,7 @@ REQ_PATH_MONITOR = (common.SOCKET_REQ_MONITOR, )
 REQ_PATH_TEAPOT = ('elena', 'tea')
 
 REQ_SETTINGS_ALL = common.SOCKET_REQ_SETTINGS_ALL
-REQ_SETTINGS_STATUS = common.SOCKET_REQ_SETTINGS_STATUS
+REQ_SETTINGS_MODE = common.SOCKET_REQ_SETTINGS_MODE
 REQ_SETTINGS_T0 = common.SOCKET_REQ_SETTINGS_T0
 REQ_SETTINGS_TMIN = common.SOCKET_REQ_SETTINGS_TMIN
 REQ_SETTINGS_TMAX = common.SOCKET_REQ_SETTINGS_TMAX
@@ -66,9 +66,9 @@ RSP_ERROR = ThermodStatus._fields[6]
 RSP_EXPLAIN = ThermodStatus._fields[7]
 
 RSP_STATUS_TIMESTAMP = ThermodStatus._fields[0]
-RSP_STATUS_STATUS = ThermodStatus._fields[1]
+RSP_STATUS_MODE = ThermodStatus._fields[1]
 RSP_STATUS_COOLING = ThermodStatus._fields[2]
-RSP_STATUS_HEATING_STATUS = ThermodStatus._fields[3]
+RSP_STATUS_STATUS = ThermodStatus._fields[3]
 RSP_STATUS_CURR_TEMP = ThermodStatus._fields[4]
 RSP_STATUS_TARGET_TEMP = ThermodStatus._fields[5]
 
@@ -315,7 +315,7 @@ async def GET_handler(request):
     
     Three paths are supported: `/settings`, `/status` and `/monitor`. The first
     returns all settings as stored in the 'timetable.json' file, the second
-    returns the current status of the whole thermostat (status, temperature,
+    returns the current status of the whole thermostat (mode, temperature,
     target temperature, etc.), the last path is for long-polling update of
     a monitor (the socket responds when there is a change in the status).
     """
@@ -354,7 +354,7 @@ async def GET_handler(request):
             async with lock:
                 last_updt = time.time()
                 status = ThermodStatus(last_updt,
-                                       timetable.status,
+                                       timetable.mode,
                                        timetable.cooling,
                                        (heating.status if not timetable.cooling else cooling.status),
                                        timetable.degrees(thermometer.temperature),
@@ -431,8 +431,8 @@ async def POST_handler(request):
         * `settings` to update the whole state: JSON encoded settings as
           as found in timetable JSON file
         
-        * `status` to update the internal status: accepted values
-          in thermod.JSON_ALL_STATUSES
+        * `mode` to update the internal mode: accepted values
+          in thermod.JSON_ALL_MODES
         
         * `t0` to update the t0 temperature
         
@@ -513,9 +513,9 @@ async def POST_handler(request):
                 newvalues = {}
                 try:
                     for var, value in postvars.items():
-                        if var == REQ_SETTINGS_STATUS:
-                            timetable.status = value
-                            newvalues[var] = timetable.status
+                        if var == REQ_SETTINGS_MODE:
+                            timetable.mode = value
+                            newvalues[var] = timetable.mode
                         elif var == REQ_SETTINGS_T0:
                             timetable.t0 = value
                             newvalues[var] = timetable.t0

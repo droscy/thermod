@@ -9,6 +9,9 @@
     - remove `to_celsius()` and `to_fahrenheit()` from thermometers
       (there is `ScaleAdapterThermometerDecorator` to automatically
       manage the conversion)
+    - rename `mode` to `inertia`, `status` to `mode` and `heating_status`
+      (or `heatcool_status`) to `status` in config files, in socket messages,
+      in TimeTable class, in ThermodStatus class, etc.
 
   * New features:
 

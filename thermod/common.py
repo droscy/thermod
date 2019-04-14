@@ -26,7 +26,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2019-01-12'
+__updated__ = '2019-04-14'
 
 
 # logger common settings
@@ -84,7 +84,7 @@ SOCKET_REQ_VERSION = 'version'
 SOCKET_REQ_MONITOR = 'monitor'
 
 SOCKET_REQ_SETTINGS_ALL = 'settings'
-SOCKET_REQ_SETTINGS_STATUS = 'status'
+SOCKET_REQ_SETTINGS_MODE = 'mode'
 SOCKET_REQ_SETTINGS_T0 = 't0'
 SOCKET_REQ_SETTINGS_TMIN = 'tmin'
 SOCKET_REQ_SETTINGS_TMAX = 'tmax'
@@ -111,19 +111,16 @@ except OverflowError:
 TIMESTAMP_MAX_VALUE = _tmv
 """Max value for a POSIX timestamp in runnin platform."""
 
-
-# TODO in version 2.0 change status and heating_status with mode and status respectively
-# this requires some changes in timetable class too.
 ThermodStatus = namedtuple('ThermodStatus',
-                           ['timestamp', 'status', 'cooling', 'heating_status',
+                           ['timestamp', 'mode', 'cooling', 'status',
                             'current_temperature', 'target_temperature',
                             'error', 'explain'])
 """Contain current global status of the thermostat.
 
  * `timestamp` is the current time in seconds since the epoch
- * `status` is the status of the thermostat (see `timetable.JSON_ALL_STATUSES`)
+ * `mode` is the mode of the thermostat (see `timetable.JSON_ALL_MODES`)
  * `cooling` if thermod is working with cooling system instead of heating
- * `heating_status` is the status of the heating/cooling (it's an integer: 1=ON, 0=OFF)
+ * `status` is the status of the heating/cooling (it's an integer: 1=ON, 0=OFF)
  * `current_temperature` is the current temperature in the choosen degree scale
  * `target_temperature` is the temperature to be reached
  * `error` if an error occurred this is the error (`None` if no error)

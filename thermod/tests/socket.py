@@ -36,7 +36,7 @@ from thermod.socket import ControlSocket
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2018-12-19'
+__updated__ = '2019-04-14'
 __url_settings__ = 'http://localhost:4345/settings'
 __url_heating__ = 'http://localhost:4345/status'
 
@@ -134,7 +134,7 @@ class TestSocket(unittest.TestCase):
         r.close()
         
         # check returned heating informations
-        self.assertEqual(heating['heating_status'], self.heating.status)
+        self.assertEqual(heating['status'], self.heating.status)
         self.assertAlmostEqual(heating['current_temperature'], self.thermometer.temperature, delta=0.1)
         self.assertEqual(heating['target_temperature'], self.timetable.target_temperature())
     
@@ -146,7 +146,7 @@ class TestSocket(unittest.TestCase):
         wrong.close()
         
         # wrong value for status
-        wrong = requests.post(__url_settings__, {socket.REQ_SETTINGS_STATUS: 'invalid'})
+        wrong = requests.post(__url_settings__, {socket.REQ_SETTINGS_MODE: 'invalid'})
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
@@ -175,18 +175,18 @@ class TestSocket(unittest.TestCase):
     
     def test_post_right_messages(self):
         # single settings
-        p = requests.post(__url_settings__, {socket.REQ_SETTINGS_STATUS: timetable.JSON_STATUS_OFF})
+        p = requests.post(__url_settings__, {socket.REQ_SETTINGS_MODE: timetable.JSON_MODE_OFF})
         self.assertEqual(p.status_code, 200)
-        self.assertEqual(self.timetable.status, timetable.JSON_STATUS_OFF)
+        self.assertEqual(self.timetable.mode, timetable.JSON_MODE_OFF)
         p.close()
         
         # multiple settings
-        q = requests.post(__url_settings__, {socket.REQ_SETTINGS_STATUS: timetable.JSON_STATUS_TMAX,
+        q = requests.post(__url_settings__, {socket.REQ_SETTINGS_MODE: timetable.JSON_MODE_TMAX,
                                     socket.REQ_SETTINGS_TMAX: 32.3,
                                     socket.REQ_SETTINGS_GRACE_TIME: 'inf'})
         
         self.assertEqual(q.status_code, 200)
-        self.assertEqual(self.timetable.status, timetable.JSON_STATUS_TMAX)
+        self.assertEqual(self.timetable.mode, timetable.JSON_MODE_TMAX)
         self.assertAlmostEqual(self.timetable.tmax, 32.3, delta=0.01)
         self.assertEqual(self.timetable.grace_time, float('inf'))
         q.close()
@@ -203,7 +203,7 @@ class TestSocket(unittest.TestCase):
         
         # all settings
         tt2 = copy.deepcopy(self.timetable)
-        tt2.status = timetable.JSON_STATUS_TMAX
+        tt2.mode = timetable.JSON_MODE_TMAX
         tt2.grace_time = 3600
         tt2.update('thursday', 4, 1, 36.5)
         

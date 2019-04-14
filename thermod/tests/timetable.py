@@ -32,7 +32,7 @@ from thermod import timetable, ThermodStatus
 from thermod.timetable import TimeTable, ShouldBeOn, JsonValueError
 from thermod.heating import BaseHeating
 
-__updated__ = '2018-05-12'
+__updated__ = '2019-04-14'
 
 
 def fill_timetable(tt):
@@ -70,7 +70,7 @@ def fill_timetable(tt):
         for quarter in range(4):
             tt.update(day, hour, quarter, t0)
     
-    tt.status = timetable.JSON_STATUS_AUTO
+    tt.mode = timetable.JSON_MODE_AUTO
 
 
 class TestTimeTable(unittest.TestCase):
@@ -109,15 +109,15 @@ class TestTimeTable(unittest.TestCase):
             pass
     
     
-    def test_status(self):
-        for status in timetable.JSON_ALL_STATUSES:
-            self.timetable.status = status
-            self.assertEqual(status, self.timetable.status)
+    def test_mode(self):
+        for mode in timetable.JSON_ALL_MODES:
+            self.timetable.mode = mode
+            self.assertEqual(mode, self.timetable.mode)
         
-        status = 'invalid'
-        self.assertNotIn(status, timetable.JSON_ALL_STATUSES)
+        mode = 'invalid'
+        self.assertNotIn(mode, timetable.JSON_ALL_MODES)
         with self.assertRaises(JsonValueError):
-            self.timetable.status = status
+            self.timetable.mode = mode
     
     
     def test_differential(self):
@@ -286,14 +286,14 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.save()
         tt1 = TimeTable(filepath1)
         self.assertEqual(self.timetable, tt1)
-        self.assertEqual(self.timetable.status, tt1.status)
+        self.assertEqual(self.timetable.mode, tt1.mode)
         
         tt1.save(filepath2)
         tt2 = TimeTable()
         tt2.filepath = filepath2
         tt2.reload()
         self.assertEqual(self.timetable, tt2)
-        self.assertEqual(self.timetable.status, tt2.status)
+        self.assertEqual(self.timetable.mode, tt2.mode)
         
         # removing temporary files
         os.close(file1)
@@ -309,17 +309,17 @@ class TestTimeTable(unittest.TestCase):
         fill_timetable(tt)
         
         self.assertEqual(self.timetable, tt)
-        self.assertEqual(self.timetable.status, tt.status)
+        self.assertEqual(self.timetable.mode, tt.mode)
         
         # test copy operators
         tt2 = copy.deepcopy(self.timetable)
         self.assertEqual(self.timetable, tt2)
-        self.assertEqual(self.timetable.status, tt2.status)
+        self.assertEqual(self.timetable.mode, tt2.mode)
         
-        # changing the status makes two timetable different
-        tt2.status = timetable.JSON_STATUS_OFF
+        # changing the mode makes two timetable different
+        tt2.mode = timetable.JSON_MODE_OFF
         self.assertNotEqual(self.timetable, tt2)
-        self.assertNotEqual(self.timetable.status, tt2.status)
+        self.assertNotEqual(self.timetable.mode, tt2.mode)
         
         # change other settings and test inequality
         tt.grace_time = 1200
@@ -330,16 +330,20 @@ class TestTimeTable(unittest.TestCase):
         self.assertNotEqual(self.timetable, tt2)
     
     
-    def test_inequality_for_mode(self):
-        tt = TimeTable(mode=2)
+    def test_equality_regardless_of_inertia(self):
+        tt = TimeTable(inertia=1)
         
         fill_timetable(self.timetable)
         fill_timetable(tt)
         
-        self.assertNotEqual(self.timetable, tt)
+        self.assertEqual(self.timetable, tt)
         
-        # now change to equal
-        tt._mode = 1
+        # now change inertia
+        tt._inertia = 2
+        self.assertEqual(self.timetable, tt)
+    
+        # now change again
+        tt._inertia = 3
         self.assertEqual(self.timetable, tt)
     
     
@@ -380,7 +384,7 @@ class TestTimeTable(unittest.TestCase):
             self.assertEqual(t1, t2)
     
     
-    def test_timetable_01(self):  # test t0 status
+    def test_timetable_01(self):  # test t0 mode
         fill_timetable(self.timetable)
         
         now = datetime.now()
@@ -388,7 +392,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_T0
+        self.timetable.mode = timetable.JSON_MODE_T0
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         for temp in range(-10,5):
@@ -401,7 +405,7 @@ class TestTimeTable(unittest.TestCase):
             self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status))
     
     
-    def test_timetable_02(self):  # test tmin status
+    def test_timetable_02(self):  # test tmin mode
         fill_timetable(self.timetable)
         
         now = datetime.now()
@@ -409,7 +413,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_TMIN
+        self.timetable.mode = timetable.JSON_MODE_TMIN
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         for temp in range(0,17):
@@ -422,7 +426,7 @@ class TestTimeTable(unittest.TestCase):
             self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status))
         
     
-    def test_timetable_03(self):  # test tmax status
+    def test_timetable_03(self):  # test tmax mode
         fill_timetable(self.timetable)
         
         now = datetime.now()
@@ -430,7 +434,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_TMAX
+        self.timetable.mode = timetable.JSON_MODE_TMAX
         self.timetable.update(day,hour,quarter,timetable.JSON_T0_STR)
         
         for temp in range(10,21):
@@ -443,7 +447,7 @@ class TestTimeTable(unittest.TestCase):
             self.assertFalse(self.timetable.should_the_heating_be_on(temp, self.heating.status))
     
     
-    def test_timetable_04(self):  # test on/off statuses
+    def test_timetable_04(self):  # test on/off modes
         fill_timetable(self.timetable)
         
         now = datetime.now()
@@ -451,7 +455,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_ON
+        self.timetable.mode = timetable.JSON_MODE_ON
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         self.assertTrue(self.timetable.should_the_heating_be_on(3, self.heating.status))
         self.assertTrue(self.timetable.should_the_heating_be_on(10, self.heating.status))
@@ -460,7 +464,7 @@ class TestTimeTable(unittest.TestCase):
         self.assertTrue(self.timetable.should_the_heating_be_on(25, self.heating.status))
         self.assertTrue(self.timetable.should_the_heating_be_on(30, self.heating.status))
         
-        self.timetable.status = timetable.JSON_STATUS_OFF
+        self.timetable.mode = timetable.JSON_MODE_OFF
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         self.assertFalse(self.timetable.should_the_heating_be_on(3, self.heating.status))
         self.assertFalse(self.timetable.should_the_heating_be_on(10, self.heating.status))
@@ -470,7 +474,7 @@ class TestTimeTable(unittest.TestCase):
         self.assertFalse(self.timetable.should_the_heating_be_on(30, self.heating.status))
     
     
-    def test_timetable_05(self):  # test auto status
+    def test_timetable_05(self):  # test auto mode
         fill_timetable(self.timetable)
         
         now = datetime.now()
@@ -478,7 +482,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.mode = timetable.JSON_MODE_AUTO
         
         # current target t0
         self.timetable.update(day,hour,quarter,timetable.JSON_T0_STR)
@@ -525,7 +529,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.mode = timetable.JSON_MODE_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         # check if the heating should be on
@@ -552,16 +556,16 @@ class TestTimeTable(unittest.TestCase):
         self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
     
     
-    def test_timetable_06b(self):  # the same of test 06 with mode==2
+    def test_timetable_06b(self):  # the same of test 06 with inertia==2
         fill_timetable(self.timetable)
-        self.timetable._mode = 2
+        self.timetable._inertia = 2
         
         now = datetime.now()
         day = now.strftime('%w')
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.mode = timetable.JSON_MODE_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         # check if the heating should be on
@@ -589,16 +593,16 @@ class TestTimeTable(unittest.TestCase):
         self.assertTrue(self.timetable.should_the_heating_be_on(19.5, self.heating.status))
     
     
-    def test_timetable_06c(self):  # the same of test 06 with mode==3
+    def test_timetable_06c(self):  # the same of test 06 with inertia==3
         fill_timetable(self.timetable)
-        self.timetable._mode = 3
+        self.timetable._inertia = 3
         
         now = datetime.now()
         day = now.strftime('%w')
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.mode = timetable.JSON_MODE_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         # check if the heating should be on
@@ -633,7 +637,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.mode = timetable.JSON_MODE_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         
         # the current temperature fell below target 2 hours ago, more than grace time
@@ -652,7 +656,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.mode = timetable.JSON_MODE_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         self.timetable.grace_time = 3600
         
@@ -673,7 +677,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.mode = timetable.JSON_MODE_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         self.timetable.grace_time = 60
         self.heating.switch_on()
@@ -702,7 +706,7 @@ class TestTimeTable(unittest.TestCase):
         hour = timetable.json_format_hour(now.hour)
         quarter = int(now.minute // 15)
         
-        self.timetable.status = timetable.JSON_STATUS_AUTO
+        self.timetable.mode = timetable.JSON_MODE_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         self.timetable.grace_time = 2
         self.heating.switch_on()
@@ -731,19 +735,19 @@ class TestTimeTable(unittest.TestCase):
         self.assertAlmostEqual(self.timetable.target_temperature(datetime(2016,2,10,9,34,0)), self.timetable.tmin, delta=0.01)
         self.assertAlmostEqual(self.timetable.target_temperature(datetime(2016,2,10,23,34,0)), self.timetable.t0, delta=0.01)
         
-        self.timetable.status = timetable.JSON_STATUS_ON
+        self.timetable.mode = timetable.JSON_MODE_ON
         self.assertEqual(self.timetable.target_temperature(time), None)
         
-        self.timetable.status = timetable.JSON_STATUS_OFF
+        self.timetable.mode = timetable.JSON_MODE_OFF
         self.assertEqual(self.timetable.target_temperature(time), None)
         
-        self.timetable.status = timetable.JSON_STATUS_TMAX
+        self.timetable.mode = timetable.JSON_MODE_TMAX
         self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.tmax, delta=0.01)
         
-        self.timetable.status = timetable.JSON_STATUS_TMIN
+        self.timetable.mode = timetable.JSON_MODE_TMIN
         self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.tmin, delta=0.01)
         
-        self.timetable.status = timetable.JSON_STATUS_T0
+        self.timetable.mode = timetable.JSON_MODE_T0
         self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.t0, delta=0.01)
     
     
@@ -752,7 +756,7 @@ class TestTimeTable(unittest.TestCase):
         fill_timetable(self.timetable)
         
         self.timetable.tmax = 30
-        self.timetable.status = timetable.JSON_STATUS_TMAX
+        self.timetable.mode = timetable.JSON_MODE_TMAX
         
         # initial status, the heating should be on
         self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
@@ -761,7 +765,7 @@ class TestTimeTable(unittest.TestCase):
         lock = threading.Condition()
         
         # creating updating thread
-        thread = threading.Thread(target=self.thread_change_status, args=(lock,))
+        thread = threading.Thread(target=self.thread_change_mode, args=(lock,))
         
         # the lock is acquired, then the thread that changes a parameter is
         # executed and the assert is checked again, if the lock works the
@@ -774,22 +778,22 @@ class TestTimeTable(unittest.TestCase):
         thread.join()
         self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status))
     
-    def thread_change_status(self, lock):
+    def thread_change_mode(self, lock):
         self.assertTrue(self.timetable.should_the_heating_be_on(20, self.heating.status))
         
         with lock:
-            self.timetable.status = timetable.JSON_STATUS_OFF
+            self.timetable.mode = timetable.JSON_MODE_OFF
             self.assertFalse(self.timetable.should_the_heating_be_on(20, self.heating.status))
 
     def test_should_be_on(self):
         s1 = ShouldBeOn(True)
         self.assertTrue(s1)
         
-        st2 = ThermodStatus(time.time(), timetable.JSON_STATUS_AUTO, 1, 5, 10)
+        st2 = ThermodStatus(time.time(), timetable.JSON_MODE_AUTO, 1, 5, 10)
         s2 = ShouldBeOn(False, st2)
         self.assertFalse(s2)
         
-        st3 = ThermodStatus(time.time(), timetable.JSON_STATUS_ON, 0, 17, 21)
+        st3 = ThermodStatus(time.time(), timetable.JSON_MODE_ON, 0, 17, 21)
         s3 = ShouldBeOn(True, st3)
         self.assertEqual(s1, s3)
 

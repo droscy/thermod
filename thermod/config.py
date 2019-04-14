@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-12-21'
+__updated__ = '2019-04-14'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -49,7 +49,7 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
 
 
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
-                                   'scale', 'mode', 'heating', 'cooling',
+                                   'scale', 'inertia', 'heating', 'cooling',
                                    'thermometer', 'host', 'port', 'email'])
 """Tuple used to transfer settings from config file to main daemon."""
 
@@ -148,7 +148,7 @@ def parse_main_settings(cfg):
         debug = cfg.getboolean('global', 'debug')
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
-        mode = cfg.getint('global', 'mode', fallback=1)
+        inertia = cfg.getint('global', 'inertia', fallback=1)
         
         # parsing working scale
         _scale = cfg.get('global', 'scale', fallback='celsius').casefold()
@@ -346,7 +346,7 @@ def parse_main_settings(cfg):
         error_code = common.RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return (Settings(enabled, debug, tt_file, interval, scale, mode,
+    return (Settings(enabled, debug, tt_file, interval, scale, inertia,
                      heating, cooling, thermometer, host, port, email),
             error_code)
 
