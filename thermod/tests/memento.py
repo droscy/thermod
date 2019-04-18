@@ -32,7 +32,7 @@ from thermod.heating import BaseHeating
 from thermod.memento import memento, transactional
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2019-04-14'
+__updated__ = '2019-04-18'
 
 
 class MementoTable(TimeTable):
@@ -52,10 +52,13 @@ class MementoTable(TimeTable):
         
         if timetable.JSON_GRACE_TIME in state:
             self._grace_time = float(state[timetable.JSON_GRACE_TIME])
+            
+        if timetable.JSON_COOLING in state:
+            self._cooling = state[timetable.JSON_COOLING]
         
         # validating
         self._has_been_validated = False
-        self._validate()
+        self.validate()
         self._last_update_timestamp = time.time()
 
 

@@ -35,7 +35,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonVal
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2019-04-14'
+__updated__ = '2019-04-18'
 __version__ = '2.0'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -48,8 +48,10 @@ JSON_TIMETABLE = 'timetable'
 JSON_DIFFERENTIAL = 'differential'
 JSON_GRACE_TIME = 'grace_time'
 JSON_COOLING = 'cooling'
+JSON_VERSION = 'version'
 JSON_ALL_SETTINGS = (JSON_MODE, JSON_TEMPERATURES, JSON_TIMETABLE,
-                     JSON_DIFFERENTIAL, JSON_GRACE_TIME, JSON_COOLING)
+                     JSON_DIFFERENTIAL, JSON_GRACE_TIME, JSON_COOLING,
+                     JSON_VERSION)
 
 JSON_T0_STR = 't0'
 JSON_TMIN_STR = 'tmin'
@@ -122,6 +124,9 @@ JSON_SCHEMA = {
                          'h10', 'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'h19',
                          'h20', 'h21', 'h22', 'h23'],
             'additionalProperties': False}}}
+
+# Version of JSON schema currently used; this is a progressive integer number.
+JSON_SCHEMA_VERSION = 2
 
 
 
@@ -327,14 +332,10 @@ class TimeTable(object):
         """
         
         self._has_been_validated = False
-        """Used to speedup validation.
+        """Used as go/no-go gate for `TimeTable.should_the_heating_be_on()` check.
         
-        Whenever a full validation has already been performed and no
-        changes have occurred, the object is still valid, no need to
-        validate again.
-        
-        If it isn't `True` it means only that a full validation hasn't
-        been performed yet, but the object can be valid.
+        It will be set to `True` after a full validation by `TimeTable.validate()`,
+        `TimeTable.__setstate()__` and `TimeTable.__getstate()__` methods.
         """
         
         self._last_update_timestamp = 0
@@ -422,6 +423,7 @@ class TimeTable(object):
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
         new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
+        new._last_below_tgt_temp_timestamp = self._last_below_tgt_temp_timestamp
         
         new.filepath = self.filepath
         
@@ -444,21 +446,25 @@ class TimeTable(object):
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
         new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
+        new._last_below_tgt_temp_timestamp = self._last_below_tgt_temp_timestamp
         
         new.filepath = self.filepath
         
         return new
     
     
-    def __getstate__(self):
+    def __getstate__(self, _dryrun=False):
         """Return the internal state as a dictonary.
         
         The returned dictonary is a deep copy of the internal state.
-        The validation is performed only if `TimeTable._has_been_validated`
-        is `False`.
+        The validation is always performed, it's not possible to save/restore
+        and invalid state.
         
-        @exception jsonschema.ValidationError if the validation has been
-            performed and internal state is invalid.
+        @pram _dryrun set to `True` to perform only the validation without
+            returning the state (useful to speedup validation on slow platforms)
+        
+        @exception jsonschema.ValidationError if the validation on internal
+            state fails.
         """
         
         logger.debug('retrieving internal state')
@@ -470,12 +476,22 @@ class TimeTable(object):
                     JSON_TEMPERATURES: self._temperatures,
                     JSON_TIMETABLE: self._timetable}
         
-        if not self._has_been_validated:
+        try:
+            # always validating returning state
             logger.debug('performing validation')
             jsonschema.validate(settings, JSON_SCHEMA)
         
-        logger.debug('the timetable is valid, returning internal state')
-        return deepcopy(settings)
+        except jsonschema.ValidationError:
+            logger.debug('the timetable is invalid')
+            self._has_been_validated = False
+            raise
+        
+        logger.debug('the timetable is valid')
+        self._has_been_validated = True
+        
+        if not _dryrun:
+            logger.debug('returning internal state')
+            return deepcopy(settings)
     
     
     @transactional()
@@ -491,33 +507,34 @@ class TimeTable(object):
         @exception jsonschema.ValidationError if `state` is invalid
         """
         
-        logger.debug('setting new internal state')
-        
-        self._mode = state[JSON_MODE]
-        self._temperatures = deepcopy(state[JSON_TEMPERATURES])
-        self._timetable = deepcopy(state[JSON_TIMETABLE])
-        
-        if JSON_DIFFERENTIAL in state:
-            self._differential = state[JSON_DIFFERENTIAL]
-        
-        if JSON_GRACE_TIME in state:
-            # using grace_time setter to perform additional checks
-            self.grace_time = state[JSON_GRACE_TIME]
-        
-        if JSON_COOLING in state:
-            # NOTE: the cooling setter must NOT be used here because cooling
-            # can be None, but the None value can be set only internally, not
-            # through the setter.
-            self._cooling = state[JSON_COOLING]
-        
-        self._last_update_timestamp = time.time()
-        
-        # validating new state
         try:
-            self._has_been_validated = False
-            self._validate()
+            logger.debug('performing validation on new state')
+            jsonschema.validate(state, JSON_SCHEMA)
+            
+            logger.debug('setting new internal state')
+            self._mode = state[JSON_MODE]
+            self._temperatures = deepcopy(state[JSON_TEMPERATURES])
+            self._timetable = deepcopy(state[JSON_TIMETABLE])
+            
+            if JSON_DIFFERENTIAL in state:
+                self._differential = state[JSON_DIFFERENTIAL]
+            
+            if JSON_GRACE_TIME in state:
+                # using grace_time setter to perform additional checks
+                self.grace_time = state[JSON_GRACE_TIME]
+            
+            if JSON_COOLING in state:
+                # NOTE: the cooling setter must NOT be used here because cooling
+                # can be None, but the None value can be set only internally, not
+                # through the setter.
+                self._cooling = state[JSON_COOLING]
+            
+            self._last_update_timestamp = time.time()
+            
+            # the state here is valid
+            self._has_been_validated = True
         
-        except:
+        except (JsonValueError, jsonschema.ValidationError):
             logger.debug('the new state is invalid, reverting to old state')
             raise
         
@@ -533,23 +550,31 @@ class TimeTable(object):
         logger.debug('new internal state set')
     
     
-    def _validate(self):
+    def validate(self):
         """Validate the internal settings.
         
-        A full validation is performed only if `TimeTable._has_been_validated`
-        is `False` , otherwise silently exits without errors.
+        IMPORTANT: this method must be called whenever the TimeTable object is
+        manually created assigning values to attributes, in order to be sure
+        that the object is valid.
         
-        @exception jsonschema.ValidationError if the validation has been
-            performed and internal state is invalid.
+        @exception jsonschema.ValidationError if the internal state is invalid
         """
         
-        if not self._has_been_validated:
+        # perform validation
+        self.__getstate__(True)
+    
+    
+    def is_valid(self):
+        """Validate the internal settings and return `True` or `False."""
+        
+        try:
+            # perform validation only
+            self.__getstate__(True)
             
-            # perform validation
-            self.__getstate__()
-            
-            # if no exception is raised
-            self._has_been_validated = True
+        except jsonschema.ValidationError:
+            pass
+        
+        return self._has_been_validated
     
     
     def settings(self, indent=0, sort_keys=False):
@@ -615,7 +640,6 @@ class TimeTable(object):
         with open(self.filepath, 'r') as file:
             logger.debug('loading json file: {}', self.filepath)
             settings = json.load(file, parse_constant=json_reject_invalid_float)
-            logger.debug('json file loaded')
         
         self.__setstate__(settings)
         self._last_update_timestamp = os.path.getmtime(self.filepath)
@@ -636,6 +660,8 @@ class TimeTable(object):
         @exception OSError if the file cannot be written or other OS related errors
         """
         
+        # TODO this method is huge if executed on slow platform, try to execute async.
+        
         logger.debug('saving timetable to file')
         
         if filepath is None:
@@ -645,8 +671,7 @@ class TimeTable(object):
             logger.debug('filepath not set, cannot save timetable')
             raise RuntimeError('no timetable file provided, cannot save data')
         
-        # validate (if not already validated) and retrive settings
-        #self._has_been_validated = False
+        # validate and retrive settings
         settings = self.__getstate__()
         
         # convert possible Infinite grace_time to None
@@ -973,7 +998,6 @@ class TimeTable(object):
         
         # update timetable
         self._timetable[_day][_hour][_quarter] = _temp
-        self._has_been_validated = False
         self._last_update_timestamp = time.time()
         
         logger.debug('timetable updated: day "{}", hour "{}", quarter "{}", '
@@ -1106,9 +1130,10 @@ class TimeTable(object):
         logger.debug('checking should-be status of the {}',
                      ('heating' if not self._cooling else 'cooling system'))
         
-        should_be_on = None
-        self._validate()
+        if not self._has_been_validated:
+            self.validate()
         
+        should_be_on = None
         target_time = datetime.now()
         
         realtgt = None
