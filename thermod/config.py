@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2019-04-14'
+__updated__ = '2019-04-20'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -148,7 +148,19 @@ def parse_main_settings(cfg):
         debug = cfg.getboolean('global', 'debug')
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
-        inertia = cfg.getint('global', 'inertia', fallback=1)
+        
+        # reading inertia value
+        try:
+            # in Thermod version 1.x the inertia name was 'mode'
+            inertia = cfg.getint('global', 'mode')
+            
+            # if no exception raised, print a warning message
+            logger.warning('deprecated option `mode` in configuration file, '
+                           'please rename it to `inertia`')
+        
+        # if exception, no old settings found, so read the right 'inertia' value
+        except configparser.NoOptionError as noe:
+            inertia = cfg.getint('global', 'inertia', fallback=1)
         
         # parsing working scale
         _scale = cfg.get('global', 'scale', fallback='celsius').casefold()

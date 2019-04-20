@@ -32,7 +32,206 @@ from thermod import timetable, ThermodStatus
 from thermod.timetable import TimeTable, ShouldBeOn, JsonValueError
 from thermod.heating import BaseHeating
 
-__updated__ = '2019-04-14'
+__updated__ = '2019-04-20'
+
+
+# state saved with Thermod version 1.2
+_json_state_v1 = '''
+{
+  "status": "auto",
+  "differential": 0.5,
+  "grace_time": null,
+  "temperatures": {
+    "t0": 10.0,
+    "tmin": 17.0,
+    "tmax": 20.0
+  },
+  "timetable": {
+    "monday": {
+      "h00": ["tmin","tmin","tmin","tmin"],
+      "h01": ["tmin","tmin","tmin","tmin"],
+      "h02": ["tmin","tmin","tmin","tmin"],
+      "h03": ["tmin","tmin","tmin","tmin"],
+      "h04": ["tmin","tmin","tmin","tmin"],
+      "h05": ["tmin","tmin","tmin","tmin"],
+      "h06": ["tmin","tmax","tmax","tmax"],
+      "h07": ["tmax","tmax","tmax","tmax"],
+      "h08": ["tmax","tmax","tmin","tmin"],
+      "h09": ["tmin","tmin","tmin","tmin"],
+      "h10": ["tmin","tmin","tmin","tmin"],
+      "h11": ["tmin","tmin","tmin","tmin"],
+      "h12": ["tmin","tmin","tmin","tmin"],
+      "h13": ["tmin","tmin","tmin","tmin"],
+      "h14": ["tmin","tmin","tmin","tmin"],
+      "h15": ["tmin","tmin","tmax","tmax"],
+      "h16": ["tmax","tmax","tmax","tmax"],
+      "h17": ["tmax","tmax","tmax","tmax"],
+      "h18": ["tmax","tmax","tmax","tmax"],
+      "h19": ["tmax","tmax","tmax","tmax"],
+      "h20": ["tmax","tmax","tmax","tmax"],
+      "h21": ["tmax","tmax","tmax","tmax"],
+      "h22": ["tmax","tmax","tmax","tmax"],
+      "h23": ["tmax","tmin","tmin","tmin"]
+    },
+    "tuesday": {
+      "h00": ["tmin","tmin","tmin","tmin"],
+      "h01": ["tmin","tmin","tmin","tmin"],
+      "h02": ["tmin","tmin","tmin","tmin"],
+      "h03": ["tmin","tmin","tmin","tmin"],
+      "h04": ["tmin","tmin","tmin","tmin"],
+      "h05": ["tmin","tmin","tmin","tmin"],
+      "h06": ["tmin","tmax","tmax","tmax"],
+      "h07": ["tmax","tmax","tmax","tmax"],
+      "h08": ["tmax","tmax","tmin","tmin"],
+      "h09": ["tmin","tmin","tmin","tmin"],
+      "h10": ["tmin","tmin","tmin","tmin"],
+      "h11": ["tmin","tmin","tmin","tmin"],
+      "h12": ["tmin","tmin","tmin","tmin"],
+      "h13": ["tmin","tmin","tmin","tmin"],
+      "h14": ["tmin","tmin","tmin","tmin"],
+      "h15": ["tmin","tmin","tmax","tmax"],
+      "h16": ["tmax","tmax","tmax","tmax"],
+      "h17": ["tmax","tmax","tmax","tmax"],
+      "h18": ["tmax","tmax","tmax","tmax"],
+      "h19": ["tmax","tmax","tmax","tmax"],
+      "h20": ["tmax","tmax","tmax","tmax"],
+      "h21": ["tmax","tmax","tmax","tmax"],
+      "h22": ["tmax","tmax","tmax","tmax"],
+      "h23": ["tmax","tmin","tmin","tmin"]
+    },
+    "wednesday": {
+
+      "h00": ["tmin","tmin","tmin","tmin"],
+      "h01": ["tmin","tmin","tmin","tmin"],
+      "h02": ["tmin","tmin","tmin","tmin"],
+      "h03": ["tmin","tmin","tmin","tmin"],
+      "h04": ["tmin","tmin","tmin","tmin"],
+      "h05": ["tmin","tmin","tmin","tmin"],
+      "h06": ["tmin","tmax","tmax","tmax"],
+      "h07": ["tmax","tmax","tmax","tmax"],
+      "h08": ["tmax","tmax","tmin","tmin"],
+      "h09": ["tmin","tmin","tmin","tmin"],
+      "h10": ["tmin","tmin","tmin","tmin"],
+      "h11": ["tmin","tmin","tmin","tmin"],
+      "h12": ["tmin","tmin","tmin","tmin"],
+      "h13": ["tmin","tmin","tmin","tmin"],
+      "h14": ["tmin","tmin","tmin","tmin"],
+      "h15": ["tmin","tmin","tmax","tmax"],
+      "h16": ["tmax","tmax","tmax","tmax"],
+      "h17": ["tmax","tmax","tmax","tmax"],
+      "h18": ["tmax","tmax","tmax","tmax"],
+      "h19": ["tmax","tmax","tmax","tmax"],
+      "h20": ["tmax","tmax","tmax","tmax"],
+      "h21": ["tmax","tmax","tmax","tmax"],
+      "h22": ["tmax","tmax","tmax","tmax"],
+      "h23": ["tmax","tmin","tmin","tmin"]
+    },
+    "thursday": {
+      "h00": ["tmin","tmin","tmin","tmin"],
+      "h01": ["tmin","tmin","tmin","tmin"],
+      "h02": ["tmin","tmin","tmin","tmin"],
+      "h03": ["tmin","tmin","tmin","tmin"],
+      "h04": ["tmin","tmin","tmin","tmin"],
+      "h05": ["tmin","tmin","tmin","tmin"],
+      "h06": ["tmin","tmax","tmax","tmax"],
+      "h07": ["tmax","tmax","tmax","tmax"],
+      "h08": ["tmax","tmax","tmin","tmin"],
+      "h09": ["tmin","tmin","tmin","tmin"],
+      "h10": ["tmin","tmin","tmin","tmin"],
+      "h11": ["tmin","tmin","tmin","tmin"],
+      "h12": ["tmin","tmin","tmin","tmin"],
+      "h13": ["tmin","tmin","tmin","tmin"],
+      "h14": ["tmin","tmin","tmin","tmin"],
+      "h15": ["tmin","tmin","tmax","tmax"],
+      "h16": ["tmax","tmax","tmax","tmax"],
+      "h17": ["tmax","tmax","tmax","tmax"],
+      "h18": ["tmax","tmax","tmax","tmax"],
+      "h19": ["tmax","tmax","tmax","tmax"],
+      "h20": ["tmax","tmax","tmax","tmax"],
+      "h21": ["tmax","tmax","tmax","tmax"],
+      "h22": ["tmax","tmax","tmax","tmax"],
+      "h23": ["tmax","tmin","tmin","tmin"]
+    },
+    "friday": {
+      "h00": ["tmin","tmin","tmin","tmin"],
+      "h01": ["tmin","tmin","tmin","tmin"],
+      "h02": ["tmin","tmin","tmin","tmin"],
+      "h03": ["tmin","tmin","tmin","tmin"],
+      "h04": ["tmin","tmin","tmin","tmin"],
+      "h05": ["tmin","tmin","tmin","tmin"],
+      "h06": ["tmin","tmax","tmax","tmax"],
+      "h07": ["tmax","tmax","tmax","tmax"],
+      "h08": ["tmax","tmax","tmin","tmin"],
+      "h09": ["tmin","tmin","tmin","tmin"],
+      "h10": ["tmin","tmin","tmin","tmin"],
+      "h11": ["tmin","tmin","tmin","tmin"],
+      "h12": ["tmin","tmin","tmin","tmin"],
+      "h13": ["tmin","tmin","tmin","tmin"],
+      "h14": ["tmin","tmin","tmin","tmin"],
+      "h15": ["tmin","tmin","tmax","tmax"],
+      "h16": ["tmax","tmax","tmax","tmax"],
+      "h17": ["tmax","tmax","tmax","tmax"],
+      "h18": ["tmax","tmax","tmax","tmax"],
+      "h19": ["tmax","tmax","tmax","tmax"],
+      "h20": ["tmax","tmax","tmax","tmax"],
+      "h21": ["tmax","tmax","tmax","tmax"],
+      "h22": ["tmax","tmax","tmax","tmax"],
+      "h23": ["tmax","tmin","tmin","tmin"]
+    },
+    "saturday": {
+      "h00": ["tmin","tmin","tmin","tmin"],
+      "h01": ["tmin","tmin","tmin","tmin"],
+      "h02": ["tmin","tmin","tmin","tmin"],
+      "h03": ["tmin","tmin","tmin","tmin"],
+      "h04": ["tmin","tmin","tmin","tmin"],
+      "h05": ["tmin","tmin","tmin","tmin"],
+      "h06": ["tmin","tmin","tmin","tmin"],
+      "h07": ["tmin","tmin","tmin","tmin"],
+      "h08": ["tmax","tmax","tmax","tmax"],
+      "h09": ["tmax","tmax","tmax","tmax"],
+      "h10": ["tmax","tmax","tmax","tmax"],
+      "h11": ["tmax","tmax","tmax","tmax"],
+      "h12": ["tmax","tmax","tmax","tmax"],
+      "h13": ["tmax","tmax","tmax","tmax"],
+      "h14": ["tmax","tmax","tmax","tmax"],
+      "h15": ["tmax","tmax","tmax","tmax"],
+      "h16": ["tmax","tmax","tmax","tmax"],
+      "h17": ["tmax","tmax","tmax","tmax"],
+      "h18": ["tmax","tmax","tmax","tmax"],
+      "h19": ["tmax","tmax","tmax","tmax"],
+      "h20": ["tmax","tmax","tmax","tmax"],
+      "h21": ["tmax","tmax","tmax","tmax"],
+      "h22": ["tmin","tmin","tmin","tmin"],
+      "h23": ["tmin","tmin","tmin","tmin"]
+    },
+    "sunday": {
+      "h00": ["tmin","tmin","tmin","tmin"],
+      "h01": ["tmin","tmin","tmin","tmin"],
+      "h02": ["tmin","tmin","tmin","tmin"],
+      "h03": ["tmin","tmin","tmin","tmin"],
+      "h04": ["tmin","tmin","tmin","tmin"],
+      "h05": ["tmin","tmin","tmin","tmin"],
+      "h06": ["tmin","tmin","tmin","tmin"],
+      "h07": ["tmin","tmin","tmin","tmin"],
+      "h08": ["tmax","tmax","tmax","tmax"],
+      "h09": ["tmax","tmax","tmax","tmax"],
+      "h10": ["tmax","tmax","tmax","tmax"],
+      "h11": ["tmax","tmax","tmax","tmax"],
+      "h12": ["tmax","tmax","tmax","tmax"],
+      "h13": ["tmax","tmax","tmax","tmax"],
+      "h14": ["tmax","tmax","tmax","tmax"],
+      "h15": ["tmax","tmax","tmax","tmax"],
+      "h16": ["tmax","tmax","tmax","tmax"],
+      "h17": ["tmax","tmax","tmax","tmax"],
+      "h18": ["tmax","tmax","tmax","tmax"],
+      "h19": ["tmax","tmax","tmax","tmax"],
+      "h20": ["tmax","tmax","tmax","tmax"],
+      "h21": ["tmax","tmax","tmax","tmax"],
+      "h22": ["tmax","tmax","tmax","tmax"],
+      "h23": ["tmax","tmax","tmax","tmax"]
+    }
+  }
+}'''
 
 
 def fill_timetable(tt):
@@ -750,6 +949,22 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.mode = timetable.JSON_MODE_T0
         self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.t0, delta=0.01)
     
+    
+    def test_load_old_state(self):
+        """Try to load on old JSON schema."""
+        
+        # good old schema
+        self.timetable.load(_json_state_v1)
+        
+        # mixed schema (old with some changes)
+        with self.assertRaises(ValidationError):
+            self.timetable.load(_json_state_v1.replace('status', 'mode'))
+        
+    def test_old_state_adapter(self):
+        """Check if the adapter is transparent in case of valid new state."""
+        self.timetable.load(_json_state_v1)
+        state = self.timetable.__getstate__()
+        self.assertEqual(state, self.timetable._old_state_adapter(state))
     
     # TODO write more concurrent tests
     def test_threading_01(self):

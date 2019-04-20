@@ -35,7 +35,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonVal
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2019-04-18'
+__updated__ = '2019-04-20'
 __version__ = '2.0'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -77,17 +77,15 @@ JSON_DAYS_NAME_MAP = {1: 'monday',    '1': 'monday',
                       6: 'saturday',  '6': 'saturday',
                       0: 'sunday',    '0': 'sunday'}
 
-# Full schema for JSON timetable file.
+# Current schema for JSON timetable file.
 JSON_SCHEMA = {
     '$schema': 'http://json-schema.org/draft-04/schema#',
     'title': 'Timetable',
     'description': 'Timetable file for Thermod daemon',
     'type': 'object',
     'properties': {
+        'version': {'type': 'integer', 'minimum': 2},
         'mode': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
-        'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
-        'grace_time': {'type': ['number', 'null'], 'minimum': 0},
-        'cooling': {'type': ['boolean', 'null']},
         'temperatures': {
             'type': 'object',
             'properties': {
@@ -108,9 +106,11 @@ JSON_SCHEMA = {
                 'sunday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]}},
             'required': ['monday', 'tuesday', 'wednesday', 'thursday',
                          'friday', 'saturday', 'sunday'],
-            'additionalProperties': False}},
-        'version': {'type': 'integer', 'minimum': 1},
-    'required': ['mode', 'temperatures', 'timetable'],
+            'additionalProperties': False},
+        'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
+        'grace_time': {'type': ['number', 'null'], 'minimum': 0},
+        'cooling': {'type': ['boolean', 'null']}},
+    'required': ['version', 'mode', 'temperatures', 'timetable'],
     'additionalProperties': False,
     'definitions': {
         'day': {
@@ -125,8 +125,8 @@ JSON_SCHEMA = {
                          'h20', 'h21', 'h22', 'h23'],
             'additionalProperties': False}}}
 
-# Version of JSON schema currently used; this is a progressive integer number.
 JSON_SCHEMA_VERSION = 2
+"""Current version of JSON schema for timetable file."""
 
 
 
@@ -453,6 +453,46 @@ class TimeTable(object):
         return new
     
     
+    def _old_state_adapter(self, oldstate):
+        """Adapt a state saved with Thermod version 1.x to match the new JSON schema.
+        
+        @return the `oldstate` itself (if it's in the current version) or the
+            upgraded version
+        """
+        
+        logger.debug('checking version of new state')
+        
+        try:
+            if JSON_SCHEMA_VERSION not in oldstate:
+                logger.debug('the new state is an old version, upgrading it')
+                
+                newstate = {JSON_VERSION: JSON_SCHEMA_VERSION,
+                            JSON_MODE: oldstate['status'],
+                            JSON_TEMPERATURES: oldstate[JSON_TEMPERATURES],
+                            JSON_TIMETABLE: oldstate[JSON_TIMETABLE]}
+                
+                if JSON_DIFFERENTIAL in oldstate:
+                    newstate[JSON_DIFFERENTIAL] = oldstate[JSON_DIFFERENTIAL]
+                
+                if JSON_GRACE_TIME in oldstate:
+                    newstate[JSON_GRACE_TIME] = oldstate[JSON_GRACE_TIME]
+                
+                if JSON_COOLING in oldstate:
+                    newstate[JSON_COOLING] = oldstate[JSON_COOLING]
+                
+                logger.debug('the new schema has been upgraded')
+            
+            else:
+                logger.debug('the new schema is already at the current version')
+                newstate = oldstate
+        
+        except Exception:
+            logger.debug('the new state could be invalid')
+            newstate = oldstate
+        
+        return newstate
+    
+    
     def __getstate__(self, _dryrun=False):
         """Return the internal state as a dictonary.
         
@@ -469,12 +509,13 @@ class TimeTable(object):
         
         logger.debug('retrieving internal state')
             
-        settings = {JSON_MODE: self._mode,
+        settings = {JSON_VERSION: JSON_SCHEMA_VERSION,
+                    JSON_MODE: self._mode,
+                    JSON_TEMPERATURES: self._temperatures,
+                    JSON_TIMETABLE: self._timetable,
                     JSON_DIFFERENTIAL: self._differential,
                     JSON_GRACE_TIME: self._grace_time,
-                    JSON_COOLING: self._cooling,
-                    JSON_TEMPERATURES: self._temperatures,
-                    JSON_TIMETABLE: self._timetable}
+                    JSON_COOLING: self._cooling}
         
         try:
             # always validating returning state
@@ -503,31 +544,38 @@ class TimeTable(object):
         valid it will be set, otherwise a `jsonschema.ValidationError` exception
         is raised and the old state remains unchanged.
         
+        Both versions 1 and 2 of the JSON schema can be used.
+        
         @param state the new state to be set
         @exception jsonschema.ValidationError if `state` is invalid
         """
         
+        logger.debug('setting new internal state')
+        
+        # check if the state is an old version and upgrade it
+        _state = self._old_state_adapter(state)
+        
         try:
             logger.debug('performing validation on new state')
-            jsonschema.validate(state, JSON_SCHEMA)
+            jsonschema.validate(_state, JSON_SCHEMA)
             
-            logger.debug('setting new internal state')
-            self._mode = state[JSON_MODE]
-            self._temperatures = deepcopy(state[JSON_TEMPERATURES])
-            self._timetable = deepcopy(state[JSON_TIMETABLE])
+            logger.debug('assigning new value to each setting')
+            self._mode = _state[JSON_MODE]
+            self._temperatures = deepcopy(_state[JSON_TEMPERATURES])
+            self._timetable = deepcopy(_state[JSON_TIMETABLE])
             
-            if JSON_DIFFERENTIAL in state:
-                self._differential = state[JSON_DIFFERENTIAL]
+            if JSON_DIFFERENTIAL in _state:
+                self._differential = _state[JSON_DIFFERENTIAL]
             
-            if JSON_GRACE_TIME in state:
+            if JSON_GRACE_TIME in _state:
                 # using grace_time setter to perform additional checks
-                self.grace_time = state[JSON_GRACE_TIME]
+                self.grace_time = _state[JSON_GRACE_TIME]
             
-            if JSON_COOLING in state:
+            if JSON_COOLING in _state:
                 # NOTE: the cooling setter must NOT be used here because cooling
                 # can be None, but the None value can be set only internally, not
                 # through the setter.
-                self._cooling = state[JSON_COOLING]
+                self._cooling = _state[JSON_COOLING]
             
             self._last_update_timestamp = time.time()
             
@@ -602,7 +650,7 @@ class TimeTable(object):
         
         @param settings the new settings (JSON-encoded string)
         
-        @see thermod.JSON_SCHEMA for valid JSON schema
+        @see TimeTable.JSON_SCHEMA for valid JSON schema
         @see TimeTable.__setstate__() for possible exceptions
             raised during storing of new settings
         """
@@ -1101,7 +1149,7 @@ class TimeTable(object):
     # manualmente da ogni oggetto che modifica il TimeTable, ma si può creare
     # un decoratore che esegue "self._lock.notify()" ogni volta che quel
     # metodo finisce correttamente.
-    def should_the_heating_be_on(self, current_temperature, heatcool_status):
+    def should_the_heating_be_on(self, current_temperature, status):
         """Check if the heating/cooling, now, should be on.
         
         This method can be used with both heating and cooling. What makes the
@@ -1114,7 +1162,7 @@ class TimeTable(object):
         if appropriate conditions are met.
         
         @param current_temperature the current temperature of the room
-        @param heatcool_status current status of the heating/cooling (as
+        @param status current status of the heating/cooling (as
             returned from `BaseHeating.status` or `BaseCooling.status`)
         
         @return an instance of ShouldBeOn with a boolean value
@@ -1184,7 +1232,7 @@ class TimeTable(object):
                 logger.warning('invalid inertia "{}", fallback to default value "1"', self._inertia)
                 target = realtgt
             
-            ison = bool(heatcool_status)
+            ison = bool(status)
             nowts = target_time.timestamp()
             grace = self._grace_time
             
@@ -1233,7 +1281,7 @@ class TimeTable(object):
                           ThermodStatus(target_time.timestamp(),
                                         self._mode,
                                         self._cooling,
-                                        heatcool_status,
+                                        status,
                                         current,
                                         realtgt))
 

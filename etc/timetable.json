@@ -1,5 +1,6 @@
 {
-  "status": "auto",
+  "version": 2,
+  "mode": "auto",
   "differential": 0.5,
   "grace_time": null,
   "temperatures": {
