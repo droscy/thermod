@@ -35,7 +35,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonVal
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2019-04-20'
+__updated__ = '2019-05-01'
 __version__ = '2.0'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -271,20 +271,23 @@ def json_reject_invalid_float(value):
 
 
 class ShouldBeOn(int):
-    """Behaves as a boolean with a Thermod mode attribute."""
+    """Behaves as a boolean with a `ThermodStatus` attribute.
+    
+    @see thermod.common.ThermodStatus
+    """
     
     def __new__(cls, should_be_on, *args, **kwargs):
         return int.__new__(cls, bool(should_be_on))
     
-    def __init__(self, should_be_on, mode=None):
-        self.mode = mode
+    def __init__(self, should_be_on, thermod_status=None):
+        self.thermod_status = thermod_status
     
     def __repr__(self, *args, **kwargs):
-        return '<{module}.{cls}({should!r}, {mode!r})>'.format(
+        return '<{module}.{cls}({should!r}, {thermod_status!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     should=bool(self),
-                    mode=self.mode)
+                    thermod_status=self.thermod_status)
     
     def __str__(self, *args, **kwargs):
         return str(bool(self))

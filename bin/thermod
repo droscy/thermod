@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2019-04-14'
+__updated__ = '2019-05-01'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -611,14 +611,14 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                                             thermometer.temperature,
                                             _heatcool.status)
                         
-                        _msg = ('status: {!r}, '
+                        _msg = ('mode: {!r}, '
                                 'current: {:.1f}, '
                                 'target: {:.1f}').format(
-                                    should_be_on.status.status,
-                                    should_be_on.status.current_temperature,
-                                    float(should_be_on.status.target_temperature or 'NaN'))
+                                    should_be_on.thermod_status.mode,
+                                    should_be_on.thermod_status.current_temperature,
+                                    float(should_be_on.thermod_status.target_temperature or 'NaN'))
                         
-                        if should_be_on == should_be_on.status.heating_status:
+                        if should_be_on == should_be_on.thermod_status.status:
                             # The heating/cooling is already as it should be, so
                             # an info message is printed only if some settings
                             # have been changed from outside (the timeout has
@@ -626,7 +626,7 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                             log = (logger.info if not cycle_timeout else logger.debug)
                             log('{} already {} ({})',
                                 _heatcool_str,
-                                ('ON' if should_be_on.status.heating_status else 'OFF'),
+                                ('ON' if should_be_on.thermod_status.status else 'OFF'),
                                 _msg)
                         
                         else:  # the heating/cooling must be switched
@@ -690,7 +690,7 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                         raise
                     
                     else:
-                        newstatus = should_be_on.status._replace(heating_status=_heatcool.status)
+                        newstatus = should_be_on.thermod_status._replace(status=_heatcool.status)
                     
                     finally:  # we update all connected monitors
                         loop.create_task(socket.update_monitors(newstatus))
