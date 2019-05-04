@@ -14,6 +14,8 @@
       in TimeTable class, in ThermodStatus class, etc.
 
   * New features:
+    - hide heating/cooling selector in web interface when there is no
+      cooling system available
 
 ## 1.2.1
 
@@ -30,12 +32,12 @@
  
 ## 1.1.0
 
-  * move the averaging-task outside `PiAnalogZeroThermometer` in order to use
+  * Move the averaging-task outside `PiAnalogZeroThermometer` in order to use
     that feature with any thermometer
-  * add a *similarity-checker* for thermometers in order to recognize
+  * Add a *similarity-checker* for thermometers in order to recognize
     malfunctions that produce an abnormal temperature reading
 
 ## 1.0.0
 
-  * first stable release
+  * First stable release
 

@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2019-05-01'
+__updated__ = '2019-05-04'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -204,7 +204,9 @@ try:
     masterlock = asyncio.Condition(loop=main_loop)
     
     # the timetable
-    timetable = TimeTable(settings.tt_file, settings.inertia)
+    timetable = TimeTable(settings.tt_file,
+                          settings.inertia,
+                          (True if settings.cooling['manager'] else False))
 
 except FileNotFoundError as fnfe:
     main_return_code = common.RET_CODE_TT_NOT_FOUND

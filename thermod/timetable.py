@@ -35,7 +35,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonVal
 from .memento import transactional
 
 __date__ = '2015-09-09'
-__updated__ = '2019-05-01'
+__updated__ = '2019-05-04'
 __version__ = '2.0'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
@@ -301,7 +301,7 @@ class ShouldBeOn(int):
 class TimeTable(object):
     """Represent the timetable to control the heating."""
     
-    def __init__(self, filepath=None, inertia=1):
+    def __init__(self, filepath=None, inertia=1, cooling_available=True):
         """Init the timetable.
         
         The timetable can be initialized empty, if `filepath` is `None`,
@@ -310,8 +310,9 @@ class TimeTable(object):
 
         @param filepath full path to a JSON file that contains all the
             informations to setup the timetable
-        @param mode the working mode regarding switch-on and switch-off
+        @param inertia the working mode regarding switch-on and switch-off
             temperatures due to thermal inertia
+        @param cooling_available if the cooling system is currently available
         
         @see TimeTable.reload() for possible exceptions
         """
@@ -326,12 +327,20 @@ class TimeTable(object):
         self._differential = 0.5
         self._grace_time = float('+Inf')  # disabled by default
         
-        self._cooling = None
-        """If cooling system is configured and if it's active.
+        self._cooling = (False if cooling_available else None)
+        """If cooling system is active or not.
         
-        When this attribute is `None` it means that no cooling system is
-        configured, instead `True` and `False` mean that the cooling
-        system is available and that it is currently active or inactive.
+        When this attribute is `False` it means that the heating system is
+        active instead. It's alwats `None` when no cooling system is available.
+        
+        @see TimeTable.cooling setter for check on cooling system availability.
+        """
+        
+        self._cooling_available = cooling_available
+        """`True` if the cooling system is currently available, `False` otherwise.
+        
+        When this attribute is `False`, interactions with cooling system result
+        in runtime errors.
         """
         
         self._has_been_validated = False
@@ -379,11 +388,12 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return '<{module}.{cls}({filepath!r}, {inertia!r})>'.format(
+        return '<{module}.{cls}({filepath!r}, {inertia!r}, {coolavil!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     filepath=self.filepath,
-                    inertia=self._inertia)
+                    inertia=self._inertia,
+                    coolavil=self._cooling_available)
     
     
     def __eq__(self, other):
@@ -402,7 +412,8 @@ class TimeTable(object):
                         and (self._timetable == other._timetable)
                         and (self._differential == other._differential)
                         and (self._grace_time == other._grace_time)
-                        and (self._cooling == other._cooling))
+                        # here we assume that False or None for cooling is the same
+                        and ((self._cooling or None) == (other._cooling or None)))
         
         except AttributeError:
             result = False
@@ -423,6 +434,7 @@ class TimeTable(object):
         new._grace_time = self._grace_time
         new._cooling = self._cooling
         
+        new._cooling_available = self._cooling_available
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
         new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
@@ -446,6 +458,7 @@ class TimeTable(object):
         new._grace_time = self._grace_time
         new._cooling = self._cooling
         
+        new._cooling_available = self._cooling_available
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
         new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
@@ -571,14 +584,12 @@ class TimeTable(object):
                 self._differential = _state[JSON_DIFFERENTIAL]
             
             if JSON_GRACE_TIME in _state:
-                # using grace_time setter to perform additional checks
+                # NOTE: using grace_time setter to perform additional checks
                 self.grace_time = _state[JSON_GRACE_TIME]
             
             if JSON_COOLING in _state:
-                # NOTE: the cooling setter must NOT be used here because cooling
-                # can be None, but the None value can be set only internally, not
-                # through the setter.
-                self._cooling = _state[JSON_COOLING]
+                # NOTE: using cooling setter to perform additional checks
+                self.cooling = _state[JSON_COOLING]
             
             self._last_update_timestamp = time.time()
             
@@ -641,6 +652,9 @@ class TimeTable(object):
         
         if not math.isfinite(state[JSON_GRACE_TIME]):
             state[JSON_GRACE_TIME] = None
+        
+        if not self._cooling_available:
+            state[JSON_COOLING] = None
         
         return json.dumps(state, indent=indent, sort_keys=sort_keys, allow_nan=False)
     
@@ -876,8 +890,8 @@ class TimeTable(object):
     def cooling(self):
         """Return `True` if the cooling system is currently active.
         
-        Return `False` if the cooling is NOT active (the heating is in use),
-        `None` if cooling system is not available.
+        Return `False` if the cooling is not active (the heating is in use),
+        `None` if cooling system is NOT available.
         
         The behaviour of `TimeTable.should_the_heating_be_on()` method depends
         on this value.
@@ -893,23 +907,24 @@ class TimeTable(object):
     def cooling(self, value):
         """Set to `True` to activate the cooling system, `False` to disable it.
         
+        If the cooling system is not available and the value set here is not
+        `None` e warning is printed.
+        
         @exception JsonValueError if the provided value is invalid
-        @exception RuntimeError if the cooling system is not available
         """
         
         logger.debug('setting the new cooling value')
         
-        if self._cooling is None:
-            logger.debug('cannot change cooling value because no cooling system available')
-            raise RuntimeError('no cooling system available')
-
-        elif value in (True, False):
-            self._cooling = value
-        
-        else:
+        if value not in (True, False, None):
             logger.debug('invalid new cooling value: {}', value)
             raise JsonValueError('the new cooling value `{}` is invalid, '
                                  'it must be a boolean'.format(value))
+        
+        # interchange False and None when cooling is available or not available
+        self._cooling = ((value or False) if self._cooling_available else None)
+        
+        if not self._cooling_available and value is not None:
+            logger.warning('cannot change cooling value because no cooling system available')
         
         self._last_update_timestamp = time.time()
         logger.debug('new cooling value set: {}', self._cooling)
