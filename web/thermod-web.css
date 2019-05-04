@@ -45,8 +45,8 @@ body.loading #loading { display: block; }
 #main ul li label { display: block; width: 100%; }
 #main ul li input { cursor: default; }
 
-#target-status-li { margin-right: 2em; }
-#target-status-button { width: 7em; margin-top: 0.3ex; }
+#target-mode-li { margin-right: 2em; }
+#target-mode-button { width: 7em; margin-top: 0.3ex; }
 #current-status { width: 4em; margin-top: 0.3ex; }
 #current-temperature { width: 4em; margin-top: 0.3ex; }
 #target-temperature { width: 4em; margin-top: 0.3ex; }

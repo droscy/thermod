@@ -49,7 +49,6 @@ __updated__ = '2019-05-04'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
-# TODO rivedere documentazione e provare a generarla con con doxygen (doxypy oppure doxypypy)
 # TODO capire come fare ad eseguire i test alla creazione del pacchetto deb
 # TODO aggiungere ai sorgenti i file della scatolina
 # TODO rivedere test del socket che con il nuovo python e/o aiohttp non funzionano
@@ -73,7 +72,7 @@ __updated__ = '2019-05-04'
 # TODO [Roadmap 2.0.0] trovare un modo per non mostrare il selettore Heating/Cooling su web quando non c'è un cooling in thermod.conf (DONE)
 # TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (DONE)
 # TODO [Roadmap 2.0.0] muovere le variabili DEGREE* fuori da BaseThermometer perché usate anche da altre parti (DONE)
-# TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status (ONGOING)
+# TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status (DONE)
 # TODO [Roadmap 2.0.0] rimuovere to_celsius() e to_fahrenheit() dai termometri (adesso c'è un decorator) (DONE)
 # TODO [Roadmap 2.0.0] usare aiofiles per Wire1Thermometer (la lettura sequenziale dei file è lenta)
 # TODO [Roadmap 2.0.0] mettere calibrazione del termometro in un decorator

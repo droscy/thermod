@@ -87,28 +87,28 @@
 		<meta name="keywords" content="thermod, thermostat, temperature, heating" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		
-		<script language="javascript" type="text/javascript" src="/javascript/jquery/jquery.js"></script>
-		<script language="javascript" type="text/javascript" src="/javascript/jquery-ui/jquery-ui.js"></script>
+		<script type="text/javascript" src="/javascript/jquery/jquery.js"></script>
+		<script type="text/javascript" src="/javascript/jquery-ui/jquery-ui.js"></script>
 		<link rel="stylesheet" type="text/css" href="/javascript/jquery-ui/themes/base/jquery-ui.css" />
 		
-		<script language="javascript">
+		<script>
 			var baseurl = '<?=$BASEURL;?>';
 			var today = '<?=strtolower(date('l'));?>';
 		</script>
-		<script language="javascript" type="text/javascript" src="thermod-web.js"></script>
+		<script type="text/javascript" src="thermod-web.js"></script>
 		<link rel="stylesheet" type="text/css" href="thermod-web.css" />
 	</head>
 	<body>
 		<h1>Thermod Web Manager</h1>
 		<div id="main" class="ui-widget-header ui-corner-all">
 			<ul>
-				<li id="target-status-li">
-					<label for="target-status">Status</label>
-					<select id="target-status" name="target-status">
+				<li id="target-mode-li">
+					<label for="target-mode">Mode</label>
+					<select id="target-mode" name="target-mode">
 						<!-- TODO t_max e t_min non hanno il pedice!! -->
 						<option value="auto">Auto</option>
-						<option value="tmax">T<small><sub>max</sub></small></option>
-						<option value="tmin">T<small><sub>min</sub></small></option>
+						<option value="tmax">Tmax</option>
+						<option value="tmin">Tmin</option>
 						<option value="t0">Antifreeze</option>
 						<option value="off">Off</option>
 					</select>

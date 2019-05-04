@@ -49,25 +49,25 @@ function stop_loading()
 	$('#loading-back').removeClass('ui-widget-overlay');
 }
 
-// refresh the selectmenu of target status
-function target_status_refresh()
+// refresh the selectmenu of target mode
+function target_mode_refresh()
 {
-	$('#target-status option[value=' + settings['status'] + ']').prop('selected', true);
+	$('#target-mode option[value=' + settings['mode'] + ']').prop('selected', true);
 }
 
 // handle the change event of target status
-function target_status_change(event, ui)
+function target_mode_change(event, ui)
 {
-	var target_status = $('#target-status option:selected').prop('value');
+	var target_mode = $('#target-mode option:selected').prop('value');
 
 	$.ajax(
 	{
 		type: 'POST',
 		url: baseurl + '/settings',
-		data: {'status': target_status},
+		data: {'mode': target_mode},
 		success: function(data)
 		{
-			settings['status'] = target_status;
+			settings['mode'] = target_mode;
 			get_heating_status_and_refresh();
 		},
 		error: function(jqXHR, textStatus, errorThrown)
@@ -80,20 +80,20 @@ function target_status_change(event, ui)
 				data = {'error': errorThrown};
 
 			var error = (('explain' in data) ? data['explain'] : data['error']);
-			$('#dialog').dialog('option', 'title', 'Cannot change status');
+			$('#dialog').dialog('option', 'title', 'Cannot change mode');
 			$('#dialog').dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-			$('#dialog').html('<p><span class="ui-icon ui-icon-alert"></span>Cannot change status: <em>&quot;' + error + '&quot;</em>.</p>');
+			$('#dialog').html('<p><span class="ui-icon ui-icon-alert"></span>Cannot change mode: <em>&quot;' + error + '&quot;</em>.</p>');
 
 			stop_loading();
 			$('#dialog').dialog('open');
 
 			if(jqXHR.status = 423)
 			{
-				settings['status'] = target_status;
+				settings['mode'] = target_mode;
 				get_heating_status_and_refresh();
 			}
 
-			target_status_refresh();
+			target_mode_refresh();
 		}
 	});
 }
@@ -107,22 +107,22 @@ function get_heating_status_and_refresh()
 		url: baseurl + '/status',
 		success: function(data)
 		{
-			$('#current-status').prop('value', (data['heating_status']==1 ? 'On' : 'Off'));
+			$('#current-status').prop('value', (data['status']==1 ? 'On' : 'Off'));
 			$('#current-temperature').prop('value', data['current_temperature'].toFixed(1));
 			$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(1) : 'n.a.'));
 
 			if(data['cooling'])
 			{
 				$('label[for=current-status]').text('Cooling');
-				$('#target-status option[value=t0]').text('Fastfreeze');
+				$('#target-mode option[value=t0]').text('Fastfreeze');
 			}
 			else
 			{
 				$('label[for=current-status]').text('Heating');
-				$('#target-status option[value=t0]').text('Antifreeze');
+				$('#target-mode option[value=t0]').text('Antifreeze');
 			}
 
-			$('#target-status').selectmenu('refresh');
+			$('#target-mode').selectmenu('refresh');
 		},
 		error: function(jqXHR, textStatus, errorThrown)
 		{
@@ -140,7 +140,7 @@ function get_heating_status_and_refresh()
 			var error = (('explain' in data) ? data['explain'] : data['error']);
 			$('#dialog').dialog('option', 'title', 'Cannot get current status');
 			$('#dialog').dialog('option', 'buttons', {'Close': function() { $(this).dialog('close'); }});
-			$('#dialog').html('<p><span class="ui-icon ui-icon-alert"></span>Cannot get current temperature and heating status: <em>&quot;' + error + '&quot;</em>.</p>');
+			$('#dialog').html('<p><span class="ui-icon ui-icon-alert"></span>Cannot get current temperature and status: <em>&quot;' + error + '&quot;</em>.</p>');
 
 			stop_loading();
 			$('#dialog').dialog('open');
@@ -151,7 +151,7 @@ function get_heating_status_and_refresh()
 $(function()
 {
 	// main objects of the page
-	$('#target-status').selectmenu({disabled: true, change: target_status_change});
+	$('#target-mode').selectmenu({disabled: true, change: target_mode_change});
 	$('#tabs').tabs();
 	$('#days').controlgroup({disabled: true});
 	$('#days input').checkboxradio({icon: false});
@@ -353,7 +353,7 @@ $(function()
 		{
 			// refresh values
 			settings = data;
-			target_status_refresh();
+			target_mode_refresh();
 			$('#' + today).prop('checked', true).change();
 
 			var device = settings['cooling'] ? 'cooling' : 'heating';
@@ -361,9 +361,9 @@ $(function()
 			$('label[for=current-status]').text(device.ucfirst());
 
 			if(settings['cooling'])
-				$('#target-status option[value=t0]').text('Fastfreeze');
+				$('#target-mode option[value=t0]').text('Fastfreeze');
 			else
-				$('#target-status option[value=t0]').text('Antifreeze');
+				$('#target-mode option[value=t0]').text('Antifreeze');
 
 			$('#tmax').prop('value', settings['temperatures']['tmax'].toFixed(1));
 			$('#tmin').prop('value', settings['temperatures']['tmin'].toFixed(1));
@@ -374,7 +374,7 @@ $(function()
 			$('#grace-time').spinner('value', grace.toFixed(0));
 
 			// enable objects
-			$('#target-status').selectmenu('option', 'disabled', false).selectmenu('refresh');
+			$('#target-mode').selectmenu('option', 'disabled', false).selectmenu('refresh');
 			$('#days').controlgroup('option', 'disabled', false);
 			$('.hour').button('option', 'disabled', false);
 			$('.quarter').button('option', 'disabled', false).button('refresh');
