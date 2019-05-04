@@ -4,8 +4,8 @@
 Plugin to monitor Thermod temperatures and status.
 
 The printed values are the current and target temperatures as reported
-by Thermod socket and the current status of the heating displayed with value
-1 for heating ON and value 0 for heating OFF.
+by Thermod socket and the current status of the heating/cooling displayed with
+value 1 for heating/cooling ON and value 0 for heating/cooling OFF.
 
 If Thermod is not listening on default host/port, set the custom values in
 the environment variables `socket_host` and `socket_port`.
@@ -17,7 +17,7 @@ These are the environment variables accepted by this plugin:
  - `current_critical` critical value for current temperature
 
 @author:     Simone Rossetto
-@copyright:  2017 Simone Rossetto
+@copyright:  2017-2019 Simone Rossetto
 @license:    GNU General Public License v3
 @contact:    simros85@gmail.com
 
@@ -40,9 +40,9 @@ import sys
 import json
 from urllib import request
 
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 __date__ = '2016-04-24'
-__updated__ = '2017-09-25'
+__updated__ = '2019-05-04'
 
 
 # default return code
@@ -64,7 +64,7 @@ graph_vlabel degrees
 graph_scale no
 graph_category sensors
 graph_order current target status
-graph_info This graph shows the current status of the heating as reported by Thermod with current room temperature and target temperature.
+graph_info This graph shows the current status of the heating/cooling as reported by Thermod with current room temperature and target temperature.
 target.label Target temperature
 target.info The target temperature currently active in Thermod.
 current.label Current temperature
@@ -72,7 +72,7 @@ current.info The current room temperature as reported by Thermod.
 {current_warning}\
 {current_critical}\
 status.label Heating ON
-status.info The current status of the heating (value equal to current temperature means heating ON, no value means heating OFF).'''.format(
+status.info The current status of the heating/cooling (value equal to current temperature means heating/cooling ON, no value means heating/cooling OFF).'''.format(
     current_warning=('current.warning {}\n'.format(current_warning) if current_warning else ''),
     current_critical=('current.critical {}\n'.format(current_critical) if current_critical else '')))
         
@@ -91,20 +91,28 @@ try:
             if status['target_temperature'] is None:
                 status['target_temperature'] = 'U'
             
-            # the heating_status is shown only when the heating is ON
-            if status['heating_status'] == 0:
-                status['heating_status'] = 'U'
+            # support any version of Thermod
+            try:
+                # Thermod v1
+                _status = status['heating_status']
+            except KeyError:
+                # Thermod v2
+                _status = status['status']
+            
+            # the status is shown only when the heating/cooling is ON
+            if _status == 0:
+                status['status'] = 'U'
             else:
-                status['heating_status'] = status['current_temperature']
+                status['status'] = status['current_temperature']
         
         else:
-            raise RuntimeError('unacceptable status code returned from Thermod')
+            raise RuntimeError('unacceptable HTTP status code returned from Thermod')
 
 except:
     main_return_code = 1
     status = {'target_temperature': 'U',
               'current_temperature': 'U',
-              'heating_status': 'U'}
+              'status': 'U'}
 
 # print results
 print('''\
@@ -112,7 +120,7 @@ target.value {}
 current.value {}
 status.value {}'''.format(status['target_temperature'],
                           status['current_temperature'],
-                          status['heating_status']))
+                          status['status']))
 
 exit(main_return_code)
 
