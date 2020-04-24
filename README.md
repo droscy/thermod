@@ -2,7 +2,7 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.2.1<br/>
+Thermod v1.2.1+dev<br/>
 Copyright (C) 2018 Simone Rossetto <simros85@gmail.com><br/>
 GNU General Public License v3
 
@@ -23,15 +23,19 @@ GNU General Public License v3
 ## How to install
 
 ### Requirements
-*Thermod* requires [Python3](https://www.python.org/) (at least version 3.5)
+*Thermod* requires [Python3](https://www.python.org/) (version 3.5)
 and the following packages:
 
  - [jsonschema](https://pypi.python.org/pypi/jsonschema) (>=2.3.0)
  - [async_timeout](https://github.com/aio-libs/async-timeout) (>=1.3.0)
- - [aiohttp](https://aiohttp.readthedocs.io/) (>=1.2.0, <=2.3)
+ - [aiohttp](https://aiohttp.readthedocs.io/) (>=1.2.0, <2.3)
  - [numpy](http://www.numpy.org/) (>=1.8.0)
  - [requests](http://docs.python-requests.org/) (>=2.4.3, only to run tests)
  - [nose](http://nose.readthedocs.io/) (>=1.3.4, only to run tests)
+
+Thermod, currently, is not compatible with aiohttp version 2.3 (or greater)
+and python 3.6 and 3.7 are not supported by aiohttp from version 2.3 onward,
+so python 3.5 is a strict requirement for Thermod.
 
 ### Installation
 To install *Thermod* first uncompress the tarball and run

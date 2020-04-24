@@ -21,6 +21,8 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
 
+__updated__ = '2020-04-24'
+
 def get_version():
     main_ns = {}
     with open('thermod/version.py','r') as version_file:
@@ -39,7 +41,7 @@ setup(name='thermod',
       scripts=['bin/thermod'],
       install_requires=['jsonschema >= 2.3.0',
                         'async_timeout >= 1.3.0',
-                        'aiohttp >= 1.2.0, <=2.3',
+                        'aiohttp >= 1.2.0, <2.3',
                         'numpy >= 1.8.0'],
       test_suite='nose.collector',
       tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'],
