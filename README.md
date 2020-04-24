@@ -46,10 +46,12 @@ python3 setup.py install
 
 then copy the source file `etc/thermod.conf` in one of the following paths:
 
- - `/etc/thermod/thermod.conf`
- - `/usr/local/etc/thermod/thermod.conf`
- - `${HOME}/thermod/thermod.conf` (where `${HOME}` is the *home* folder of
+ - `${HOME}/.thermod/thermod.conf` (where `${HOME}` is the *home* folder of
    the user running the daemon)
+ - `${HOME}/.config/thermod.conf`
+ - `/usr/local/etc/thermod/thermod.conf`
+ - `/var/lib/thermod/thermod.conf`
+ - `/etc/thermod/thermod.conf`
 
 and adjust it to meet your requirements (documentation inside the file).
 

@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2018-10-30'
+__updated__ = '2020-04-24'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -44,7 +44,9 @@ _fake_RPi_Thermometer = False
 MAIN_CONFIG_FILENAME = 'thermod.conf'
 MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
                      os.path.join(os.path.expanduser('~/.thermod'), MAIN_CONFIG_FILENAME),
+                     os.path.join(os.path.expanduser('~/.config'), MAIN_CONFIG_FILENAME),
                      os.path.join('/usr/local/etc/thermod', MAIN_CONFIG_FILENAME),
+                     os.path.join('/var/lib/thermod', MAIN_CONFIG_FILENAME),
                      os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
 
 
