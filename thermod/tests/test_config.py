@@ -23,7 +23,7 @@ import os
 import unittest
 import thermod.config as cnf
 
-__updated__ = '2018-08-08'
+__updated__ = '2020-04-24'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -37,10 +37,11 @@ class TestHeating(unittest.TestCase):
         pass
     
     def test_parsing_config(self):
-        (cfg, err) = cnf.read_config_file(os.path.join('etc', cnf.MAIN_CONFIG_FILENAME))
+        (cfg, err) = cnf.read_config_file(os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'etc', cnf.MAIN_CONFIG_FILENAME)))
         self.assertEqual(err, 0)
         
-        settings = cnf.parse_main_settings(cfg)
+        (settings, err) = cnf.parse_main_settings(cfg)
+        self.assertEqual(err, 0)
         self.assertEqual(settings.enabled, False)
         self.assertEqual(settings.debug, False)
         self.assertEqual(settings.interval, 30)

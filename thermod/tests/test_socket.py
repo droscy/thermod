@@ -33,7 +33,7 @@ import thermod.socket as socket
 from thermod import TimeTable, BaseHeating, ControlSocket, utils, common, timetable
 from thermod.cooling import BaseCooling
 from thermod.thermometer import FakeThermometer
-from thermod.tests.timetable import fill_timetable
+from thermod.tests.test_timetable import fill_timetable
 
 __updated__ = '2018-08-06'
 __url_settings__ = 'http://localhost:4344/settings'

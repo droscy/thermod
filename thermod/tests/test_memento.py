@@ -28,7 +28,7 @@ import jsonschema
 
 from thermod import TimeTable, timetable, BaseHeating
 from thermod.memento import memento, transactional
-from thermod.tests.timetable import fill_timetable
+from thermod.tests.test_timetable import fill_timetable
 
 __updated__ = '2017-10-19'
 
