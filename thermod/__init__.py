@@ -19,6 +19,7 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from thermod.version import __version__
 from thermod.common import ScriptError, ThermodStatus
 from thermod.heating import BaseHeating, ScriptHeating, PiPinsRelayHeating, \
     HeatingError, ScriptHeatingError
