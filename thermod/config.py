@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2020-04-24'
+__updated__ = '2020-05-08'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -42,12 +42,11 @@ _fake_RPi_Thermometer = False
 
 # Main config filename, search paths, classes and parsers.
 MAIN_CONFIG_FILENAME = 'thermod.conf'
-MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
-                     os.path.join(os.path.expanduser('~/.thermod'), MAIN_CONFIG_FILENAME),
-                     os.path.join(os.path.expanduser('~/.config'), MAIN_CONFIG_FILENAME),
-                     os.path.join('/usr/local/etc/thermod', MAIN_CONFIG_FILENAME),
+MAIN_CONFIG_FILES = (os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME),
                      os.path.join('/var/lib/thermod', MAIN_CONFIG_FILENAME),
-                     os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
+                     os.path.join('/usr/local/etc/thermod', MAIN_CONFIG_FILENAME),
+                     os.path.join(os.path.expanduser('~/.config/thermod'), MAIN_CONFIG_FILENAME),
+                     os.path.join(os.path.expanduser('~/.thermod'), MAIN_CONFIG_FILENAME))
 
 
 # TODO in version 2.0 remove the error_code from Settings, it is not used by
