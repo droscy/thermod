@@ -4,6 +4,7 @@ include Doxyfile
 include README.md
 include COPYING
 include CHANGELOG.md
+include requirements*.txt
 recursive-include thermod *.py
 include bin/*
 include etc/*

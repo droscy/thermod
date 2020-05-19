@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2018-11-22'
+__updated__ = '2020-05-19'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -77,6 +77,7 @@ __updated__ = '2018-11-22'
 # TODO [Roadmap 2.0.0] usare aiofiles per Wire1Thermometer (la lettura sequenziale dei file è lenta)
 # TODO [Roadmap 2.0.0] mettere calibrazione del termometro in un decorator
 # TODO [Roadmap 2.0.0] cambiare funzionamento del grace_time
+# TODO [Roadmap 2.0.0] rinominare Wire1Thermometer in OneWireThermometer (lasciando il vecchio nome deprecato)
 
 # TODO [Roadmap 2.1.0] chiamare le temperature t0, t1 e t2
 # TODO [Roadmap 2.1.0] modificare client web per permettere di impostare tre livelli di
