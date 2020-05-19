@@ -23,7 +23,7 @@ import json
 import shlex
 import logging
 import subprocess
-import numpy
+import statistics
 
 from copy import deepcopy
 from json.decoder import JSONDecodeError
@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2018-11-10'
+__updated__ = '2020-05-19'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -59,6 +59,34 @@ def celsius2fahrenheit(value):
 def fahrenheit2celsius(value):
     """Convert fahrenheit temperature to celsius degrees."""
     return ((value - 32.0) / 1.8)
+
+def linearfit(raw, ref):
+    """Return the transformation function to map `raw` values in `ref` values.
+    
+    The two imput must be lists with the same number of elements.
+    
+    @return a function that accept a single input and return the transformed output
+    @exception IndexError if the two input lists have different number of elements
+    
+    @see https://en.wikipedia.org/wiki/Simple_linear_regression for explanation
+    """
+    
+    if len(raw) != len(ref):
+        raise IndexError('raw and ref lists have different number of elements')
+    
+    n = len(raw)
+    
+    sx = sum(raw)
+    sy = sum(ref)
+    sxx = sum([x**2 for x in raw])
+    syy = sum([y**2 for y in ref])
+    sxy = sum([raw[i]*ref[i] for i in range(n)])
+    
+    a = (n*sxy - sx*sy) / (n*sxx - sx**2)
+    b = sy/n - a*sx/n
+    
+    return lambda x: a*x + b
+
 
 
 # errors/exceptions
@@ -137,19 +165,18 @@ class BaseThermometer(object):
         if len(t_raw) >= 2:
             if len(t_ref) == len(t_raw):
                 logger.debug('performing thermometer calibration with t_ref={} and t_raw={}', t_ref, t_raw)
-                z = numpy.polyfit(t_raw, t_ref, 1)  # a linear interpolation is enough
-                self._calibrate = numpy.poly1d(z)
+                self._calibrate = linearfit(t_raw, t_ref)
                 logger.debug('calibration completed')
             else:
                 raise ThermometerError('cannot perform thermometer calibration '
                                        'because t_ref and t_raw have different '
                                        'number of elements')
         elif calibration is not None:
-            logger.debug('using external function to calibrate raw temperature')
+            logger.debug('using external function to calibrate raw temperatures')
             self._calibrate = calibration
         else:
             logger.debug('calibration disabled due to t_raw list empty or too small')
-            self._calibrate = numpy.poly1d([1, 0])  # polynomial identity
+            self._calibrate = lambda x: x
     
     def __repr__(self, *args, **kwargs):
         return '<{}.{}({!r}, calibration={!r})>'.format(self.__module__,
@@ -557,7 +584,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
         logger.debug('checking standard deviation of temperatures {}', temperatures)
         
         if len(temperatures) > 1:
-            std = numpy.std(temperatures)
+            std = statistics.pstdev(temperatures)
             
             logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
             
@@ -571,7 +598,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
                                [round(t, 2) for t in temperatures], std, self._stddev)
             
             # the median excludes a possible single outlier
-            raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
+            raw = statistics.median(temperatures)
             logger.debug('current median of temperatures is {:.2f}', raw)
         
         else:
@@ -690,7 +717,7 @@ class Wire1Thermometer(BaseThermometer):
         logger.debug('checking standard deviation of temperatures {}', temperatures)
         
         if len(temperatures) > 1:
-            std = numpy.std(temperatures)
+            std = statistics.pstdev(temperatures)
             
             logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
             
@@ -705,7 +732,7 @@ class Wire1Thermometer(BaseThermometer):
                                std, self._stddev)
             
             # the median excludes a possible single outlier
-            raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
+            raw = statistics.median(temperatures)
             logger.debug('current median of temperatures is {:.2f}', raw)
         
         else:
@@ -873,7 +900,7 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
         """
         
         newtemp = self.decorated.raw_temperature
-        avgtemp = numpy.mean(self.last_raw_temperatures)
+        avgtemp = statistics.mean(self.last_raw_temperatures)
         delta = abs(newtemp - avgtemp)
         
         logger.debug('new temperature is {:.2f}, old average value '
@@ -1047,7 +1074,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             temperatures.sort()
             shortened = temperatures[skip:(elements-skip)]
         
-        raw = numpy.mean(shortened)
+        raw = statistics.mean(shortened)
         logger.debug('the average of last temperatures is {:.2f}', raw)
         return raw
     

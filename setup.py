@@ -21,7 +21,7 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
 
-__updated__ = '2020-04-28'
+__updated__ = '2020-05-19'
 
 def get_version():
     main_ns = {}
@@ -51,9 +51,10 @@ setup(name='thermod',
       python_requires='>=3.5, <3.6',
       install_requires=['jsonschema >= 2.3.0',
                         'async_timeout >= 1.3.0',
-                        'aiohttp >= 1.2.0, <2.3',
-                        'numpy >= 1.8.0'],
+                        'aiohttp >= 1.2.0, <2.3'],
       test_suite='nose.collector',
-      tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'])
+      tests_require=['nose >= 1.3.4',
+                     'requests >= 2.4.3',
+                     'numpy >= 1.8.0'])
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
