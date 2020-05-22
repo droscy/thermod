@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2020-05-19'
+__updated__ = '2020-05-22'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -88,7 +88,6 @@ def linearfit(raw, ref):
     return lambda x: a*x + b
 
 
-
 # errors/exceptions
 
 class ThermometerError(RuntimeError):
@@ -115,7 +114,6 @@ class ScriptThermometerError(ThermometerError, ScriptError):
         super().__init__(error)
         self.suberror = suberror
         self.script = script
-
 
 
 # thermometers
@@ -583,7 +581,9 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         logger.debug('checking standard deviation of temperatures {}', temperatures)
         
-        if len(temperatures) > 1:
+        # This if-else block is the same of Wire1Thermometer except the error messages,
+        # remember to modify both.
+        if len(temperatures) > 0:
             std = statistics.pstdev(temperatures)
             
             logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
@@ -602,8 +602,8 @@ class PiAnalogZeroThermometer(BaseThermometer):
             logger.debug('current median of temperatures is {:.2f}', raw)
         
         else:
-            logger.debug('there is only one temperature, returning it')
-            raw = temperatures[0]
+            raise ThermometerError('no temperature retrieved, probably all '
+                                   'thermometers are not ready or unavailable')
         
         logger.debug('returning A/D temperature ({:.2f})', raw)
         return round(raw, 4)  # additional decimals are meaningless (MCP3008 is not so sensitive)
@@ -716,7 +716,9 @@ class Wire1Thermometer(BaseThermometer):
         
         logger.debug('checking standard deviation of temperatures {}', temperatures)
         
-        if len(temperatures) > 1:
+        # This if-else block is the same of PiAnalogZeroThermometer except the error messages,
+        # remember to modify both.
+        if len(temperatures) > 0:
             std = statistics.pstdev(temperatures)
             
             logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
@@ -736,8 +738,8 @@ class Wire1Thermometer(BaseThermometer):
             logger.debug('current median of temperatures is {:.2f}', raw)
         
         else:
-            logger.debug('there is only one temperature, returning it')
-            raw = temperatures[0]
+            raise ThermometerError('no temperature retrieved, probably all '
+                                   '1-Wire devices are not ready or unavailable')
         
         logger.debug('returning 1-Wire temperature ({:.2f})', raw)
         return raw
@@ -1023,7 +1025,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             await sleep(self._short_interval, loop=self._loop)
     
     def _update_temperatures_callback(self, averaging_task):
-        """Mae the exceptions raised by `self._update_temperatures`."""
+        """Save the exceptions raised by `self._update_temperatures`."""
         
         try:
             averaging_task.result()
