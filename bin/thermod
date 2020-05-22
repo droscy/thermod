@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2020-05-19'
+__updated__ = '2020-05-22'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -606,6 +606,14 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                         _heatcool = cooling
                         _heatcool_str = 'cooling system'
                     
+                    # In case of errors it is advisable to slow down the check
+                    # interval, maybe the fault disappears or, however, the
+                    # user will not receive too many notification. We set here
+                    # that longer time, resetting to the normal sleep time when
+                    # no errors have been reported. See the `else` section after
+                    # all exceptions.
+                    _sleep_time = settings.interval_on_error
+                    
                     try:
                         should_be_on = timetable.should_the_heating_be_on(
                                             thermometer.temperature,
@@ -691,6 +699,7 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                     
                     else:
                         newstatus = should_be_on.status._replace(heating_status=_heatcool.status)
+                        _sleep_time = settings.interval
                     
                     finally:  # we update all connected monitors
                         loop.create_task(socket.update_monitors(newstatus))
@@ -701,9 +710,11 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                     if enabled:
                         # We suspend the process and wait to check again the
                         # temperature. The wait is wrapped in a timeout to force
-                        # a check at least any `settings.interval` seconds.
+                        # a check at least any `_sleep_time` seconds.
+                        # @see settings.interval and settings.interval_on_error
                         try:
-                            async with timeout(settings.interval, loop=loop):
+                            logger.debug('sleeping for {} seconds', _sleep_time)
+                            async with timeout(_sleep_time, loop=loop):
                                 await lock.wait()
                         
                         except asyncio.TimeoutError:

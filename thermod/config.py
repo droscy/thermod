@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2020-05-08'
+__updated__ = '2020-05-22'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -50,14 +50,14 @@ MAIN_CONFIG_FILES = (os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME),
 
 
 # TODO in version 2.0 remove the error_code from Settings, it is not used by
-# the main daemon (but could be used by third parties app)
+# the main daemon (but could be used by third party apps)
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
                                    'scale', 'mode', 'heating', 'cooling',
                                    'thermometer', 'host', 'port', 'email',
-                                   'error_code'])
+                                   'error_code', 'interval_on_error'])
 """Tuple used to transfer settings from config file to main daemon.
 
-@deprecated the `error_code` (last element of the tuple) will be removed in version 2.0.
+@deprecated the `error_code` will be removed in version 2.0.
 """
 
 
@@ -137,7 +137,7 @@ def parse_main_settings(cfg):
     
     @param cfg configparser.ConfigParser object to parse data from
     
-    @return a tuple with two elements: the first is a `thermod.utils.Settings`
+    @return a tuple with two elements: the first is a `thermod.config.Settings`
         tuple with the just parsed main settings, the second is the error
         code that can be used as POSIX return value (if no error occurred the
         error code is 0)
@@ -155,6 +155,7 @@ def parse_main_settings(cfg):
         debug = cfg.getboolean('global', 'debug')
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
+        interval_on_error = cfg.getint('global', 'interval_on_error', fallback=120)
         mode = cfg.getint('global', 'mode', fallback=1)
         
         # parsing working scale
@@ -355,6 +356,6 @@ def parse_main_settings(cfg):
     
     return (Settings(enabled, debug, tt_file, interval, scale, mode,
                      heating, cooling, thermometer, host, port,
-                     email, error_code), error_code)
+                     email, error_code, interval_on_error), error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
