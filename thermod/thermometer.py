@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2020-05-22'
+__updated__ = '2020-05-29'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -1003,7 +1003,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             self._averaging_task.add_done_callback(self._update_temperatures_callback)
         
         else:
-            logger.debug('an averaging task is already running, cannot create a new one')
+            logger.debug('an averaging task is already running')
     
     async def _update_temperatures(self):
         """Start a loop to update the list of last measured temperatures.
@@ -1052,18 +1052,19 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         logger.debug('retrieving average of last temperatures')
         
         if self._fail_exception is not None:
-            # An exception has been raised inside the averaging task, we restart
-            # the task because the error could have been transient and we raise
-            # the exception again here in order to be propagated to the
-            # main loop. Then we reset the exception.
-            
-            self._create_averaging_task()
+            # An exception has been raised inside the averaging task, we raise
+            # that exception here in order to be propagated to the main loop,
+            # then we reset the exception so the next call to this method
+            # will recreate the averaging task.
             
             try:
                 raise self._fail_exception
             
             finally:
                 self._fail_exception = None
+        
+        else:
+            self._create_averaging_task()
         
         skip = int(round(self._temperatures.maxlen * self._skipval / 2, 0))  # least and greatest temperatures to be excluded
         elements = len(self._temperatures)
