@@ -54,7 +54,7 @@ MAIN_CONFIG_FILES = (os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME),
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
                                    'scale', 'mode', 'heating', 'cooling',
                                    'thermometer', 'host', 'port', 'email',
-                                   'error_code', 'interval_on_error'])
+                                   'error_code', 'sleep_on_error'])
 """Tuple used to transfer settings from config file to main daemon.
 
 @deprecated the `error_code` will be removed in version 2.0.
@@ -155,7 +155,7 @@ def parse_main_settings(cfg):
         debug = cfg.getboolean('global', 'debug')
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
-        interval_on_error = cfg.getint('global', 'interval_on_error', fallback=120)
+        sleep_on_error = cfg.getint('global', 'sleep_on_error', fallback=interval*2)
         mode = cfg.getint('global', 'mode', fallback=1)
         
         # parsing working scale
@@ -356,6 +356,6 @@ def parse_main_settings(cfg):
     
     return (Settings(enabled, debug, tt_file, interval, scale, mode,
                      heating, cooling, thermometer, host, port,
-                     email, error_code, interval_on_error), error_code)
+                     email, error_code, sleep_on_error), error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

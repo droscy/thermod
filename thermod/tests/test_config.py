@@ -23,7 +23,7 @@ import os
 import unittest
 import thermod.config as cnf
 
-__updated__ = '2020-05-22'
+__updated__ = '2020-05-29'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -45,8 +45,8 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.enabled, False)
         self.assertEqual(settings.debug, False)
         self.assertEqual(settings.interval, 30)
-        self.assertEqual(settings.interval_on_error, 120)
-        self.assertEqual(settings.mode, 2)
+        self.assertEqual(settings.sleep_on_error, 30)
+        self.assertEqual(settings.mode, 1)
         self.assertEqual(settings.scale, 'c')  # TODO use DEGREE_CELSIUS when DEGREE_CELSIUS will be moved in common.py module
         
         self.assertEqual(settings.heating['manager'], 'scripts')

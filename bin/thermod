@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2020-05-22'
+__updated__ = '2020-05-29'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -78,6 +78,7 @@ __updated__ = '2020-05-22'
 # TODO [Roadmap 2.0.0] mettere calibrazione del termometro in un decorator
 # TODO [Roadmap 2.0.0] cambiare funzionamento del grace_time
 # TODO [Roadmap 2.0.0] rinominare Wire1Thermometer in OneWireThermometer (lasciando il vecchio nome deprecato)
+# TODO [Roadmap 2.0.0] usare gpiozero.LED per lo PiPinRelay, così Thermod può essere eseguito in remoto tramite pigpiod
 
 # TODO [Roadmap 2.1.0] chiamare le temperature t0, t1 e t2
 # TODO [Roadmap 2.1.0] modificare client web per permettere di impostare tre livelli di
@@ -612,7 +613,7 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                     # that longer time, resetting to the normal sleep time when
                     # no errors have been reported. See the `else` section after
                     # all exceptions.
-                    _sleep_time = settings.interval_on_error
+                    _sleep_time = settings.sleep_on_error
                     
                     try:
                         should_be_on = timetable.should_the_heating_be_on(
@@ -711,7 +712,7 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                         # We suspend the process and wait to check again the
                         # temperature. The wait is wrapped in a timeout to force
                         # a check at least any `_sleep_time` seconds.
-                        # @see settings.interval and settings.interval_on_error
+                        # @see settings.interval and settings.sleep_on_error
                         try:
                             logger.debug('sleeping for {} seconds', _sleep_time)
                             async with timeout(_sleep_time, loop=loop):
