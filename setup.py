@@ -21,7 +21,7 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
 
-__updated__ = '2020-05-19'
+__updated__ = '2020-05-29'
 
 def get_version():
     main_ns = {}
@@ -46,7 +46,12 @@ setup(name='thermod',
       packages=['thermod'],
       classifiers=['Programming Language :: Python :: 3.5',
                    'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
-                   'Environment :: Console'],
+                   'Environment :: Console',
+                   'Environment :: Web Environment',
+                   'Framework :: AsyncIO',
+                   'Intended Audience :: End Users/Desktop',
+                   'Operating System :: POSIX :: Linux',
+                   'Topic :: Home Automation'],
       scripts=['bin/thermod'],
       python_requires='>=3.5, <3.6',
       install_requires=['jsonschema >= 2.3.0',

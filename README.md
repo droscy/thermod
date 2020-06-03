@@ -34,7 +34,7 @@ and the following packages:
  - [numpy](http://www.numpy.org/) (>=1.8.0, only to run tests)
 
 *Thermod*, currently, is not compatible with aiohttp version 2.3 (or greater)
-and Python 3.6 and 3.7 are not supported by aiohttp from version 2.3 onward,
+and Python >=3.6 is not supported by aiohttp from version 2.3 onward,
 so Python 3.5 is a strict requirement for *Thermod*.
 
 ### Installation
@@ -42,38 +42,42 @@ To install *Thermod* you need to have Python and [virtualenv](https://virtualenv
 already installed on the system, then the basic steps are:
 
  1. download and uncompress the source tarball of a *Thermod* release or clone
-    the repository (in the following we assume that the source files are in
-    `${HOME}/thermod-src` where `${HOME}` is the *home* folder of the user that
-    will run the daemon)
+    the repository somewhere
 
  2. create the virtual environment and activate it
 
        ```bash
-       virtualenv -p /path/to/python3.5 ${HOME}/thermod-daemon
-       source ${HOME}/thermod-daemon/bin/activate
+       virtualenv -p /path/to/python3.5 ~/thermod-daemon
+       source ~/thermod-daemon/bin/activate
        ```
 
  3. install required packages
 
        ```bash
-       pip install -r ${HOME}/thermod-src/requirements.txt
+       pip install -r requirements.txt
        ```
 
     if you are on Raspberry Pi, or similar hardware, and you want to use
-    the GPIO pins to switch on/off the heating you also need
-    `pip install -r ${HOME}/thermod-src/requirements.gpio.txt`
+    the GPIO pins to switch on/off the heating you also need to add
+		the group `gpio` to the user that will run *Thermod* and also
+		install the package listed in `requirements.gpio.txt` file:
+
+       ```bash
+			 sudo adduser thermod gpio
+			 pip install -r requirements.gpio.txt
+			 ```
 
  5. install the daemon
 
       ```bash
-      python3 ${HOME}/thermod-src/setup.py install
+      python3 setup.py install
       ```
 
- 6. finally copy the config file `${HOME}/thermod-src/etc/thermod.conf` in
+ 6. finally copy the config file `etc/thermod.conf` in
     one of the following paths:
 
-    - `${HOME}/.thermod/thermod.conf`
-    - `${HOME}/.config/thermod/thermod.conf`
+    - `~/.thermod/thermod.conf`
+    - `~/.config/thermod/thermod.conf`
     - `/usr/local/etc/thermod/thermod.conf`
     - `/var/lib/thermod/thermod.conf`
     - `/etc/thermod/thermod.conf`
@@ -83,6 +87,9 @@ already installed on the system, then the basic steps are:
     most take precedence over the others.
 
 ### Building and installing on Debian-based system
+**Note:** this method only works till *Thermod* version 1.2.1 and with Debian
+stretch because Python 3.5 has been remove from Debian buster onward.
+
 A Debian package can be build using
 [git-buildpackage](https://honk.sigxcpu.org/piki/projects/git-buildpackage/).
 
@@ -110,9 +117,11 @@ dpkg -i \
 
 
 ## Starting/Stopping the daemon
-If *systemd* is in use in the system, copy the file `debian/thermod.service`
-to `/lib/systemd/system/thermod.service` or `/usr/local/lib/systemd/system/thermod.service`,
-change it to your needs then, to automatically start *Thermod* at system startup, execute:
+If *systemd* is in use in the system, copy the file `etc/thermod.service`
+to `/etc/systemd/system/thermod.service` or `/usr/local/lib/systemd/system/thermod.service`,
+and change it to your needs (pay attention to `User` value and `ExecStart` path).
+
+To automatically start *Thermod* at system startup, execute:
 
 ```bash
 systemctl daemon-reload
@@ -143,7 +152,7 @@ systemctl restart fail2ban.service
 
 
 ## Thermod monitors
-Some monitors have been developed to read the status of *Thermod*:
+Some monitors have been developed:
 
  - [thermod-monitor-buttonled](https://github.com/droscy/thermod-monitor-buttonled)
    for Raspberry Pi with one button and one RGB LED: the LED reports the current
@@ -152,3 +161,8 @@ Some monitors have been developed to read the status of *Thermod*:
  - [thermod-monitor-dbstats](https://github.com/droscy/thermod-monitor-dbstats)
    collects statistics on *Thermod* operation: records status changes in order to
    track switch ON and OFF of the heating along with timestamp.
+
+ - [thermod-monitor-homeassistant](https://github.com/droscy/thermod-monitor-homeassistant)
+   this monitor is currently under development: reads *Thermod* status and pushes
+   updates to Home Assistant.
+
