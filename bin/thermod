@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2020-05-29'
+__updated__ = '2020-06-03'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -94,7 +94,8 @@ parser.add_argument('-v', '--version', action='version', version='%(prog)s {}'.f
 parser.add_argument('-C', '--config', action='store', default=None, help='read configuration from CONFIG file (full path)')
 parser.add_argument('-L', '--log', action='store', default=None, help='write log messages to LOG file (full path)')
 parser.add_argument('-D', '--debug', action='store_true', help='enable debug messages')
-parser.add_argument('-d', '--daemon', action='store_true', help='write log messages to syslog and honor `enabled` setting in config file (can be used when started from systemd)')
+parser.add_argument('--syslog', action='store_true', help='write log messages to syslog instead of console')
+parser.add_argument('--daemon', action='store_true', help='write log messages to syslog and honour `enabled` setting in config file (can be used when started from systemd)')
 args = parser.parse_args()
 
 
@@ -106,6 +107,9 @@ if args.debug:
     logger.setLevel(logging.DEBUG)
 
 if args.daemon:
+    args.syslog = True
+
+if args.syslog:
     syslog = SysLogHandler(address='/dev/log', facility=SysLogHandler.LOG_DAEMON)
     syslog.setFormatter(logging.Formatter(fmt=common.LOGGER_FMT_MSG_SYSLOG,
                                           style=common.LOGGER_FMT_STYLE))
@@ -132,14 +136,14 @@ if args.log:
                                                style=common.LOGGER_FMT_STYLE))
         logger.addHandler(logfile)
     
-        if args.daemon:
+        if args.syslog:
             # When a custom log file is configured and the deamon in started
             # in background, only warnings and errors are printed to syslog.
             syslog.setLevel(logging.WARNING)
         
         logger.debug('logging to file {}', args.log)
 
-if args.daemon:
+if args.syslog:
     logger.debug('logging to syslog (daemon facility)')
 else:
     logger.debug('logging to console')
