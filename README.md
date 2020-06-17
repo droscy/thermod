@@ -110,28 +110,28 @@ gbp buildpackage
 The packages can then be installed as usual:
 
 ```bash
-dpkg -i \
+sudo dpkg -i \
   thermod_{version}_all.deb \
   python3-thermod_{version}_{arch}.deb
 ```
 
 
 ## Starting/Stopping the daemon
-If *systemd* is in use in the system, copy the file `etc/thermod.service`
+If *systemd* is in use in the system, copy the file `etc/thermod.inc.service`
 to `/etc/systemd/system/thermod.service` or `/usr/local/lib/systemd/system/thermod.service`,
 and change it to your needs (pay attention to `User` value and `ExecStart` path).
 
 To automatically start *Thermod* at system startup, execute:
 
 ```bash
-systemctl daemon-reload
-systemctl enable thermod.service
+sudo systemctl daemon-reload
+sudo systemctl enable thermod.service
 ```
 
 To manually start/stop *Thermod* daemon execute:
 
 ```bash
-systemctl [start|stop] thermod.service
+sudo systemctl [start|stop] thermod.service
 ```
 
 
@@ -145,10 +145,113 @@ To enable *Thermod*'s jail copy the two file `etc/fail2ban.filter` and
 `/etc/fail2ban/jail.d/thermod.conf` and restart *fail2ban* daemon.
 
 ```bash
-cp etc/fail2ban.filter /etc/fail2ban/filter.d/thermod.conf
-cp etc/fail2ban.jail /etc/fail2ban/jail.d/thermod.conf
-systemctl restart fail2ban.service
+sudo cp etc/fail2ban.filter /etc/fail2ban/filter.d/thermod.conf
+sudo cp etc/fail2ban.jail /etc/fail2ban/jail.d/thermod.conf
+sudo systemctl restart fail2ban.service
 ```
+
+
+## Web interface
+To enable the web interface of *Thermod* you need a working installation of a
+web server with php support. The web interface can also be in a different server
+just be sure that the other server can reach *Thermod*'s socket.
+
+### lighttpd
+These are the instructions to setup [lighttpd](https://www.lighttpd.net/) with
+[php-fpm](https://www.php.net/manual/en/install.fpm.php) on a Debian-based system
+on the same server where *Thermod* is running:
+
+1. install *lighttpd*, *php-fpm* and *jquery*:
+
+      ```bash
+      sudo apt-get install lighttpd php-fpm libjs-jquery libjs-jquery-ui
+      ```
+
+2. copy the `web/` folder somewhere in the system and make sure *lighttpd*'s user
+   can access it:
+
+      ```bash
+      sudo mkdir -p /srv/www/thermod
+      sudo cp -R web/* /srv/www/thermod
+      sudo chown -R www-data:www-data /srv/www/thermod
+      ```
+
+   Even the same source folder can be used without copying files somewhere else:
+
+      ```bash
+      chmod +x ~ ~/thermod
+      chmod +rx ~/thermod/web
+      ```
+
+3. copy `etc/lighttpd.inc.conf` to `/etc/lighttpd/conf-available`, change in
+   it `<WEB-FILE-PATH>` to the folder path where you copied the web interface:
+
+      ```bash
+      sudo cp etc/lighttpd.inc.conf /etc/lighttpd/conf-available/95-thermod.conf
+      sudo sed -i 's|<WEB-FILE-PATH>|/srv/www/thermod|' /etc/lighttpd/conf-available/95-thermod.conf
+      ```
+
+   If *Thermod* is running on a different server edit the just copied file: change the
+   last `127.0.0.1` to the right IP address.
+
+4. enable the just copied module together with *fastcgi* and *fastcgi-php*,
+   then restart *lighttpd*:
+
+      ```bash
+      sudo lighttpd-enable-mod thermod
+      sudo lighttpd-enable-mod fastcgi
+      sudo lighttpd-enable-mod fastcgi-php
+      sudo systemctl restart lighttpd.service
+      ```
+
+5. open browser and navigate to `http://<hostname>/thermod` you should see the web interface
+
+### Apache2
+If you use Apache2 web server follow these steps:
+
+1. install *Apache2*, *php* and *jquery*:
+
+      ```bash
+      sudo apt-get install apache2 libapache2-mod-php libjs-jquery libjs-jquery-ui
+      ```
+
+2. copy the `web/` folder somewhere in the system and make sure *Apache*'s user
+   can access it:
+
+      ```bash
+      sudo mkdir -p /srv/www/thermod
+      sudo cp -R web/* /srv/www/thermod
+      sudo chown -R www-data:www-data /srv/www/thermod
+      ```
+
+   Even the same source folder can be used without copying files somewhere else:
+
+      ```bash
+      chmod +x ~ ~/thermod
+      chmod +rx ~/thermod/web
+      ```
+
+3. copy `etc/apache2.inc.conf` to `/etc/apache2/conf-available`, change in
+   it `<WEB-FILE-PATH>` to the folder path where you copied the web interface:
+
+      ```bash
+      sudo cp etc/apache2.inc.conf /etc/apache2/conf-available/thermod.conf
+      sudo sed -i 's|<WEB-FILE-PATH>|/srv/www/thermod|' /etc/apache2/conf-available/thermod.conf
+      ```
+
+   If *Thermod* is running on a different server edit the just copied file: change
+   `localhost` to the right hostname or IP address in the two settings `ProxyPass`
+   and `ProxyPassReverse`.
+
+4. enable the just copied module together with `mod_proxy` and restart *Apache2*:
+
+      ```bash
+      sudo a2enconf thermod
+      sudo a2enmod proxy
+      sudo systemctl restart apache2.service
+      ```
+
+5. open browser and navigate to `http://<hostname>/thermod` you should see the web interface
 
 
 ## Thermod monitors
