@@ -633,7 +633,7 @@ class Wire1Thermometer(BaseThermometer):
         
         @param devices the list of 1-Wire devices to read the temperature from
             (the devices are in /sys/bus/w1/devices folder) or a list of full
-            paths to 'w1_slave' files
+            paths to 'w1_subordinate' files
         @param scale degree scale to be used
         @param t_ref list of reference values for temperature calibration
         @param t_raw list of raw temperatures read by the thermometer
@@ -659,7 +659,7 @@ class Wire1Thermometer(BaseThermometer):
         self._devices = []
         
         for dev in devices:
-            path = (dev if dev[0] == '/' else '/sys/bus/w1/devices/{}/w1_slave'.format(dev))
+            path = (dev if dev[0] == '/' else '/sys/bus/w1/devices/{}/w1_subordinate'.format(dev))
             with open(path, 'r'):
                 self._devices.append(path)
         
