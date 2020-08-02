@@ -63,9 +63,9 @@ already installed on the system, then the basic steps are:
 		install the package listed in `requirements.gpio.txt` file:
 
        ```bash
-			 sudo adduser thermod gpio
-			 pip install -r requirements.gpio.txt
-			 ```
+       sudo adduser thermod gpio
+       pip install -r requirements.gpio.txt
+       ```
 
  5. install the daemon
 

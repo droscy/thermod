@@ -45,7 +45,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2020-06-03'
+__updated__ = '2020-08-02'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -79,6 +79,8 @@ __updated__ = '2020-06-03'
 # TODO [Roadmap 2.0.0] cambiare funzionamento del grace_time
 # TODO [Roadmap 2.0.0] rinominare Wire1Thermometer in OneWireThermometer (lasciando il vecchio nome deprecato)
 # TODO [Roadmap 2.0.0] usare gpiozero.LED per lo PiPinRelay, così Thermod può essere eseguito in remoto tramite pigpiod
+# TODO [Roadmap 2.0.0] convertire BaseThermometer.temperature in una coroutine così da poter eseguire operazioni
+#   lente tramite run_in_executor (ad esempio per per i termometri 1Wire)
 
 # TODO [Roadmap 2.1.0] chiamare le temperature t0, t1 e t2
 # TODO [Roadmap 2.1.0] modificare client web per permettere di impostare tre livelli di
@@ -206,7 +208,7 @@ try:
     main_loop = asyncio.get_event_loop()
     
     # the main lock
-    masterlock = asyncio.Condition(loop=main_loop)
+    masterlock = asyncio.Condition()
     
     # the timetable
     timetable = TimeTable(settings.tt_file, settings.mode)
@@ -428,8 +430,7 @@ try:
                             thermometer,
                             settings.thermometer['avgint'],
                             settings.thermometer['avgtime'],
-                            settings.thermometer['avgskip'],
-                            main_loop)
+                            settings.thermometer['avgskip'])
 
 except (ValueError, TypeError) as vte:
     main_return_code = common.RET_CODE_THERMO_INIT_ERR
@@ -471,8 +472,7 @@ try:
     
     # TODO check other possible errors on asynchronous socket creation
     socket = ControlSocket(timetable, heating, cooling, thermometer,
-                           settings.host, settings.port,
-                           masterlock, main_loop)
+                           settings.host, settings.port, masterlock)
 
 except Exception as e:
     main_return_code = common.RET_CODE_SOCKET_INIT_ERR
@@ -507,7 +507,7 @@ def shutdown(exitcode=common.RET_CODE_OK):
             masterlock.notify_all()
     
     if main_loop.is_running():
-        logger.debug('the main loop in running, creating a task to stop the loop')
+        logger.debug('the main cycle in running, creating a task to stop the cycle')
         main_loop.create_task(stop_cycle())
     else:
         logger.debug('stopping the main cycle')
@@ -560,7 +560,7 @@ def toggle_debug_messages():
         logger.info('debug messages disabled')
 
 
-async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop):
+async def thermostat_cycle(timetable, heating, cooling, thermometer, lock):
     """The main cycle of temperature checking.
     
     Periodically checks the temperature and switch on/off the heating
@@ -574,6 +574,7 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
     
     global enabled, main_return_code
     logger.info('daemon started ({})', PROGRAM_VERSION)
+    loop = asyncio.get_event_loop()  # TODO for python 3.7 change to asyncio.get_running_loop()
     
     try:
         try:
@@ -622,6 +623,12 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                     try:
                         should_be_on = timetable.should_the_heating_be_on(
                                             thermometer.temperature,
+                                            # TODO waiting for 'async' in thermometer.temperature, this below
+                                            # could be a solution to get the temperature in async fashion.
+                                            #await loop.run_in_executor(None,
+                                            #                           thermometer.__class__.temperature.__get__,
+                                            #                           thermometer,
+                                            #                           thermometer.__class__),
                                             _heatcool.status)
                         
                         _msg = ('status: {!r}, '
@@ -719,7 +726,7 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                         # @see settings.interval and settings.sleep_on_error
                         try:
                             logger.debug('sleeping for {} seconds', _sleep_time)
-                            async with timeout(_sleep_time, loop=loop):
+                            async with timeout(_sleep_time):
                                 await lock.wait()
                         
                         except asyncio.TimeoutError:
@@ -738,8 +745,8 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                 logger.critical('unknown error occurred: {}', e, exc_info=True)
                 shutdown(common.RET_CODE_RUN_OTHER_ERR)
                 
-                # we await to let e coroutine started by shutdown to run
-                await asyncio.sleep(0.2, loop=loop)
+                # we await to let the coroutine started by shutdown to run
+                await asyncio.sleep(0.2)
     
     except asyncio.CancelledError:
         logger.debug('main cycle cancelled')
@@ -784,7 +791,7 @@ finally:
 # run the main loop
 try:
     logger.debug('starting main cycle')
-    main_loop.run_until_complete(thermostat_cycle(timetable, heating, cooling, thermometer, masterlock, main_loop))
+    main_loop.run_until_complete(thermostat_cycle(timetable, heating, cooling, thermometer, masterlock))
 
 # TODO check for specific exceptions
 except Exception as e:
