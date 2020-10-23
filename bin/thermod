@@ -642,7 +642,7 @@ async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
                 logger.critical('unknown error occurred: {}', e, exc_info=True)
                 shutdown(common.RET_CODE_RUN_OTHER_ERR)
                 
-                # we await to let e coroutine started by shutdown to run
+                # we await to let the coroutine started by shutdown to run
                 await asyncio.sleep(0.2, loop=loop)
     
     except asyncio.CancelledError:
