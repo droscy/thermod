@@ -31,27 +31,28 @@ from copy import deepcopy
 from datetime import datetime
 from json.decoder import JSONDecodeError
 
-from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, JsonValueError
 from .memento import transactional
+from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, \
+    JsonValueError, HVAC_HEATING, HVAC_COOLING, HVAC_ALL_MODES
 
 __date__ = '2015-09-09'
-__updated__ = '2019-05-04'
-__version__ = '2.0'
+__updated__ = '2020-10-22'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
 
-# Common names for timetable and socket messages fields.
+# Common names for timetable JSON and socket messages fields.
 JSON_MODE = 'mode'
 JSON_TEMPERATURES = 'temperatures'
 JSON_TIMETABLE = 'timetable'
 JSON_DIFFERENTIAL = 'differential'
 JSON_GRACE_TIME = 'grace_time'
-JSON_COOLING = 'cooling'
+JSON_HVAC_MODE = 'hvac_mode'
 JSON_VERSION = 'version'
 JSON_ALL_SETTINGS = (JSON_MODE, JSON_TEMPERATURES, JSON_TIMETABLE,
-                     JSON_DIFFERENTIAL, JSON_GRACE_TIME, JSON_COOLING,
+                     JSON_DIFFERENTIAL, JSON_GRACE_TIME, JSON_HVAC_MODE,
                      JSON_VERSION)
+
 
 JSON_T0_STR = 't0'
 JSON_TMIN_STR = 'tmin'
@@ -67,6 +68,13 @@ JSON_MODE_TMAX = JSON_TMAX_STR
 JSON_ALL_MODES = (JSON_MODE_ON, JSON_MODE_OFF, JSON_MODE_AUTO,
                   JSON_MODE_T0, JSON_MODE_TMIN, JSON_MODE_TMAX)
 
+JSON_HVAC_HEATING = HVAC_HEATING
+JSON_HVAC_COOLING = HVAC_COOLING
+JSON_ALL_HVAC_MODES = HVAC_ALL_MODES
+
+# removed setting, kept here to process Timetable state saved with old versions
+JSON_COOLING = 'cooling'
+
 # The keys of the following dict are the same numbers returned by %w of
 # strftime(), while the names are used to avoid errors with different locales.
 JSON_DAYS_NAME_MAP = {1: 'monday',    '1': 'monday',
@@ -78,13 +86,16 @@ JSON_DAYS_NAME_MAP = {1: 'monday',    '1': 'monday',
                       0: 'sunday',    '0': 'sunday'}
 
 # Current schema for JSON timetable file.
+JSON_SCHEMA_VERSION = 2
+"""Current version of JSON schema for timetable file."""
+
 JSON_SCHEMA = {
-    '$schema': 'http://json-schema.org/draft-04/schema#',
+    '$schema': 'https://json-schema.org/draft-04/schema',
     'title': 'Timetable',
     'description': 'Timetable file for Thermod daemon',
     'type': 'object',
     'properties': {
-        'version': {'type': 'integer', 'minimum': 2},
+        'version': {'type': 'integer', 'minimum': 2, 'maximum': JSON_SCHEMA_VERSION},
         'mode': {'enum': ['auto', 'on', 'off', 't0', 'tmin', 'tmax']},
         'temperatures': {
             'type': 'object',
@@ -92,8 +103,7 @@ JSON_SCHEMA = {
                 't0': {'type': 'number'},
                 'tmin': {'type': 'number'},
                 'tmax': {'type': 'number'}},
-            'required': ['t0', 'tmin', 'tmax'],
-            'additionalProperties': False},
+            'required': ['t0', 'tmin', 'tmax']},
         'timetable': {
             'type': 'object',
             'properties': {
@@ -105,13 +115,11 @@ JSON_SCHEMA = {
                 'saturday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]},
                 'sunday': {'type': 'object', 'oneOf': [{'$ref': '#/definitions/day'}]}},
             'required': ['monday', 'tuesday', 'wednesday', 'thursday',
-                         'friday', 'saturday', 'sunday'],
-            'additionalProperties': False},
+                         'friday', 'saturday', 'sunday']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
         'grace_time': {'type': ['number', 'null'], 'minimum': 0},
-        'cooling': {'type': ['boolean', 'null']}},
+        'hvac_mode': {'enum': ['heating', 'cooling']}},
     'required': ['version', 'mode', 'temperatures', 'timetable'],
-    'additionalProperties': False,
     'definitions': {
         'day': {
             'patternProperties': {
@@ -122,11 +130,7 @@ JSON_SCHEMA = {
                                         {'enum': ['t0', 'tmin', 'tmax']}]}}},
             'required': ['h00', 'h01', 'h02', 'h03', 'h04', 'h05', 'h06', 'h07', 'h08', 'h09',
                          'h10', 'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'h19',
-                         'h20', 'h21', 'h22', 'h23'],
-            'additionalProperties': False}}}
-
-JSON_SCHEMA_VERSION = 2
-"""Current version of JSON schema for timetable file."""
+                         'h20', 'h21', 'h22', 'h23']}}}
 
 
 
@@ -203,7 +207,7 @@ def json_format_temperature(temperature):
 def json_format_hour(hour):
     """Format the provided hour as a string in 24H clock with a leading `h` and zeroes.
     
-    @exception thermod.timetable.JsonValueError if the `hour` cannot be formatted
+    @exception thermod.common.JsonValueError if the `hour` cannot be formatted
     """
     try:
         # if hour cannot be converted to int or is outside 0-23 range
@@ -226,7 +230,7 @@ def json_get_day_name(day):
     1 is Monday, 2 is Tuesday, etc) or a day name in English or in the
     current locale.
     
-    @exception thermod.timetable.JsonValueError if the `day` is invalid
+    @exception thermod.common.JsonValueError if the `day` is invalid
     """
     
     result = None
@@ -301,7 +305,7 @@ class ShouldBeOn(int):
 class TimeTable(object):
     """Represent the timetable to control the heating."""
     
-    def __init__(self, filepath=None, inertia=1, cooling_available=True):
+    def __init__(self, filepath=None, inertia=1):
         """Init the timetable.
         
         The timetable can be initialized empty, if `filepath` is `None`,
@@ -312,7 +316,6 @@ class TimeTable(object):
             informations to setup the timetable
         @param inertia the working mode regarding switch-on and switch-off
             temperatures due to thermal inertia
-        @param cooling_available if the cooling system is currently available
         
         @see TimeTable.reload() for possible exceptions
         """
@@ -327,20 +330,11 @@ class TimeTable(object):
         self._differential = 0.5
         self._grace_time = float('+Inf')  # disabled by default
         
-        self._cooling = (False if cooling_available else None)
-        """If cooling system is active or not.
+        self._hvac_mode = JSON_HVAC_HEATING
+        """HVAC mode currently active.
         
-        When this attribute is `False` it means that the heating system is
-        active instead. It's alwats `None` when no cooling system is available.
-        
-        @see TimeTable.cooling setter for check on cooling system availability.
-        """
-        
-        self._cooling_available = cooling_available
-        """`True` if the cooling system is currently available, `False` otherwise.
-        
-        When this attribute is `False`, interactions with cooling system result
-        in runtime errors.
+        This setting change the behaviour of `TimeTable.should_the_heating_be_on()`
+        method on how it handles tmax and tmin temperatures.
         """
         
         self._has_been_validated = False
@@ -388,12 +382,11 @@ class TimeTable(object):
     
     
     def __repr__(self, *args, **kwargs):
-        return '<{module}.{cls}({filepath!r}, {inertia!r}, {coolavil!r})>'.format(
+        return '<{module}.{cls}({filepath!r}, {inertia!r})>'.format(
                     module=self.__module__,
                     cls=self.__class__.__name__,
                     filepath=self.filepath,
-                    inertia=self._inertia,
-                    coolavil=self._cooling_available)
+                    inertia=self._inertia)
     
     
     def __eq__(self, other):
@@ -412,8 +405,7 @@ class TimeTable(object):
                         and (self._timetable == other._timetable)
                         and (self._differential == other._differential)
                         and (self._grace_time == other._grace_time)
-                        # here we assume that False or None for cooling is the same
-                        and ((self._cooling or None) == (other._cooling or None)))
+                        and (self._hvac_mode == other._hvac_mode))
         
         except AttributeError:
             result = False
@@ -432,9 +424,8 @@ class TimeTable(object):
         new._inertia = self._inertia
         new._differential = self._differential
         new._grace_time = self._grace_time
-        new._cooling = self._cooling
+        new._hvac_mode = self._hvac_mode
         
-        new._cooling_available = self._cooling_available
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
         new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
@@ -456,9 +447,8 @@ class TimeTable(object):
         new._inertia = self._inertia
         new._differential = self._differential
         new._grace_time = self._grace_time
-        new._cooling = self._cooling
+        new._hvac_mode = self._hvac_mode
         
-        new._cooling_available = self._cooling_available
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
         new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
@@ -493,13 +483,16 @@ class TimeTable(object):
                 if JSON_GRACE_TIME in oldstate:
                     newstate[JSON_GRACE_TIME] = oldstate[JSON_GRACE_TIME]
                 
-                if JSON_COOLING in oldstate:
-                    newstate[JSON_COOLING] = oldstate[JSON_COOLING]
+                if JSON_HVAC_MODE in oldstate:
+                    newstate[JSON_HVAC_MODE] = oldstate[JSON_HVAC_MODE]
                 
-                logger.debug('the new schema has been upgraded')
+                elif JSON_COOLING in oldstate:
+                    newstate[JSON_HVAC_MODE] = JSON_HVAC_COOLING if oldstate[JSON_COOLING] else JSON_HVAC_HEATING
+                
+                logger.debug('the new state has been upgraded')
             
             else:
-                logger.debug('the new schema is already at the current version')
+                logger.debug('the new state is already at the current version')
                 newstate = oldstate
         
         except Exception:
@@ -531,7 +524,7 @@ class TimeTable(object):
                     JSON_TIMETABLE: self._timetable,
                     JSON_DIFFERENTIAL: self._differential,
                     JSON_GRACE_TIME: self._grace_time,
-                    JSON_COOLING: self._cooling}
+                    JSON_HVAC_MODE: self._hvac_mode}
         
         try:
             # always validating returning state
@@ -554,6 +547,7 @@ class TimeTable(object):
     @transactional()
     def __setstate__(self, state):
         """Set new internal state.
+            self._has_been_validated = False
         
         The new `state` is "deep" copied before saving
         internally to prevent unwanted update to any external array, if it's
@@ -587,9 +581,8 @@ class TimeTable(object):
                 # NOTE: using grace_time setter to perform additional checks
                 self.grace_time = _state[JSON_GRACE_TIME]
             
-            if JSON_COOLING in _state:
-                # NOTE: using cooling setter to perform additional checks
-                self.cooling = _state[JSON_COOLING]
+            if JSON_HVAC_MODE in _state:
+                self._hvac_mode = _state[JSON_HVAC_MODE]
             
             self._last_update_timestamp = time.time()
             
@@ -607,7 +600,7 @@ class TimeTable(object):
             logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
             logger.debug('differential: {} deg', self._differential)
             logger.debug('grace time: {} sec', self._grace_time)
-            logger.debug('cooling: {}', self._cooling)
+            logger.debug('hvac mode: {}', self._hvac_mode)
         
         logger.debug('new internal state set')
     
@@ -652,9 +645,6 @@ class TimeTable(object):
         
         if not math.isfinite(state[JSON_GRACE_TIME]):
             state[JSON_GRACE_TIME] = None
-        
-        if not self._cooling_available:
-            state[JSON_COOLING] = None
         
         return json.dumps(state, indent=indent, sort_keys=sort_keys, allow_nan=False)
     
@@ -716,7 +706,7 @@ class TimeTable(object):
         """Save the current timetable to JSON file.
         
         Save the current configuration of the timetable to the file
-        pointed by `filepath` paramether (full path to file). If `filepath` is
+        pointed by `filepath` parameter (full path to file). If `filepath` is
         `None`, settings are saved to the internal TimeTable.filepath.
         
         @exception ValueError if there is a 'NaN' or 'Infinite' float in internal settings
@@ -887,47 +877,31 @@ class TimeTable(object):
     
     
     @property
-    def cooling(self):
-        """Return `True` if the cooling system is currently active.
-        
-        Return `False` if the cooling is not active (the heating is in use),
-        `None` if cooling system is NOT available.
-        
-        The behaviour of `TimeTable.should_the_heating_be_on()` method depends
-        on this value.
-
-        @see TimeTable.should_the_heating_be_on()
-        """
-        
-        logger.debug('checking if cooling is active: {}', self._cooling)
-        return self._cooling
+    def hvac_mode(self):
+        """Return the currently active HVAC mode."""
+        logger.debug('checking the hvac active mode: {}', self._hvac_mode)
+        return self._hvac_mode
     
     
-    @cooling.setter
-    def cooling(self, value):
-        """Set to `True` to activate the cooling system, `False` to disable it.
-        
-        If the cooling system is not available and the value set here is not
-        `None` e warning is printed.
+    @hvac_mode.setter
+    def hvac_mode(self, value):
+        """Change the active HVAC mode.
         
         @exception JsonValueError if the provided value is invalid
         """
         
-        logger.debug('setting the new cooling value')
+        logger.debug('setting the new hvac mode')
         
-        if value not in (True, False, None):
-            logger.debug('invalid new cooling value: {}', value)
-            raise JsonValueError('the new cooling value `{}` is invalid, '
-                                 'it must be a boolean'.format(value))
+        if value not in JSON_ALL_HVAC_MODES:
+            logger.debug('invalid new hvac mode: {}', value)
+            raise JsonValueError('the new hvac mode `{}` is invalid, '
+                                 'it must be one of the following '
+                                 'values: {}'.format(value, ', '.join(JSON_ALL_HVAC_MODES)))
         
-        # interchange False and None when cooling is available or not available
-        self._cooling = ((value or False) if self._cooling_available else None)
-        
-        if not self._cooling_available and value is not None:
-            logger.warning('cannot change cooling value because no cooling system available')
+        self._hvac_mode = value
         
         self._last_update_timestamp = time.time()
-        logger.debug('new cooling value set: {}', self._cooling)
+        logger.debug('new hvac mode set: {}', self._hvac_mode)
     
     
     @property
@@ -1100,7 +1074,7 @@ class TimeTable(object):
     def target_temperature(self, target_time=None):
         """Return the target temperature at specific `target_time`.
         
-        NB: when `self._cooling` is `True`, `tmax` and `tmin` values are
+        NB: when `self._hvac_mode` is set to `cooling`, `tmax` and `tmin` values are
         inverted because they mean ON and OFF respectively, so when
         `tmax` is set it means both "heating on" and "cooling on".
         
@@ -1137,7 +1111,7 @@ class TimeTable(object):
             target = self._timetable[day][hour][quarter]
             
             # in case of cooling, the meaning of tmax and tmin are inverted
-            if self._cooling:
+            if self._hvac_mode == JSON_HVAC_COOLING:
                 if target == JSON_TMAX_STR:
                     target = JSON_TMIN_STR
                 elif target == JSON_TMIN_STR:
@@ -1171,8 +1145,8 @@ class TimeTable(object):
         """Check if the heating/cooling, now, should be on.
         
         This method can be used with both heating and cooling. What makes the
-        difference in behaviour is the internal value of `TimeTable._cooling`
-        attribute: if it is `True` this method returns `True` when the current
+        difference in behaviour is the internal value of `TimeTable._hvac_mode`
+        attribute: if it is `cooling` this method returns `True` when the current
         temperature is above target, otherwise when the temperature is below
         target.
         
@@ -1193,8 +1167,7 @@ class TimeTable(object):
             valid temperature
         """
         
-        logger.debug('checking should-be status of the {}',
-                     ('heating' if not self._cooling else 'cooling system'))
+        logger.debug('checking should-be status of the {} system', self._hvac_mode)
         
         if not self._has_been_validated:
             self.validate()
@@ -1227,7 +1200,7 @@ class TimeTable(object):
                 target = realtgt
             
             elif self._inertia == 2:
-                if not self._cooling:
+                if self._hvac_mode == JSON_HVAC_HEATING:
                     # switch on at target-2*diff, switch off at target
                     target = realtgt - diff
                 
@@ -1238,7 +1211,7 @@ class TimeTable(object):
             elif self._inertia == 3:
                 diff /= 2
                 
-                if not self._cooling:
+                if self._hvac_mode == JSON_HVAC_HEATING:
                     # switch on at target-2*diff, switch off at target-diff
                     target = realtgt - 3*diff
                 
@@ -1271,11 +1244,10 @@ class TimeTable(object):
             
             logger.debug('{}_on: {}, below_tgt_temperature_time: {}, '
                          'tgt_temperature_time: {}, grace_time: {}',
-                         ('heating' if not self._cooling else 'cooling'),
-                         ison, datetime.fromtimestamp(bltts),
+                         self._hvac_mode, ison, datetime.fromtimestamp(bltts),
                          datetime.fromtimestamp(tgtts), grace)
             
-            if not self._cooling:
+            if self._hvac_mode == JSON_HVAC_HEATING:
                 should_be_on = (
                     ((current <= (target - diff))
                     or ((current < target) and ((nowts - bltts) > grace))
@@ -1291,14 +1263,12 @@ class TimeTable(object):
                     or ((current > (target - diff)) and ison))
                         and not (current <= target and (nowts - bltts) > grace))
         
-        logger.debug('the {} should be {}',
-                     ('heating' if not self._cooling else 'cooling system'),
-                     ('ON' if should_be_on else 'OFF'))
+        logger.debug('the {} system should be {}', self._hvac_mode, ('ON' if should_be_on else 'OFF'))
         
         return ShouldBeOn(should_be_on,
                           ThermodStatus(target_time.timestamp(),
                                         self._mode,
-                                        self._cooling,
+                                        self._hvac_mode,
                                         status,
                                         current,
                                         realtgt))

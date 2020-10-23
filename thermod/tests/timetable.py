@@ -29,10 +29,11 @@ import threading
 from jsonschema import ValidationError
 from datetime import datetime, timedelta
 from thermod import timetable, ThermodStatus
+from thermod.common import HVAC_HEATING, HVAC_COOLING
 from thermod.timetable import TimeTable, ShouldBeOn, JsonValueError
 from thermod.heating import BaseHeating
 
-__updated__ = '2019-04-20'
+__updated__ = '2020-10-22'
 
 
 # state saved with Thermod version 1.2
@@ -443,6 +444,16 @@ class TestTimeTable(unittest.TestCase):
             self.timetable.tmax = 'inf'
     
     
+    def test_hvac_mode(self):
+        self.assertEqual(self.timetable.hvac_mode, HVAC_HEATING)
+        
+        self.timetable.hvac_mode = HVAC_COOLING
+        self.assertEqual(self.timetable.hvac_mode, HVAC_COOLING)
+        
+        with self.assertRaises(JsonValueError):
+            self.timetable.hvac_mode = 'othervalue'
+    
+    
     def test_degrees(self):
         # no main temperatures already set, thus exception
         self.assertRaises(RuntimeError,self.timetable.degrees, 't0')
@@ -828,6 +839,51 @@ class TestTimeTable(unittest.TestCase):
         self.assertTrue(self.timetable.should_the_heating_be_on(19.5, self.heating.status))
     
     
+    def test_timetable_06_cooling(self):  # # the same of test 06 with hvac_mode==cooling
+        fill_timetable(self.timetable)
+        
+        now = datetime.now()
+        day = now.strftime('%w')
+        hour = timetable.json_format_hour(now.hour)
+        quarter = int(now.minute // 15)
+        
+        self.timetable.mode = timetable.JSON_MODE_AUTO
+        self.timetable.hvac_mode = HVAC_COOLING
+        self.timetable.tmax = 30
+        self.timetable.tmin = 24
+        self.timetable.update(day,hour,quarter,timetable.JSON_TMIN_STR)  # tmin mean 'off' even for cooling
+        
+        # the cooling should be on if current temp above tmax
+        self.assertTrue(self.timetable.should_the_heating_be_on(31, self.heating.status))
+        
+        # the cooling should be off for tmin in auto mode
+        self.assertFalse(self.timetable.should_the_heating_be_on(25, self.heating.status))
+        
+        # the cooling should be on now
+        self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)  # tmax mean 'on' even for cooling
+        self.assertTrue(self.timetable.should_the_heating_be_on(25, self.heating.status))
+        
+        # virtually switching on and set internal state
+        self.heating.switch_on()
+        
+        # the temperature start decreasing
+        self.assertTrue(self.timetable.should_the_heating_be_on(24.8, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(24.5, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(24.2, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(23.9, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(23.4, self.heating.status))
+        
+        # virtually switching off and set internal state
+        self.heating.switch_off()
+        
+        # the temperature start increasing
+        self.assertFalse(self.timetable.should_the_heating_be_on(23.7, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(24.0, self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(24.4, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(24.9, self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(25.1, self.heating.status))
+    
+    
     def test_timetable_07(self):
         fill_timetable(self.timetable)
         
@@ -949,7 +1005,6 @@ class TestTimeTable(unittest.TestCase):
         self.timetable.mode = timetable.JSON_MODE_T0
         self.assertAlmostEqual(self.timetable.target_temperature(time), self.timetable.t0, delta=0.01)
     
-    
     def test_load_old_state(self):
         """Try to load on old JSON schema."""
         
@@ -959,7 +1014,7 @@ class TestTimeTable(unittest.TestCase):
         # mixed schema (old with some changes)
         with self.assertRaises(ValidationError):
             self.timetable.load(_json_state_v1.replace('status', 'mode'))
-        
+    
     def test_old_state_adapter(self):
         """Check if the adapter is transparent in case of valid new state."""
         self.timetable.load(_json_state_v1)

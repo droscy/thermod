@@ -24,7 +24,7 @@ import unittest
 import thermod.config as cnf
 import thermod.common as common
 
-__updated__ = '2019-04-14'
+__updated__ = '2020-10-22'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -55,13 +55,6 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.heating['status'], '/etc/thermod/switch-heating --status -j -s -q')
         self.assertEqual(settings.heating['pins'], [23])
         self.assertEqual(settings.heating['level'], 'l')
-        
-        self.assertEqual(settings.cooling['manager'], 'heating')
-        self.assertEqual(settings.cooling['on'], '/etc/thermod/switch-cooling --on -j -s -q')
-        self.assertEqual(settings.cooling['off'], '/etc/thermod/switch-cooling --off -j -s -q')
-        self.assertEqual(settings.cooling['status'], '/etc/thermod/switch-cooling --status -j -s -q')
-        self.assertEqual(settings.cooling['pins'], [24])
-        self.assertEqual(settings.cooling['level'], 'l')
         
         self.assertEqual(settings.thermometer['thermometer'], '/etc/thermod/get-temperature')
         self.assertEqual(settings.thermometer['scale'], 'c')

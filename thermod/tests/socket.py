@@ -28,15 +28,14 @@ import requests
 import threading
 import asyncio
 
-from thermod import socket, timetable
+from thermod import socket, timetable, common
 from thermod.timetable import TimeTable
 from thermod.heating import BaseHeating
-from thermod.cooling import BaseCooling
 from thermod.socket import ControlSocket
 from thermod.thermometer import FakeThermometer
 from thermod.tests.timetable import fill_timetable
 
-__updated__ = '2019-04-14'
+__updated__ = '2020-10-22'
 __url_settings__ = 'http://localhost:4345/settings'
 __url_heating__ = 'http://localhost:4345/status'
 
@@ -44,11 +43,10 @@ __url_heating__ = 'http://localhost:4345/status'
 class SocketThread(threading.Thread):
     """Thread to execut the socket and its loop"""
     
-    def __init__(self, timetable, heating, cooling, thermometer, lock):
+    def __init__(self, timetable, heating, thermometer, lock):
         super().__init__()
         self.timetable = timetable
         self.heating = heating
-        self.cooling = cooling
         self.thermometer = thermometer
         self.lock = lock
     
@@ -58,7 +56,6 @@ class SocketThread(threading.Thread):
         
         self.socket = ControlSocket(self.timetable,
                                     self.heating,
-                                    self.cooling,
                                     self.thermometer,
                                     'localhost',
                                     4345,  # using different port to run test while real thermod is running
@@ -90,10 +87,9 @@ class TestSocket(unittest.TestCase):
         self.timetable.save()
         
         self.heating = BaseHeating()
-        self.cooling = BaseCooling()
         self.thermometer = FakeThermometer()
         
-        self.socket = SocketThread(self.timetable, self.heating, self.cooling, self.thermometer, self.lock)
+        self.socket = SocketThread(self.timetable, self.heating, self.thermometer, self.lock)
         self.socket.start()
     
     
@@ -155,6 +151,11 @@ class TestSocket(unittest.TestCase):
         self.assertEqual(wrong.status_code, 400)
         wrong.close()
         
+        # wrong value (invalid)
+        wrong = requests.post(__url_settings__, {socket.REQ_SETTINGS_HVAC_MODE: 'invalid'})
+        self.assertEqual(wrong.status_code, 400)
+        wrong.close()
+        
         # wrong JSON data for settings
         settings = self.timetable.__getstate__()
         settings[timetable.JSON_TEMPERATURES][timetable.JSON_TMAX_STR] = 'inf'
@@ -183,6 +184,7 @@ class TestSocket(unittest.TestCase):
         # multiple settings
         q = requests.post(__url_settings__, {socket.REQ_SETTINGS_MODE: timetable.JSON_MODE_TMAX,
                                     socket.REQ_SETTINGS_TMAX: 32.3,
+                                    socket.REQ_SETTINGS_HVAC_MODE: common.HVAC_COOLING,
                                     socket.REQ_SETTINGS_GRACE_TIME: 'inf'})
         
         self.assertEqual(q.status_code, 200)

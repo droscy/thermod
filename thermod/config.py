@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2019-04-20'
+__updated__ = '2020-10-22'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -49,7 +49,7 @@ MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
 
 
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
-                                   'scale', 'inertia', 'heating', 'cooling',
+                                   'scale', 'inertia', 'heating',
                                    'thermometer', 'host', 'port', 'email'])
 """Tuple used to transfer settings from config file to main daemon."""
 
@@ -191,31 +191,6 @@ def parse_main_settings(cfg):
         
         heating['pins'] = [int(p) for p in cfg.get('heating/PiPinsRelay', 'pins', fallback='').split(',')]
         heating['level'] = _level[0]  # only the first letter of _level is used
-        
-        # parsing cooling settings
-        logger.debug('parsing cooling settings')
-        cooling = {'manager': cfg.get('cooling', 'cooling', fallback='')}
-        
-        if cooling['manager'] == '':
-            cooling['manager'] = None
-        
-        elif cooling['manager'] not in ('heating', 'scripts', 'PiPinsRelay'):
-            raise ValueError('invalid value `{}` for cooling system'.format(cooling['manager']))
-            
-        cooling['on'] = cfg.get('cooling/scripts', 'switchon')
-        cooling['off'] = cfg.get('cooling/scripts', 'switchoff')
-        cooling['status'] = cfg.get('cooling/scripts', 'status', fallback=None)
-        
-        if cooling['status'] == '':
-            cooling['status'] = None
-        
-        _level = cfg.get('cooling/PiPinsRelay', 'switch_on_level', fallback='high').casefold()
-        if _level not in ('high', 'low'):
-            raise ValueError('the switch_on_level for cooling must be `high` '
-                             'or `low`, `{}` provided'.format(_level))
-        
-        cooling['pins'] = [int(p) for p in cfg.get('cooling/PiPinsRelay', 'pins', fallback='').split(',')]
-        cooling['level'] = _level[0]  # only the first letter of _level is used
         
         # parsing thermometer setting
         logger.debug('parsing thermometer settings')
@@ -359,7 +334,7 @@ def parse_main_settings(cfg):
         logger.debug('main settings parsed')
     
     return (Settings(enabled, debug, tt_file, interval, scale, inertia,
-                     heating, cooling, thermometer, host, port, email),
+                     heating, thermometer, host, port, email),
             error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

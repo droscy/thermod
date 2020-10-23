@@ -26,7 +26,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2019-04-14'
+__updated__ = '2020-10-21'
 
 
 # logger common settings
@@ -90,7 +90,7 @@ SOCKET_REQ_SETTINGS_TMIN = 'tmin'
 SOCKET_REQ_SETTINGS_TMAX = 'tmax'
 SOCKET_REQ_SETTINGS_DIFFERENTIAL = 'differential'
 SOCKET_REQ_SETTINGS_GRACE_TIME = 'grace_time'
-SOCKET_REQ_SETTINGS_COOLING = 'cooling'
+SOCKET_REQ_SETTINGS_HVAC_MODE = 'hvac_mode'
 
 SOCKET_REQ_MONITOR_NAME = 'name'
 
@@ -102,6 +102,11 @@ DEGREE_CELSIUS = 'c'
 DEGREE_FAHRENHEIT = 'f'
 DEGREE_SCALE_LIST = [DEGREE_CELSIUS, DEGREE_FAHRENHEIT]
 
+# HVAC modes
+HVAC_HEATING = 'heating'
+HVAC_COOLING = 'cooling'
+HVAC_ALL_MODES = (HVAC_HEATING, HVAC_COOLING)
+
 # timestamp max value for current platform
 try:
     _tmv = datetime(9999,12,31).timestamp()
@@ -112,14 +117,14 @@ TIMESTAMP_MAX_VALUE = _tmv
 """Max value for a POSIX timestamp in runnin platform."""
 
 ThermodStatus = namedtuple('ThermodStatus',
-                           ['timestamp', 'mode', 'cooling', 'status',
+                           ['timestamp', 'mode', 'hvac_mode', 'status',
                             'current_temperature', 'target_temperature',
                             'error', 'explain'])
 """Contain current global status of the thermostat.
 
  * `timestamp` is the current time in seconds since the epoch
  * `mode` is the mode of the thermostat (see `timetable.JSON_ALL_MODES`)
- * `cooling` if thermod is working with cooling system instead of heating
+ * `hvac_mode` if thermod is working with heating or cooling system
  * `status` is the status of the heating/cooling (it's an integer: 1=ON, 0=OFF)
  * `current_temperature` is the current temperature in the choosen degree scale
  * `target_temperature` is the temperature to be reached

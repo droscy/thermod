@@ -38,8 +38,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2019-04-14'
-__version__ = '2.3'
+__updated__ = '2020-10-22'
+__version__ = '2.4'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -56,7 +56,7 @@ REQ_SETTINGS_TMIN = common.SOCKET_REQ_SETTINGS_TMIN
 REQ_SETTINGS_TMAX = common.SOCKET_REQ_SETTINGS_TMAX
 REQ_SETTINGS_DIFFERENTIAL = common.SOCKET_REQ_SETTINGS_DIFFERENTIAL
 REQ_SETTINGS_GRACE_TIME = common.SOCKET_REQ_SETTINGS_GRACE_TIME
-REQ_SETTINGS_COOLING = common.SOCKET_REQ_SETTINGS_COOLING
+REQ_SETTINGS_HVAC_MODE = common.SOCKET_REQ_SETTINGS_HVAC_MODE
 
 REQ_MONITOR_NAME = common.SOCKET_REQ_MONITOR_NAME
 
@@ -67,7 +67,7 @@ RSP_EXPLAIN = ThermodStatus._fields[7]
 
 RSP_STATUS_TIMESTAMP = ThermodStatus._fields[0]
 RSP_STATUS_MODE = ThermodStatus._fields[1]
-RSP_STATUS_COOLING = ThermodStatus._fields[2]
+RSP_STATUS_HVAC_MODE = ThermodStatus._fields[2]
 RSP_STATUS_STATUS = ThermodStatus._fields[3]
 RSP_STATUS_CURR_TEMP = ThermodStatus._fields[4]
 RSP_STATUS_TARGET_TEMP = ThermodStatus._fields[5]
@@ -89,7 +89,7 @@ class ControlSocket(object):
 
     # TODO rivedere i test di questa classe
     
-    def __init__(self, timetable, heating, cooling, thermometer, host, port, lock, loop):
+    def __init__(self, timetable, heating, thermometer, host, port, lock, loop):
         baselogger.debug('initializing control socket')
         
         if not isinstance(lock, asyncio.Condition):
@@ -104,7 +104,6 @@ class ControlSocket(object):
         
         self.app['timetable'] = timetable
         self.app['heating'] = heating
-        self.app['cooling'] = cooling
         self.app['thermometer'] = thermometer
         
         self.app.router.add_get('/{action}', GET_handler)
@@ -326,7 +325,6 @@ async def GET_handler(request):
     lock = request.app['lock']
     timetable = request.app['timetable']
     heating = request.app['heating']
-    cooling = request.app['cooling']
     thermometer = request.app['thermometer']
     
     action = request.match_info['action']
@@ -355,8 +353,8 @@ async def GET_handler(request):
                 last_updt = time.time()
                 status = ThermodStatus(last_updt,
                                        timetable.mode,
-                                       timetable.cooling,
-                                       (heating.status if not timetable.cooling else cooling.status),
+                                       timetable.hvac_mode,
+                                       heating.status,
                                        timetable.degrees(thermometer.temperature),
                                        timetable.target_temperature(last_updt))
         
@@ -444,7 +442,7 @@ async def POST_handler(request):
         
         * `grace_time` to update the grace time
         
-        * `cooling` to update the cooling setting
+        * `hvac_mode` to update the HVAC mode
     
     Any request that produces an error in updating internal settings,
     restores the old state except when the settings were correcly updated
@@ -531,9 +529,9 @@ async def POST_handler(request):
                         elif var == REQ_SETTINGS_GRACE_TIME:
                             timetable.grace_time = value
                             newvalues[var] = timetable.grace_time
-                        elif var == REQ_SETTINGS_COOLING:
-                            timetable.cooling = value
-                            newvalues[var] = timetable.cooling
+                        elif var == REQ_SETTINGS_HVAC_MODE:
+                            timetable.hvac_mode = value
+                            newvalues[var] = timetable.hvac_mode
                         else:
                             logger.debug('invalid field `{}` ignored', var)
                     

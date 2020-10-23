@@ -33,19 +33,18 @@ from jsonschema import ValidationError
 from async_timeout import timeout
 
 from thermod import common, config
-from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus, DEGREE_CELSIUS
+from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus, DEGREE_CELSIUS, HVAC_COOLING
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
     PiAnalogZeroThermometer, SimilarityCheckerThermometerDecorator, \
     AveragingTaskThermometerDecorator, Wire1Thermometer, \
     ScaleAdapterThermometerDecorator
 from thermod.heating import ScriptHeating, PiPinsRelayHeating, HeatingError
-from thermod.cooling import ScriptCooling, PiPinsRelayCooling, FakeCooling
 from thermod.timetable import TimeTable, JsonValueError
 from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2019-05-04'
+__updated__ = '2020-10-21'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -69,7 +68,6 @@ __updated__ = '2019-05-04'
 
 # TODO [Roadmap 2.0.0] registrare servizio su Avahi (o demone analogo)
 # TODO [Roadmap 2.0.0] rimuovere error_code dalla tupla Settings in config.py (DONE)
-# TODO [Roadmap 2.0.0] trovare un modo per non mostrare il selettore Heating/Cooling su web quando non c'è un cooling in thermod.conf (DONE)
 # TODO [Roadmap 2.0.0] rivedere import dei moduli per velocizzare il caricamento (DONE)
 # TODO [Roadmap 2.0.0] muovere le variabili DEGREE* fuori da BaseThermometer perché usate anche da altre parti (DONE)
 # TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status (DONE)
@@ -203,9 +201,7 @@ try:
     masterlock = asyncio.Condition(loop=main_loop)
     
     # the timetable
-    timetable = TimeTable(settings.tt_file,
-                          settings.inertia,
-                          (True if settings.cooling['manager'] else False))
+    timetable = TimeTable(settings.tt_file, settings.inertia)
 
 except FileNotFoundError as fnfe:
     main_return_code = common.RET_CODE_TT_NOT_FOUND
@@ -298,74 +294,6 @@ except KeyboardInterrupt:
 else:
     main_return_code = common.RET_CODE_OK
     logger.debug('heating created')
-
-finally:
-    if main_return_code != common.RET_CODE_OK:
-        logger.info('closing daemon with return code {}', main_return_code)
-        exit(main_return_code)
-
-
-# initializing cooling system
-try:
-    logger.debug('creating cooling system')
-    
-    if settings.cooling['manager'] is None:
-        cooling = FakeCooling()
-    
-    elif settings.cooling['manager'] == 'heating':
-        # the same hardware of the heating, so we copy the reference
-        cooling = heating
-    
-    elif settings.cooling['manager'] == 'scripts':
-        cooling = ScriptCooling(settings.cooling['on'],
-                                settings.cooling['off'],
-                                settings.cooling['status'],
-                                debug)
-        
-        # If the status script is not provided, a switchoff is issued to be
-        # sure the cooling system is off.
-        logger.debug('cooling system status script not provided, issuing a switch off')
-        if settings.cooling['status'] is None:
-            cooling.switch_off()
-    
-    elif settings.cooling['manager'] == 'PiPinsRelay':
-        cooling = PiPinsRelayCooling(settings.cooling['pins'],
-                                     settings.cooling['level'])
-    
-    # An `elif` can be added with additional specific heating classes
-    # once they will be created.
-    else:
-        # The execution should not arrive here because the settings are
-        # already checked inside common.parse_main_settings() function.
-        raise RuntimeError('invalid cooling system configuration')
-
-except (ValueError, TypeError) as vte:
-    main_return_code = common.RET_CODE_COOL_INIT_ERR
-    logger.critical('cannot initialize cooling system: {}', vte)
-
-except ScriptError as se:
-    main_return_code = common.RET_CODE_SCRIPT_INIT_ERR
-    logger.critical('error accessing the script `{}`: {}', se.script, se)
-
-except HeatingError as he:
-    main_return_code = common.RET_CODE_COOL_INIT_ERR
-    logger.critical('cannot initialize cooling system: {} ({})', he,
-                    (he.suberror if he.suberror else 'no other information'))
-
-except RuntimeError as re:
-    main_return_code = common.RET_CODE_COOL_INIT_ERR
-    logger.critical('error during cooling system initialization: {}', re)
-
-except Exception as e:
-    main_return_code = common.RET_CODE_INIT_ERR
-    logger.critical('error during cooling system initialization: {}', e, exc_info=True)
-
-except KeyboardInterrupt:
-    main_return_code = common.RET_CODE_KEYB_INTERRUPT
-
-else:
-    main_return_code = common.RET_CODE_OK
-    logger.debug('cooling system created')
 
 finally:
     if main_return_code != common.RET_CODE_OK:
@@ -466,7 +394,7 @@ try:
     logger.debug('creating socket')
     
     # TODO check other possible errors on asynchronous socket creation
-    socket = ControlSocket(timetable, heating, cooling, thermometer,
+    socket = ControlSocket(timetable, heating, thermometer,
                            settings.host, settings.port,
                            masterlock, main_loop)
 
@@ -556,7 +484,7 @@ def toggle_debug_messages():
         logger.info('debug messages disabled')
 
 
-async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop):
+async def thermostat_cycle(timetable, heating, thermometer, lock, loop):
     """The main cycle of temperature checking.
     
     Periodically checks the temperature and switch on/off the heating
@@ -573,18 +501,15 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
     
     try:
         try:
-            if not timetable.cooling:
-                logger.info('the heating is currently {}', ('ON' if heating.is_on() else 'OFF'))
-            else:
-                logger.info('the cooling system is currently {}', ('ON' if cooling.is_on() else 'OFF'))
+            _heatcool_str = 'cooling system' if timetable.hvac_mode == HVAC_COOLING else timetable.hvac_mode
+            logger.info('the {} is currently {}', _heatcool_str, ('ON' if heating.is_on() else 'OFF'))
             
         except HeatingError as he:
             # We report the error as a severe error but we do nothing because
             # it can be a transient error, if it isn't transient, the error
             # will appears again in the hereafter "while" cycle and it will
             # be managed there.
-            logger.error('cannot query the {} to retrieve current status: {}',
-                         ('heating' if not timetable.cooling else 'cooling system'), he)
+            logger.error('cannot query the {} system to retrieve current status: {}', timetable.hvac_mode, he)
         
         except Exception as e:
             logger.critical('unknown error occurred while initializing the cycle: {}', e, exc_info=True)
@@ -599,18 +524,12 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
         while enabled:
             try:
                 async with lock:
-                    if not timetable.cooling:
-                        _heatcool = heating
-                        _heatcool_str = 'heating'
-                    
-                    else:
-                        _heatcool = cooling
-                        _heatcool_str = 'cooling system'
+                    _heatcool_str = 'cooling system' if timetable.hvac_mode == HVAC_COOLING else timetable.hvac_mode
                     
                     try:
                         should_be_on = timetable.should_the_heating_be_on(
                                             thermometer.temperature,
-                                            _heatcool.status)
+                                            heating.status)
                         
                         _msg = ('mode: {!r}, '
                                 'current: {:.1f}, '
@@ -632,9 +551,9 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                         
                         else:  # the heating/cooling must be switched
                             if should_be_on:
-                                _heatcool.switch_on()
+                                heating.switch_on()
                             else:
-                                _heatcool.switch_off()
+                                heating.switch_off()
                             
                             logger.info('{} switched {} ({})',
                                         _heatcool_str,
@@ -691,7 +610,7 @@ async def thermostat_cycle(timetable, heating, cooling, thermometer, lock, loop)
                         raise
                     
                     else:
-                        newstatus = should_be_on.thermod_status._replace(status=_heatcool.status)
+                        newstatus = should_be_on.thermod_status._replace(status=heating.status)
                     
                     finally:  # we update all connected monitors
                         loop.create_task(socket.update_monitors(newstatus))
@@ -769,7 +688,7 @@ finally:
 # run the main loop
 try:
     logger.debug('starting main cycle')
-    main_loop.run_until_complete(thermostat_cycle(timetable, heating, cooling, thermometer, masterlock, main_loop))
+    main_loop.run_until_complete(thermostat_cycle(timetable, heating, thermometer, masterlock, main_loop))
 
 # TODO check for specific exceptions
 except Exception as e:

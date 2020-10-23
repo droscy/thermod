@@ -111,7 +111,7 @@ function get_heating_status_and_refresh()
 			$('#current-temperature').prop('value', data['current_temperature'].toFixed(1));
 			$('#target-temperature').prop('value', (data['target_temperature'] ? data['target_temperature'].toFixed(1) : 'n.a.'));
 
-			if(data['cooling'])
+			if(data['hvac_mode'] == 'cooling')
 			{
 				$('label[for=current-status]').text('Cooling');
 				$('#target-mode option[value=t0]').text('Fastfreeze');
@@ -163,12 +163,7 @@ $(function()
 		disabled: true,
 		change: function()
 		{
-			var device = $('#device option:selected').prop('value');
-			
-			if(device == 'cooling')
-				settings['cooling'] = true;
-			else
-				settings['cooling'] = false;
+			settings['hvac_mode'] = $('#device option:selected').prop('value');
 		}
 	});
 
@@ -356,11 +351,11 @@ $(function()
 			target_mode_refresh();
 			$('#' + today).prop('checked', true).change();
 
-			var device = settings['cooling'] ? 'cooling' : 'heating';
+			var device = settings['hvac_mode'];
 			$('#device option[value=' + device + ']').prop('selected', true);
 			$('label[for=current-status]').text(device.ucfirst());
 
-			if(settings['cooling'])
+			if(settings['hvac_mode'] == 'cooling')
 				$('#target-mode option[value=t0]').text('Fastfreeze');
 			else
 				$('#target-mode option[value=t0]').text('Antifreeze');
@@ -382,10 +377,7 @@ $(function()
 			$('#differential').spinner('option', 'disabled', false);
 			$('#grace-time').spinner('option', 'disabled', false);
 			$('#save').button('option', 'disabled', false);
-
-			// if cooling system is available the select menu will be enabled
-			if(settings['cooling'] != null)
-				$('#device').selectmenu('option', 'disabled', false).selectmenu('refresh');
+			$('#device').selectmenu('option', 'disabled', false).selectmenu('refresh');
 		},
 		error: function(jqXHR, textStatus, errorThrown)
 		{
