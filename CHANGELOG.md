@@ -12,10 +12,10 @@
     - rename `mode` to `inertia`, `status` to `mode` and `heating_status`
       (or `heatcool_status`) to `status` in config files, in socket messages,
       in TimeTable class, in ThermodStatus class, etc.
+    - remove support for different hardwares between heating and cooling systems
 
-  * New features:
-    - hide heating/cooling selector in web interface when there is no
-      cooling system available
+  * Other changes:
+    - add support for python > 3.5 and aiohttp >= 3.0
 
 ## 1.2.1
 

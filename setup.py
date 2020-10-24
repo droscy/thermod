@@ -42,7 +42,7 @@ setup(name='thermod',
                         'aiohttp >= 3.0.1',
                         'numpy >= 1.8.0'],
       test_suite='nose.collector',
-      tests_require=['nose >= 1.3.4', 'requests >= 2.4.3'],
+      tests_require=['nose >= 1.3.4'],
 )
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
