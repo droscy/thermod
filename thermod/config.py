@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2020-10-22'
+__updated__ = '2020-10-27'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -42,10 +42,11 @@ _fake_RPi_Thermometer = False
 
 # Main config filename, search paths, classes and parsers.
 MAIN_CONFIG_FILENAME = 'thermod.conf'
-MAIN_CONFIG_FILES = (MAIN_CONFIG_FILENAME,
-                     os.path.join(os.path.expanduser('~/.thermod'), MAIN_CONFIG_FILENAME),
+MAIN_CONFIG_FILES = (os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME),
+                     os.path.join('/var/lib/thermod', MAIN_CONFIG_FILENAME),
                      os.path.join('/usr/local/etc/thermod', MAIN_CONFIG_FILENAME),
-                     os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME))
+                     os.path.join(os.path.expanduser('~/.config/thermod'), MAIN_CONFIG_FILENAME),
+                     os.path.join(os.path.expanduser('~/.thermod'), MAIN_CONFIG_FILENAME))
 
 
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
@@ -130,7 +131,7 @@ def parse_main_settings(cfg):
     
     @param cfg configparser.ConfigParser object to parse data from
     
-    @return a tuple with two elements: the first is a `thermod.utils.Settings`
+    @return a tuple with two elements: the first is a `thermod.config.Settings`
         tuple with the just parsed main settings, the second is the error
         code that can be used as POSIX return value (if no error occurred the
         error code is 0)
@@ -148,6 +149,7 @@ def parse_main_settings(cfg):
         debug = cfg.getboolean('global', 'debug')
         tt_file = cfg.get('global', 'timetable')
         interval = cfg.getint('global', 'interval')
+        sleep_on_error = cfg.getint('global', 'sleep_on_error', fallback=interval*2)
         
         # reading inertia value
         try:

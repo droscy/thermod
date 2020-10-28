@@ -24,7 +24,7 @@ import unittest
 import thermod.config as cnf
 import thermod.common as common
 
-__updated__ = '2020-10-22'
+__updated__ = '2020-10-27'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -38,7 +38,7 @@ class TestHeating(unittest.TestCase):
         pass
     
     def test_parsing_config(self):
-        (cfg, err) = cnf.read_config_file(os.path.join('etc', cnf.MAIN_CONFIG_FILENAME))
+        (cfg, err) = cnf.read_config_file(os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'etc', cnf.MAIN_CONFIG_FILENAME)))
         self.assertEqual(err, 0)
         
         (settings, error_code) = cnf.parse_main_settings(cfg)
@@ -46,6 +46,7 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.enabled, False)
         self.assertEqual(settings.debug, False)
         self.assertEqual(settings.interval, 30)
+        self.assertEqual(settings.sleep_on_error, 30)
         self.assertEqual(settings.inertia, 2)
         self.assertEqual(settings.scale, common.DEGREE_CELSIUS)
         

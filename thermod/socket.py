@@ -39,8 +39,8 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2020-10-23'
-__version__ = '2.4.1'
+__updated__ = '2020-10-28'
+__version__ = '2.4.2'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -90,7 +90,7 @@ class ControlSocket(object):
 
     # TODO rivedere i test di questa classe
     
-    def __init__(self, timetable, heating, thermometer, host, port, lock, loop):
+    def __init__(self, timetable, heating, thermometer, host, port, lock, loop=None):
         baselogger.debug('initializing control socket')
         
         if not isinstance(lock, asyncio.Condition):
@@ -102,7 +102,7 @@ class ControlSocket(object):
         self.port = port
         
         self.app['lock'] = lock
-        self.app['monitors'] = asyncio.Queue(loop=loop)
+        self.app['monitors'] = asyncio.Queue(loop=self.app.loop)
         
         self.app['timetable'] = timetable
         self.app['heating'] = heating

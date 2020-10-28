@@ -23,7 +23,7 @@ import json
 import shlex
 import logging
 import subprocess
-import numpy
+import statistics
 
 from copy import deepcopy
 from json.decoder import JSONDecodeError
@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2019-01-12'
+__updated__ = '2020-10-27'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -59,6 +59,33 @@ def celsius2fahrenheit(value):
 def fahrenheit2celsius(value):
     """Convert fahrenheit temperature to celsius degrees."""
     return ((value - 32.0) / 1.8)
+
+def linearfit(raw, ref):
+    """Return the transformation function to map `raw` values in `ref` values.
+    
+    The two imput must be lists with the same number of elements.
+    
+    @return a function that accept a single input and return the transformed output
+    @exception IndexError if the two input lists have different number of elements
+    
+    @see https://en.wikipedia.org/wiki/Simple_linear_regression for explanation
+    """
+    
+    if len(raw) != len(ref):
+        raise IndexError('raw and ref lists have different number of elements')
+    
+    n = len(raw)
+    
+    sx = sum(raw)
+    sy = sum(ref)
+    sxx = sum([x**2 for x in raw])
+    syy = sum([y**2 for y in ref])
+    sxy = sum([raw[i]*ref[i] for i in range(n)])
+    
+    a = (n*sxy - sx*sy) / (n*sxx - sx**2)
+    b = sy/n - a*sx/n
+    
+    return lambda x: a*x + b
 
 
 # errors/exceptions
@@ -87,7 +114,6 @@ class ScriptThermometerError(ThermometerError, ScriptError):
         super().__init__(error)
         self.suberror = suberror
         self.script = script
-
 
 
 # thermometers
@@ -133,19 +159,18 @@ class BaseThermometer(object):
         if len(t_raw) >= 2:
             if len(t_ref) == len(t_raw):
                 logger.debug('performing thermometer calibration with t_ref={} and t_raw={}', t_ref, t_raw)
-                z = numpy.polyfit(t_raw, t_ref, 1)  # a linear interpolation is enough
-                self._calibrate = numpy.poly1d(z)
+                self._calibrate = linearfit(t_raw, t_ref)
                 logger.debug('calibration completed')
             else:
                 raise ThermometerError('cannot perform thermometer calibration '
                                        'because t_ref and t_raw have different '
                                        'number of elements')
         elif calibration is not None:
-            logger.debug('using external function to calibrate raw temperature')
+            logger.debug('using external function to calibrate raw temperatures')
             self._calibrate = calibration
         else:
             logger.debug('calibration disabled due to t_raw list empty or too small')
-            self._calibrate = numpy.poly1d([1, 0])  # polynomial identity
+            self._calibrate = lambda x: x
     
     def __repr__(self, *args, **kwargs):
         return '<{}.{}({!r}, calibration={!r})>'.format(self.__module__,
@@ -538,8 +563,10 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         logger.debug('checking standard deviation of temperatures {}', temperatures)
         
-        if len(temperatures) > 1:
-            std = numpy.std(temperatures)
+        # This if-else block is the same of Wire1Thermometer except the error messages,
+        # remember to modify both.
+        if len(temperatures) > 0:
+            std = statistics.pstdev(temperatures)
             
             logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
             
@@ -553,12 +580,12 @@ class PiAnalogZeroThermometer(BaseThermometer):
                                [round(t, 2) for t in temperatures], std, self._stddev)
             
             # the median excludes a possible single outlier
-            raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
+            raw = statistics.median(temperatures)
             logger.debug('current median of temperatures is {:.2f}', raw)
         
         else:
-            logger.debug('there is only one temperature, returning it')
-            raw = temperatures[0]
+            raise ThermometerError('no temperature retrieved, probably all '
+                                   'thermometers are not ready or unavailable')
         
         logger.debug('returning A/D temperature ({:.2f})', raw)
         return round(raw, 4)  # additional decimals are meaningless (MCP3008 is not so sensitive)
@@ -671,8 +698,10 @@ class Wire1Thermometer(BaseThermometer):
         
         logger.debug('checking standard deviation of temperatures {}', temperatures)
         
-        if len(temperatures) > 1:
-            std = numpy.std(temperatures)
+        # This if-else block is the same of PiAnalogZeroThermometer except the error messages,
+        # remember to modify both.
+        if len(temperatures) > 0:
+            std = statistics.pstdev(temperatures)
             
             logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
             
@@ -687,12 +716,12 @@ class Wire1Thermometer(BaseThermometer):
                                std, self._stddev)
             
             # the median excludes a possible single outlier
-            raw = (numpy.median(temperatures) if len(temperatures) > 2 else numpy.mean(temperatures))
+            raw = statistics.median(temperatures)
             logger.debug('current median of temperatures is {:.2f}', raw)
         
         else:
-            logger.debug('there is only one temperature, returning it')
-            raw = temperatures[0]
+            raise ThermometerError('no temperature retrieved, probably all '
+                                   '1-Wire devices are not ready or unavailable')
         
         logger.debug('returning 1-Wire temperature ({:.2f})', raw)
         return raw
@@ -855,7 +884,7 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
         """
         
         newtemp = self.decorated.raw_temperature
-        avgtemp = numpy.mean(self.last_raw_temperatures)
+        avgtemp = statistics.mean(self.last_raw_temperatures)
         delta = abs(newtemp - avgtemp)
         
         logger.debug('new temperature is {:.2f}, old average value '
@@ -956,7 +985,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             self._averaging_task.add_done_callback(self._update_temperatures_callback)
         
         else:
-            logger.debug('an averaging task is already running, cannot create a new one')
+            logger.debug('an averaging task is already running')
     
     async def _update_temperatures(self):
         """Start a loop to update the list of last measured temperatures.
@@ -978,7 +1007,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             await sleep(self._short_interval, loop=self._loop)
     
     def _update_temperatures_callback(self, averaging_task):
-        """Mae the exceptions raised by `self._update_temperatures`."""
+        """Save the exceptions raised by `self._update_temperatures`."""
         
         try:
             averaging_task.result()
@@ -1005,18 +1034,19 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         logger.debug('retrieving average of last temperatures')
         
         if self._fail_exception is not None:
-            # An exception has been raised inside the averaging task, we restart
-            # the task because the error could have been transient and we raise
-            # the exception again here in order to be propagated to the
-            # main loop. Then we reset the exception.
-            
-            self._create_averaging_task()
+            # An exception has been raised inside the averaging task, we raise
+            # that exception here in order to be propagated to the main loop,
+            # then we reset the exception so the next call to this method
+            # will recreate the averaging task.
             
             try:
                 raise self._fail_exception
             
             finally:
                 self._fail_exception = None
+        
+        else:
+            self._create_averaging_task()
         
         skip = int(round(self._temperatures.maxlen * self._skipval / 2, 0))  # least and greatest temperatures to be excluded
         elements = len(self._temperatures)
@@ -1029,7 +1059,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             temperatures.sort()
             shortened = temperatures[skip:(elements-skip)]
         
-        raw = numpy.mean(shortened)
+        raw = statistics.mean(shortened)
         logger.debug('the average of last temperatures is {:.2f}', raw)
         return raw
     

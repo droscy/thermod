@@ -19,6 +19,7 @@ You should have received a copy of the GNU General Public License
 along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from thermod.version import __version__
 from thermod.common import ThermodStatus, SOCKET_DEFAULT_PORT, \
     SOCKET_REQ_SETTINGS, SOCKET_REQ_STATUS, SOCKET_REQ_VERSION, \
     SOCKET_REQ_MONITOR, SOCKET_REQ_MONITOR_NAME, SOCKET_RSP_VERSION, \

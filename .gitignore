@@ -12,3 +12,4 @@ MANIFEST
 venv/
 *.htm*
 web/src/
+.python-version

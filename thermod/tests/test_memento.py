@@ -30,7 +30,7 @@ from thermod import timetable
 from thermod.timetable import TimeTable
 from thermod.heating import BaseHeating
 from thermod.memento import memento, transactional
-from thermod.tests.timetable import fill_timetable
+from thermod.tests.test_timetable import fill_timetable
 
 __updated__ = '2019-04-18'
 

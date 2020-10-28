@@ -23,12 +23,13 @@ import os
 import logging
 import tempfile
 import unittest
+import numpy
 from thermod.common import DEGREE_CELSIUS, DEGREE_FAHRENHEIT
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
-    celsius2fahrenheit, fahrenheit2celsius, Wire1Thermometer, \
-    ScaleAdapterThermometerDecorator, FakeThermometer
+    celsius2fahrenheit, fahrenheit2celsius, Wire1Thermometer, linearfit, \
+    ScaleAdapterThermometerDecorator, BaseThermometer, FakeThermometer
 
-__updated__ = '2019-01-12'
+__updated__ = '2020-10-27'
 
 
 class TestThermometer(unittest.TestCase):
@@ -46,7 +47,7 @@ class TestThermometer(unittest.TestCase):
             
         with open(self.script, 'w') as file:
             file.write(
-'''#!/usr/bin/python3
+'''#!/usr/bin/env python3
 import json
 
 retcode = 0
@@ -165,7 +166,7 @@ exit(retcode)
         with self.assertRaises(ThermometerError):
             with open(self.script, 'w') as file:
                 file.write(
-'''#!/usr/bin/python3
+'''#!/usr/bin/env python3
 import json
 print(json.dumps({'error': None}))
 exit(0)
@@ -176,7 +177,7 @@ exit(0)
         with self.assertRaises(ThermometerError):
             with open(self.script, 'w') as file:
                 file.write(
-'''#!/usr/bin/python3
+'''#!/usr/bin/env python3
 import json
 print(json.dumps({'temperature': 'invalid', 'error': None}))
 exit(0)
@@ -187,7 +188,7 @@ exit(0)
         with self.assertRaises(ThermometerError):
             with open(self.script, 'w') as file:
                 file.write(
-'''#!/usr/bin/python3
+'''#!/usr/bin/env python3
 import json
 print(json.dumps({'temperature': None, 'error': None}))
 exit(0)
@@ -198,7 +199,7 @@ exit(0)
         with self.assertRaises(ThermometerError):
             with open(self.script, 'w') as file:
                 file.write(
-'''#!/usr/bin/python3
+'''#!/usr/bin/env python3
 import json
 print(json.dumps({'temperature': None}))
 exit(1)
@@ -208,6 +209,18 @@ exit(1)
         with self.assertRaises(ThermometerError):
             os.remove(self.temperature_data)
             self.thermometer.temperature
+    
+    def test_linear_regression(self):
+        """Test the custom computation on linear regression."""
+        
+        t_ref = (17.4, 18.3, 19.3, 19.7, 20.3, 21.1, 22.1)
+        t_raw = (21.0, 22.1, 23.0, 23.4, 23.8, 24.6, 25.9)
+        
+        f = numpy.poly1d(numpy.polyfit(t_raw, t_ref, 1))
+        g = linearfit(t_raw, t_ref)
+        
+        for t in range(-10, 50):
+            self.assertAlmostEqual(f(t), g(t), delta=0.01)
 
 
 if __name__ == "__main__":
