@@ -45,7 +45,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2020-10-27'
+__updated__ = '2020-10-28'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -601,7 +601,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
             pass
 
 
-class Wire1Thermometer(BaseThermometer):
+class OneWireThermometer(BaseThermometer):
     """Read temperatures from 1-Wire thermometers like DS18B20."""
     
     def __init__(self,
@@ -611,7 +611,7 @@ class Wire1Thermometer(BaseThermometer):
                  t_raw=[],
                  stddev=2.0,
                  calibration=None):
-        """Init Wire1Thermometer object reading temperatures from `devices`.
+        """Init OneWireThermometer object reading temperatures from `devices`.
         
         @param devices the list of 1-Wire devices to read the temperature from
             (the devices are in /sys/bus/w1/devices folder) or a list of full
@@ -725,6 +725,23 @@ class Wire1Thermometer(BaseThermometer):
         
         logger.debug('returning 1-Wire temperature ({:.2f})', raw)
         return raw
+
+
+class Wire1Thermometer(OneWireThermometer):
+    """Read temperatures from 1-Wire thermometers like DS18B20.
+    
+    This class is now *deprecated*, please use `thermod.OneWireThermometer` instead.
+    """
+    
+    def __init__(self,
+                 devices,
+                 scale=DEGREE_CELSIUS,
+                 t_ref=[],
+                 t_raw=[],
+                 stddev=2.0,
+                 calibration=None):
+        logger.warning('Wire1Thermometer class is deprecated, please use OneWireThermometer')
+        super.__init__(devices,scale,t_ref,t_raw,stddev,calibration)
 
 
 # decorators

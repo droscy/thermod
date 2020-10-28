@@ -26,7 +26,7 @@ import unittest
 import numpy
 from thermod.common import DEGREE_CELSIUS, DEGREE_FAHRENHEIT
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
-    celsius2fahrenheit, fahrenheit2celsius, Wire1Thermometer, linearfit, \
+    celsius2fahrenheit, fahrenheit2celsius, OneWireThermometer, linearfit, \
     ScaleAdapterThermometerDecorator, BaseThermometer, FakeThermometer
 
 __updated__ = '2020-10-27'
@@ -84,7 +84,7 @@ exit(retcode)
         
         os.chmod(self.script,0o700)
         self.thermometer = ScriptThermometer(self.script)
-        self.w1thermo = Wire1Thermometer([self.w1_data_1, self.w1_data_2])
+        self.w1thermo = OneWireThermometer([self.w1_data_1, self.w1_data_2])
     
     def tearDown(self):
         try:
@@ -130,22 +130,22 @@ exit(retcode)
     def test_w1_temperatures_outlier(self):
         self.assertAlmostEqual(self.w1thermo.temperature, 24.03, delta=0.01)
         
-        self.w1thermo = Wire1Thermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
+        self.w1thermo = OneWireThermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
         self.assertAlmostEqual(self.w1thermo.temperature, 24.06, delta=0.01)
         
-        self.w1thermo = Wire1Thermometer([self.w1_data_2, self.w1_data_3])
+        self.w1thermo = OneWireThermometer([self.w1_data_2, self.w1_data_3])
         self.assertAlmostEqual(self.w1thermo.temperature, 30.00, delta=0.01)
     
     def test_w1_init_error(self):
         with self.assertRaises(TypeError):
-            self.w1thermo = Wire1Thermometer('string')
+            self.w1thermo = OneWireThermometer('string')
         
         with self.assertRaises(ValueError):
-            self.w1thermo = Wire1Thermometer([])
+            self.w1thermo = OneWireThermometer([])
         
         with self.assertRaises(FileNotFoundError):
             os.remove(self.w1_data_3)
-            self.w1thermo = Wire1Thermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
+            self.w1thermo = OneWireThermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
     
     def test_scale_adapter(self):
         termo = ScaleAdapterThermometerDecorator(self.w1thermo, DEGREE_FAHRENHEIT)

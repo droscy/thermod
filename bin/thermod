@@ -36,7 +36,7 @@ from thermod import common, config
 from thermod.common import ScriptError, LogStyleAdapter, ThermodStatus, DEGREE_CELSIUS, HVAC_COOLING
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
     PiAnalogZeroThermometer, SimilarityCheckerThermometerDecorator, \
-    AveragingTaskThermometerDecorator, Wire1Thermometer, \
+    AveragingTaskThermometerDecorator, OneWireThermometer, \
     ScaleAdapterThermometerDecorator
 from thermod.heating import ScriptHeating, PiPinsRelayHeating, HeatingError
 from thermod.timetable import TimeTable, JsonValueError
@@ -44,7 +44,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2020-10-27'
+__updated__ = '2020-10-28'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -72,10 +72,10 @@ __updated__ = '2020-10-27'
 # TODO [Roadmap 2.0.0] muovere le variabili DEGREE* fuori da BaseThermometer perché usate anche da altre parti (DONE)
 # TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status (DONE)
 # TODO [Roadmap 2.0.0] rimuovere to_celsius() e to_fahrenheit() dai termometri (adesso c'è un decorator) (DONE)
-# TODO [Roadmap 2.0.0] usare aiofiles per Wire1Thermometer (la lettura sequenziale dei file è lenta)
+# TODO [Roadmap 2.0.0] usare aiofiles per OneWireThermometer (la lettura sequenziale dei file è lenta)
 # TODO [Roadmap 2.0.0] mettere calibrazione del termometro in un decorator
 # TODO [Roadmap 2.0.0] cambiare funzionamento del grace_time
-# TODO [Roadmap 2.0.0] rinominare Wire1Thermometer in OneWireThermometer (lasciando il vecchio nome deprecato)
+# TODO [Roadmap 2.0.0] rinominare Wire1Thermometer in OneWireThermometer (lasciando il vecchio nome deprecato) (DONE)
 # TODO [Roadmap 2.0.0] usare gpiozero.LED per lo PiPinRelay, così Thermod può essere eseguito in remoto tramite pigpiod
 # TODO [Roadmap 2.0.0] convertire BaseThermometer.temperature in una coroutine così da poter eseguire operazioni
 #   lente tramite run_in_executor (ad esempio per per i termometri 1Wire)
@@ -329,11 +329,11 @@ try:
                                               settings.thermometer['az']['stddev'])
         
     elif settings.thermometer['thermometer'] == '1Wire':
-        thermometer = Wire1Thermometer(settings.thermometer['w1']['devices'],
-                                       settings.thermometer['scale'],
-                                       settings.thermometer['t_ref'],
-                                       settings.thermometer['t_raw'],
-                                       settings.thermometer['w1']['stddev'])
+        thermometer = OneWireThermometer(settings.thermometer['w1']['devices'],
+                                         settings.thermometer['scale'],
+                                         settings.thermometer['t_ref'],
+                                         settings.thermometer['t_raw'],
+                                         settings.thermometer['w1']['stddev'])
     
     # An `elif` can be added with additional specific thermometer classes
     # once they will be created.
