@@ -21,7 +21,7 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
 
-__updated__ = '2020-10-27'
+__updated__ = '2020-10-28'
 
 def get_version():
     main_ns = {}
@@ -54,11 +54,11 @@ setup(name='thermod',
                    'Topic :: Home Automation'],
       scripts=['bin/thermod'],
       python_requires='>=3.5',
-      install_requires=['jsonschema >= 3.1.0',
-                        'async-timeout >= 3.0.0',
-                        'aiohttp >= 3.5.4']
+      install_requires=['jsonschema >= 3.2.0',
+                        'async-timeout >= 3.0.1',
+                        'aiohttp >= 3.5.4'],
       test_suite='nose.collector',
-      tests_require=['nose >= 1.3.4',
+      tests_require=['nose >= 1.3.7',
                      'numpy >= 1.18.4']
 )
 

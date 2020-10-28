@@ -2,7 +2,7 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v1.2.1+dev<br/>
+Thermod v2.0.0-alpha<br/>
 Copyright (C) 2018 Simone Rossetto <simros85@gmail.com><br/>
 GNU General Public License v3
 
@@ -23,14 +23,14 @@ GNU General Public License v3
 ## How to install
 
 ### Requirements
-*Thermod* requires [Python3](https://www.python.org/) (at least version 3.7)
+*Thermod* requires [Python3](https://www.python.org/) (at least version 3.6)
 and the following packages:
 
  - [jsonschema](https://pypi.python.org/pypi/jsonschema) (>=3.2.0)
  - [async-timeout](https://github.com/aio-libs/async-timeout) (>=3.0.1)
- - [aiohttp](https://aiohttp.readthedocs.io/) (>=3.6.3)
+ - [aiohttp](https://aiohttp.readthedocs.io/) (>=3.5.4)
  - [nose](http://nose.readthedocs.io/) (>=1.3.7, only to run tests)
- - [numpy](http://www.numpy.org/) (>=1.19.2, only to run tests)
+ - [numpy](http://www.numpy.org/) (>=1.18.4, only to run tests)
 
 ### Installation
 To install *Thermod* you need to have Python and [virtualenv](https://virtualenv.pypa.io/en/stable/)
@@ -231,5 +231,5 @@ Some monitors have been developed:
    collects statistics on *Thermod* operation: records status changes in order to
    track switch ON and OFF of the heating along with timestamp.
 
- - see [other monitors](https://github.com/search?q=user%3Adroscy+thermod).
+ - search [other monitors](https://github.com/search?q=thermod-monitor) on GitHub.
 
