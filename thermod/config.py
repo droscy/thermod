@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2020-10-27'
+__updated__ = '2020-10-28'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -50,7 +50,7 @@ MAIN_CONFIG_FILES = (os.path.join('/etc/thermod', MAIN_CONFIG_FILENAME),
 
 
 Settings = namedtuple('Settings', ['enabled', 'debug', 'tt_file', 'interval',
-                                   'scale', 'inertia', 'heating',
+                                   'sleep_on_error', 'scale', 'inertia', 'heating',
                                    'thermometer', 'host', 'port', 'email'])
 """Tuple used to transfer settings from config file to main daemon."""
 
@@ -335,8 +335,8 @@ def parse_main_settings(cfg):
         error_code = common.RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return (Settings(enabled, debug, tt_file, interval, scale, inertia,
-                     heating, thermometer, host, port, email),
+    return (Settings(enabled, debug, tt_file, interval, sleep_on_error, scale,
+                     inertia, heating, thermometer, host, port, email),
             error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
