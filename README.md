@@ -30,6 +30,7 @@ and the following packages:
  - [async-timeout](https://github.com/aio-libs/async-timeout) (>=3.0.1)
  - [aiohttp](https://aiohttp.readthedocs.io/) (>=3.5.4)
  - [nose](http://nose.readthedocs.io/) (>=1.3.7, only to run tests)
+ - [aiounittest](https://github.com/kwarunek/aiounittest) (>=1.4.0, only to run tests)
  - [numpy](http://www.numpy.org/) (>=1.18.4, only to run tests)
 
 ### Installation

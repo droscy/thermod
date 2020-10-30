@@ -23,12 +23,14 @@ import os
 import logging
 import tempfile
 import unittest
+import aiounittest
+
 from thermod.heating import ScriptHeating, HeatingError
 
-__updated__ = '2017-10-19'
+__updated__ = '2020-10-30'
 
 
-class TestHeating(unittest.TestCase):
+class TestHeating(aiounittest.AsyncTestCase):
     """Test cases for `thermod.heating` module."""
 
     def setUp(self):
@@ -136,39 +138,39 @@ exit(retcode)
         except FileNotFoundError:
             pass
     
-    def test_heating(self):
-        self.assertEqual(self.heating.status, 0)
-        self.assertEqual(self.heating.is_on(), False)
+    async def test_heating(self):
+        self.assertEqual(await self.heating.status, 0)
+        self.assertEqual(await self.heating.is_on(), False)
         
-        self.heating.switch_on()
-        self.assertEqual(self.heating.status, 1)
-        self.assertEqual(self.heating.is_on(), True)
+        await self.heating.switch_on()
+        self.assertEqual(await self.heating.status, 1)
+        self.assertEqual(await self.heating.is_on(), True)
         
-        self.heating.switch_on()
-        self.assertEqual(self.heating.is_on(), True)
+        await self.heating.switch_on()
+        self.assertEqual(await self.heating.is_on(), True)
         
-        self.heating.switch_off()
-        self.assertEqual(self.heating.status, 0)
-        self.assertEqual(self.heating.is_on(), False)
+        await self.heating.switch_off()
+        self.assertEqual(await self.heating.status, 0)
+        self.assertEqual(await self.heating.is_on(), False)
     
-    def test_errors(self):
+    async def test_errors(self):
         os.remove(self.status_data)
         
         with self.assertRaises(HeatingError):
-            self.heating.status
+            await self.heating.status
         
-        self.heating.switch_on()
-        self.assertEqual(self.heating.status, 1)
+        await self.heating.switch_on()
+        self.assertEqual(await self.heating.status, 1)
         
         if os.getuid() != 0:
             # root can write a file even with read only permissions so this
             # test is useless when executed by root
             os.chmod(self.status_data,0o400)
             with self.assertRaises(HeatingError):
-                self.heating.switch_off()
+                await self.heating.switch_off()
         
-        self.assertEqual(self.heating.is_on(), True)
-        self.assertEqual(self.heating.status, 1)
+        self.assertEqual(await self.heating.is_on(), True)
+        self.assertEqual(await self.heating.status, 1)
         os.chmod(self.status_data,0o600)
 
 

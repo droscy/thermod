@@ -304,7 +304,6 @@ class ScriptThermometer(BaseThermometer):
         
         try:
             loop = asyncio.get_running_loop()
-        
         except:
             loop = asyncio.get_event_loop()
         
@@ -703,7 +702,6 @@ class OneWireThermometer(BaseThermometer):
         
         try:
             loop = asyncio.get_running_loop()
-        
         except:
             loop = asyncio.get_event_loop()
         
@@ -1007,7 +1005,6 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         if loop is None:
             try:
                 self._loop = asyncio.get_running_loop()
-            
             except:
                 self._loop = asyncio.get_event_loop()
         

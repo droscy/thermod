@@ -50,7 +50,7 @@ __updated__ = '2020-10-30'
 # TODO documentare variabili globali nel socket
 # TODO aggiungere ai sorgenti i file della scatolina
 
-# TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating
+# TODO usare asyncio.create_subprocess_exec() in ScriptThermometer e ScriptHeating (DONE, with run_in_executor)
 # per eseguire in modo asincrono le chiamate agli script esterni
 
 # TODO [Roadmap 1.2.2] scrivere test per PiAnalogZeroThermometer e per i Decorator
@@ -68,7 +68,7 @@ __updated__ = '2020-10-30'
 # TODO [Roadmap 2.0.0] muovere le variabili DEGREE* fuori da BaseThermometer perché usate anche da altre parti (DONE)
 # TODO [Roadmap 2.0.0] rinominare status->mode, heating_status->status (DONE)
 # TODO [Roadmap 2.0.0] rimuovere to_celsius() e to_fahrenheit() dai termometri (adesso c'è un decorator) (DONE)
-# TODO [Roadmap 2.0.0] usare aiofiles per OneWireThermometer (la lettura sequenziale dei file è lenta)
+# TODO [Roadmap 2.0.0] usare aiofiles per OneWireThermometer (la lettura sequenziale dei file è lenta) (DONE, with run_in_executor)
 # TODO [Roadmap 2.0.0] mettere calibrazione del termometro in un decorator
 # TODO [Roadmap 2.0.0] cambiare funzionamento del grace_time
 # TODO [Roadmap 2.0.0] rinominare Wire1Thermometer in OneWireThermometer (lasciando il vecchio nome deprecato) (DONE)
@@ -258,7 +258,7 @@ try:
         # sure the heating is off.
         logger.debug('heating status script not provided, issuing a switch off')
         if settings.heating['status'] is None:
-            heating.switch_off()
+            main_loop.run_until_complete(heating.switch_off())
     
     elif settings.heating['manager'] == 'PiPinsRelay':
         heating = PiPinsRelayHeating(settings.heating['pins'],
@@ -501,7 +501,11 @@ async def thermostat_cycle(timetable, heating, thermometer, lock):
     
     global enabled, main_return_code
     logger.info('daemon started ({})', PROGRAM_VERSION)
-    loop = asyncio.get_event_loop()  # TODO for python 3.7 change to asyncio.get_running_loop()
+    
+    try:
+        loop = asyncio.get_running_loop()
+    except:
+        loop = asyncio.get_event_loop()
     
     try:
         try:
@@ -569,9 +573,9 @@ async def thermostat_cycle(timetable, heating, thermometer, lock):
                         
                         else:  # the heating/cooling must be switched
                             if should_be_on:
-                                heating.switch_on()
+                                await heating.switch_on()
                             else:
-                                heating.switch_off()
+                                await heating.switch_off()
                             
                             logger.info('{} switched {} ({})',
                                         _heatcool_str,
@@ -738,7 +742,7 @@ finally:
     # switch off the heating
     try:
         if heating.is_on():
-            heating.switch_off()
+            main_loop.run_until_complete(heating.switch_off())
             logger.info('heating switched OFF')
     
     except ScriptError as se:

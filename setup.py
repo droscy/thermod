@@ -21,7 +21,7 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
 
-__updated__ = '2020-10-28'
+__updated__ = '2020-10-30'
 
 def get_version():
     main_ns = {}
@@ -59,6 +59,7 @@ setup(name='thermod',
                         'aiohttp >= 3.5.4'],
       test_suite='nose.collector',
       tests_require=['nose >= 1.3.7',
+                     'aiounittest >= 1.4.0',
                      'numpy >= 1.18.4']
 )
 

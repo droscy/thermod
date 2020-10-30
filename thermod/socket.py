@@ -39,7 +39,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2020-10-28'
+__updated__ = '2020-10-30'
 __version__ = '2.4.3'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -349,7 +349,7 @@ async def GET_handler(request):
                 status = ThermodStatus(last_updt,
                                        timetable.mode,
                                        timetable.hvac_mode,
-                                       heating.status,
+                                       await heating.status,
                                        timetable.degrees(await thermometer.temperature),
                                        timetable.target_temperature(last_updt))
         

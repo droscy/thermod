@@ -34,7 +34,7 @@ from thermod.socket import ControlSocket
 from thermod.thermometer import FakeThermometer
 from thermod.tests.test_timetable import fill_timetable
 
-__updated__ = '2020-10-28'
+__updated__ = '2020-10-30'
 __url_settings__ = 'http://localhost:4345/settings'
 __url_heating__ = 'http://localhost:4345/status'
 
@@ -103,7 +103,7 @@ class TestSocket(unittest.TestCase):
                 
                 # check returned heating informations
                 self.assertEqual(heating['mode'], self.timetable.mode)
-                self.assertEqual(heating['status'], self.heating.status)
+                self.assertEqual(heating['status'], await self.heating.status)
                 self.assertAlmostEqual(heating['current_temperature'], await self.thermometer.temperature, delta=0.1)
                 self.assertEqual(heating['target_temperature'], self.timetable.target_temperature())
     

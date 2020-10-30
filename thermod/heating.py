@@ -23,6 +23,8 @@ import json
 import shlex
 import logging
 import subprocess
+import asyncio
+import functools
 
 from copy import deepcopy
 from datetime import datetime
@@ -37,7 +39,7 @@ except ImportError:
     GPIO = False
 
 __date__ = '2015-12-30'
-__updated__ = '2018-08-03'
+__updated__ = '2020-10-30'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -93,7 +95,7 @@ class BaseHeating(object):
     def __format__(self, format_spec, *args, **kwargs):
         return '{:{}}'.format(str(self), format_spec)
     
-    def switch_on(self):
+    async def switch_on(self):
         """Switch on the heating, raise a `HeatingError` in case of failure.
         
         Subclasses that reimplement this method should adhere to this beahviour
@@ -102,7 +104,7 @@ class BaseHeating(object):
         
         self._is_on = True
     
-    def switch_off(self):
+    async def switch_off(self):
         """Switch off the heating, raise a `HeatingError` in case of failure.
         
         Subclasses that reimplement this method should adhere to this beahviour
@@ -113,16 +115,16 @@ class BaseHeating(object):
         self._switch_off_time = datetime.now()
     
     @property
-    def status(self):
+    async def status(self):
         """Return the status of the heating as an integer: 1=ON, 0=OFF.
         
         Subclasses that reimplement this method should return an integer
         value to be fully compatible.
         """
         
-        return int(self.is_on())
+        return int(await self.is_on())
     
-    def is_on(self):
+    async def is_on(self):
         """Return `True` if the heating is currently on, `False` otherwise.
         
         Subclasses that reimplement this method should return a boolean
@@ -258,13 +260,21 @@ class ScriptHeating(BaseHeating):
                     status=self._status_script,
                     debug=(ScriptHeating.DEBUG_OPTION in self._switch_on_script))
     
-    def switch_on(self):
+    async def switch_on(self):
         """Switch on the heating executing the `switch-on` script."""
         
         logger.debug('switching on the heating')
         
         try:
-            subprocess.check_output(self._switch_on_script, shell=False)
+            loop = asyncio.get_running_loop()
+        except:
+            loop = asyncio.get_event_loop()
+        
+        try:
+            await loop.run_in_executor(None,
+                    functools.partial(subprocess.check_output,
+                                      self._switch_on_script,
+                                      shell=False))
         
         except subprocess.CalledProcessError as cpe:
             suberr = 'the switch-on script exited with return code `{}`'.format(cpe.returncode)
@@ -291,13 +301,21 @@ class ScriptHeating(BaseHeating):
         self._is_on = True
         logger.debug('heating switched on')
     
-    def switch_off(self):
+    async def switch_off(self):
         """Switch off the heating executing the `switch-off` script."""
         
         logger.debug('switching off the heating')
         
         try:
-            subprocess.check_output(self._switch_off_script, shell=False)
+            loop = asyncio.get_running_loop()
+        except:
+            loop = asyncio.get_event_loop()
+        
+        try:
+            await loop.run_in_executor(None,
+                    functools.partial(subprocess.check_output,
+                                      self._switch_off_script,
+                                      shell=False))
         
         except subprocess.CalledProcessError as cpe:
             suberr = 'the switch-off script exited with return code {}'.format(cpe.returncode)
@@ -325,7 +343,7 @@ class ScriptHeating(BaseHeating):
         self._switch_off_time = datetime.now()
         logger.debug('heating switched off at {}', self._switch_off_time)
     
-    def force_status_update(self):
+    async def force_status_update(self):
         """Execute the `status` script and update internal status.
         
         @exception HeatingError when the `status` script is `None`
@@ -339,7 +357,12 @@ class ScriptHeating(BaseHeating):
             raise HeatingError('no status script set in config file')
         
         try:
-            raw = subprocess.check_output(self._status_script, shell=False)
+            loop = asyncio.get_running_loop()
+        except:
+            loop = asyncio.get_event_loop()
+        
+        try:
+            raw = await loop.run_in_executor(None, functools.partial(subprocess.check_output, self._status_script, shell=False))
             out = json.loads(raw.decode('utf-8'))
             
             ststr = out[ScriptHeating.JSON_STATUS]
@@ -391,7 +414,7 @@ class ScriptHeating(BaseHeating):
         
         self._is_on = bool(status)
     
-    def is_on(self):
+    async def is_on(self):
         """Return `True` if the heating is ON, `False` otherwise.
         
         Usually, this method, does not execute any script (except on first
@@ -406,7 +429,7 @@ class ScriptHeating(BaseHeating):
         """
         
         if self._is_on is None:
-            self.force_status_update()
+            await self.force_status_update()
         
         return self._is_on
 
