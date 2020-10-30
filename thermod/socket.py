@@ -40,7 +40,7 @@ from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
 __updated__ = '2020-10-28'
-__version__ = '2.4.2'
+__version__ = '2.4.3'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -350,7 +350,7 @@ async def GET_handler(request):
                                        timetable.mode,
                                        timetable.hvac_mode,
                                        heating.status,
-                                       timetable.degrees(thermometer.temperature),
+                                       timetable.degrees(await thermometer.temperature),
                                        timetable.target_temperature(last_updt))
         
         except HeatingError as he:

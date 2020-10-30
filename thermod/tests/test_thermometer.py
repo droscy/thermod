@@ -24,12 +24,14 @@ import logging
 import tempfile
 import unittest
 import numpy
+import asyncio
+
 from thermod.common import DEGREE_CELSIUS, DEGREE_FAHRENHEIT
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
     celsius2fahrenheit, fahrenheit2celsius, OneWireThermometer, linearfit, \
     ScaleAdapterThermometerDecorator, BaseThermometer, FakeThermometer
 
-__updated__ = '2020-10-27'
+__updated__ = '2020-10-28'
 
 
 class TestThermometer(unittest.TestCase):
@@ -112,29 +114,34 @@ exit(retcode)
         except FileNotFoundError:
             pass
     
+    def _get_async_temp(self, coro):
+        loop = asyncio.get_event_loop()
+        temp = loop.run_until_complete(coro)
+        return temp
+    
     def test_temperature_script(self):
-        self.assertAlmostEqual(self.thermometer.temperature, 20.10, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(self.thermometer.temperature), 20.10, delta=0.01)
         
         for t in (10.20, -15.00, 34.34, 17.23, 21.20, 7.76, 22.00):
             with open(self.temperature_data, 'w') as file:
                 file.write('{:.2f}'.format(t))
             
-            self.assertAlmostEqual(self.thermometer.temperature, t, delta=0.01)
+            self.assertAlmostEqual(self._get_async_temp(self.thermometer.temperature), t, delta=0.01)
     
     def test_w1_temperatures(self):
-        self.assertAlmostEqual(self.w1thermo.temperature, 24.03, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(self.w1thermo.temperature), 24.03, delta=0.01)
         
         os.remove(self.w1_data_2)
-        self.assertAlmostEqual(self.w1thermo.temperature, 24.06, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(self.w1thermo.temperature), 24.06, delta=0.01)
     
     def test_w1_temperatures_outlier(self):
-        self.assertAlmostEqual(self.w1thermo.temperature, 24.03, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(self.w1thermo.temperature), 24.03, delta=0.01)
         
         self.w1thermo = OneWireThermometer([self.w1_data_1, self.w1_data_2, self.w1_data_3])
-        self.assertAlmostEqual(self.w1thermo.temperature, 24.06, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(self.w1thermo.temperature), 24.06, delta=0.01)
         
         self.w1thermo = OneWireThermometer([self.w1_data_2, self.w1_data_3])
-        self.assertAlmostEqual(self.w1thermo.temperature, 30.00, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(self.w1thermo.temperature), 30.00, delta=0.01)
     
     def test_w1_init_error(self):
         with self.assertRaises(TypeError):
@@ -149,13 +156,13 @@ exit(retcode)
     
     def test_scale_adapter(self):
         termo = ScaleAdapterThermometerDecorator(self.w1thermo, DEGREE_FAHRENHEIT)
-        self.assertAlmostEqual(termo.temperature, 75.26, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(termo.temperature), 75.26, delta=0.01)
         
         termo = ScaleAdapterThermometerDecorator(FakeThermometer(DEGREE_FAHRENHEIT), DEGREE_CELSIUS)
-        self.assertAlmostEqual(termo.temperature, 20.00, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(termo.temperature), 20.00, delta=0.01)
         
         termo = ScaleAdapterThermometerDecorator(FakeThermometer(), DEGREE_CELSIUS)
-        self.assertAlmostEqual(termo.temperature, 20.00, delta=0.01)
+        self.assertAlmostEqual(self._get_async_temp(termo.temperature), 20.00, delta=0.01)
     
     def test_conversion_methods(self):
         self.assertAlmostEqual(celsius2fahrenheit(0), 32, delta=0.01)
@@ -171,7 +178,7 @@ import json
 print(json.dumps({'error': None}))
 exit(0)
 ''')
-            self.thermometer.temperature
+            self._get_async_temp(self.thermometer.temperature)
         
         # invalid 'temperature' value in JSON output
         with self.assertRaises(ThermometerError):
@@ -182,7 +189,7 @@ import json
 print(json.dumps({'temperature': 'invalid', 'error': None}))
 exit(0)
 ''')
-            self.thermometer.temperature
+            self._get_async_temp(self.thermometer.temperature)
         
         # null 'temperature' value in JSON output
         with self.assertRaises(ThermometerError):
@@ -193,7 +200,7 @@ import json
 print(json.dumps({'temperature': None, 'error': None}))
 exit(0)
 ''')
-            self.thermometer.temperature
+            self._get_async_temp(self.thermometer.temperature)
         
         # missing 'error' value in JSON output with return code 1
         with self.assertRaises(ThermometerError):
@@ -204,11 +211,11 @@ import json
 print(json.dumps({'temperature': None}))
 exit(1)
 ''')
-            self.thermometer.temperature
+            self._get_async_temp(self.thermometer.temperature)
         
         with self.assertRaises(ThermometerError):
             os.remove(self.temperature_data)
-            self.thermometer.temperature
+            self._get_async_temp(self.thermometer.temperature)
     
     def test_linear_regression(self):
         """Test the custom computation on linear regression."""

@@ -24,10 +24,11 @@ import shlex
 import logging
 import subprocess
 import statistics
+import asyncio
+import functools
 
 from copy import deepcopy
 from json.decoder import JSONDecodeError
-from asyncio import CancelledError, get_event_loop, sleep
 from collections import deque
 from random import random
 
@@ -45,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2020-10-28'
+__updated__ = '2020-10-30'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -185,7 +186,7 @@ class BaseThermometer(object):
         return '{:{}}'.format(self.temperature, format_spec)
     
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         """This method must be implemented in subclasses.
         
         The subclasses' methods must return the current temperature read from
@@ -201,9 +202,9 @@ class BaseThermometer(object):
         raise NotImplementedError()
     
     @property
-    def temperature(self):
+    async def temperature(self):
         """The calibrated temperature."""
-        return round(self._calibrate(self.raw_temperature), 2)  # additional decimal are meaningless
+        return round(self._calibrate(await self.raw_temperature), 2)  # additional decimal are meaningless
     
     def close(self):
         """To be implemented in subclasses to handle possible hardware shutdown."""
@@ -217,7 +218,7 @@ class FakeThermometer(BaseThermometer):
         super().__init__(scale)
     
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         t = 20.0
         if self._scale == DEGREE_CELSIUS:
             return t
@@ -291,7 +292,7 @@ class ScriptThermometer(BaseThermometer):
                     calib=self._calibrate)
     
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         """Retrive the current temperature executing the script.
         
         The returned value is a float number. Many exceptions can be raised
@@ -299,9 +300,16 @@ class ScriptThermometer(BaseThermometer):
         """
         
         logger.debug('retrieving current temperature')
+        tstr = ''  # must be defined in case TypeError raised before assignment
         
         try:
-            raw = subprocess.check_output(self._script, shell=False)
+            loop = asyncio.get_running_loop()
+        
+        except:
+            loop = asyncio.get_event_loop()
+        
+        try:
+            raw = await loop.run_in_executor(None, functools.partial(subprocess.check_output, self._script, shell=False))
             out = json.loads(raw.decode('utf-8'))
             
             tstr = out[ScriptThermometer.JSON_TEMPERATURE]
@@ -547,7 +555,7 @@ class PiAnalogZeroThermometer(BaseThermometer):
                               calibration=self._calibrate)
     
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         """The current raw temperature as measured by physical thermometer.
         
         If more than one channel is provided during object creation, the
@@ -665,8 +673,20 @@ class OneWireThermometer(BaseThermometer):
                     stddev=self._stddev,
                     calib=self._calibrate))
     
+    def _read_device_data(self, dev):
+        """Open the 1-Wire device and read its data.
+        
+        This can be a long blocking I/O operation and thus it will be
+        executed in different thread of the main asyncio loop.
+        """
+        
+        with open(dev, 'r') as f:
+            data = f.readlines()
+        
+        return data
+    
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         """The current raw temperature as measured by physical thermometer.
         
         If more than one device is provided during object creation, the
@@ -681,10 +701,18 @@ class OneWireThermometer(BaseThermometer):
         
         temperatures = []
         
+        try:
+            loop = asyncio.get_running_loop()
+        
+        except:
+            loop = asyncio.get_event_loop()
+        
         for dev in self._devices:
             try:
                 with open(dev, 'r') as f:
                     data = f.readlines()
+                
+                data = await loop.run_in_executor(None, self._read_device_data, dev)
                 
                 if data[0].strip()[-3:] == 'YES':
                     temperatures.append(float(data[1].split("=")[1]) / 1000)
@@ -741,7 +769,7 @@ class Wire1Thermometer(OneWireThermometer):
                  stddev=2.0,
                  calibration=None):
         logger.warning('Wire1Thermometer class is deprecated, please use OneWireThermometer')
-        super.__init__(devices,scale,t_ref,t_raw,stddev,calibration)
+        super.__init__(devices, scale, t_ref, t_raw, stddev, calibration)
 
 
 # decorators
@@ -787,12 +815,12 @@ class ThermometerBaseDecorator(BaseThermometer):
         return self.__decorated
     
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         #logger.debug('forwarding `raw_temperature` call from {} to {}',
         #             self.__class__.__name__,
         #             self.decorated.__class__.__name__)
         
-        return self.decorated.raw_temperature
+        return await self.decorated.raw_temperature
     
     def close(self):
         #logger.debug('forwarding `close` call from {} to {}',
@@ -838,10 +866,10 @@ class ScaleAdapterThermometerDecorator(ThermometerBaseDecorator):
                                           self._to_scale)
     
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         """Return the raw temperature converted to the wanted degree scale."""
         
-        orig = self.decorated.raw_temperature
+        orig = await self.decorated.raw_temperature
         
         if (self.decorated._scale == DEGREE_CELSIUS
                 and self._to_scale == DEGREE_FAHRENHEIT):
@@ -894,13 +922,13 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
                                               self.delta)
     
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         """Return the raw temperature only if it is similar to the average of older values.
         
         @exception ThermometerError when the just read value is NOT similar
         """
         
-        newtemp = self.decorated.raw_temperature
+        newtemp = await self.decorated.raw_temperature
         avgtemp = statistics.mean(self.last_raw_temperatures)
         delta = abs(newtemp - avgtemp)
         
@@ -957,7 +985,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             temperatures and the other half form the lowest (this value
             must be between 0 and 1)
         @param loop the asynchronous loop to be used (if it is `None` the
-            default loop as retrieved with `asyncio.get_event_loop()` is
+            default loop as retrieved with `asyncio.get_running_loop()` is
             used)
         """
         
@@ -975,8 +1003,18 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         self._temperatures = deque([self.decorated.raw_temperature],
                                    maxlen=int(self._averaging_time * 60 / self._short_interval))
         
+        # get the event loop
+        if loop is None:
+            try:
+                self._loop = asyncio.get_running_loop()
+            
+            except:
+                self._loop = asyncio.get_event_loop()
+        
+        else:
+            self._loop = loop
+        
         # start averaging task
-        self._loop = (loop if loop is not None else get_event_loop())
         self._averaging_task = None
         self._create_averaging_task()
     
@@ -1018,10 +1056,10 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         logger.debug('starting temperature updating cycle')
         
         while True:
-            temp = self.decorated.raw_temperature
+            temp = await self.decorated.raw_temperature
             self._temperatures.append(temp)
             logger.debug('added new temperature ({:.2f}) to the averaging queue', temp)
-            await sleep(self._short_interval, loop=self._loop)
+            await asyncio.sleep(self._short_interval, loop=self._loop)
     
     def _update_temperatures_callback(self, averaging_task):
         """Save the exceptions raised by `self._update_temperatures`."""
@@ -1029,7 +1067,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         try:
             averaging_task.result()
         
-        except CancelledError:
+        except asyncio.CancelledError:
             logger.debug('temperature updating cycle stopped')
         
         except Exception as e:
@@ -1040,7 +1078,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             self._averaging_task = None
     
     @property
-    def raw_temperature(self):
+    async def raw_temperature(self):
         """Return a "weighted" average of the last measured temperatures.
         
         The average is computed excluding some greatest and lowest

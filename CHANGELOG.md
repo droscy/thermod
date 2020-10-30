@@ -16,6 +16,10 @@
 
   * Other changes:
     - add support for python > 3.5 and aiohttp >= 3.0
+    - change setup script to install Thermod using pip
+    - temperatures are retrieved via a coroutine to handle long I/O steps
+    - add config file and documentation for lighttpd and apache2 web servers
+    - add systemd service file
 
 ## 1.2.1
 
