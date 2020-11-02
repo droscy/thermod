@@ -40,7 +40,7 @@ from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
 __updated__ = '2020-10-30'
-__version__ = '2.4.3'
+__version__ = '2.4.4'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -56,7 +56,6 @@ REQ_SETTINGS_T0 = common.SOCKET_REQ_SETTINGS_T0
 REQ_SETTINGS_TMIN = common.SOCKET_REQ_SETTINGS_TMIN
 REQ_SETTINGS_TMAX = common.SOCKET_REQ_SETTINGS_TMAX
 REQ_SETTINGS_DIFFERENTIAL = common.SOCKET_REQ_SETTINGS_DIFFERENTIAL
-REQ_SETTINGS_GRACE_TIME = common.SOCKET_REQ_SETTINGS_GRACE_TIME
 REQ_SETTINGS_HVAC_MODE = common.SOCKET_REQ_SETTINGS_HVAC_MODE
 
 REQ_MONITOR_NAME = common.SOCKET_REQ_MONITOR_NAME
@@ -435,8 +434,6 @@ async def POST_handler(request):
         
         * `differential` to update the differential value
         
-        * `grace_time` to update the grace time
-        
         * `hvac_mode` to update the HVAC mode
     
     Any request that produces an error in updating internal settings,
@@ -521,9 +518,6 @@ async def POST_handler(request):
                         elif var == REQ_SETTINGS_DIFFERENTIAL:
                             timetable.differential = value
                             newvalues[var] = timetable.differential
-                        elif var == REQ_SETTINGS_GRACE_TIME:
-                            timetable.grace_time = value
-                            newvalues[var] = timetable.grace_time
                         elif var == REQ_SETTINGS_HVAC_MODE:
                             timetable.hvac_mode = value
                             newvalues[var] = timetable.hvac_mode

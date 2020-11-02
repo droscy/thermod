@@ -13,11 +13,13 @@
       (or `heatcool_status`) to `status` in config files, in socket messages,
       in TimeTable class, in ThermodStatus class, etc.
     - remove support for different hardwares between heating and cooling systems
+    - remove grace time checkes and functionality
 
-  * Other changes:
+  * New features:
     - add support for python > 3.5 and aiohttp >= 3.0
     - change setup script to install Thermod using pip
-    - temperatures are retrieved via a coroutine to handle long I/O steps
+    - temperatures are retrieved via coroutines to handle long I/O steps
+    - heating hardware is managed via coroutines
     - add config file and documentation for lighttpd and apache2 web servers
     - add systemd service file
 

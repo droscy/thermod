@@ -26,7 +26,7 @@ from datetime import datetime
 from collections import namedtuple
 
 __date__ = '2017-03-02'
-__updated__ = '2020-10-21'
+__updated__ = '2020-10-30'
 
 
 # logger common settings
@@ -89,7 +89,6 @@ SOCKET_REQ_SETTINGS_T0 = 't0'
 SOCKET_REQ_SETTINGS_TMIN = 'tmin'
 SOCKET_REQ_SETTINGS_TMAX = 'tmax'
 SOCKET_REQ_SETTINGS_DIFFERENTIAL = 'differential'
-SOCKET_REQ_SETTINGS_GRACE_TIME = 'grace_time'
 SOCKET_REQ_SETTINGS_HVAC_MODE = 'hvac_mode'
 
 SOCKET_REQ_MONITOR_NAME = 'name'

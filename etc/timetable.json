@@ -2,7 +2,6 @@
   "version": 2,
   "mode": "auto",
   "differential": 0.5,
-  "grace_time": null,
   "temperatures": {
     "t0": 10.0,
     "tmin": 17.0,

@@ -189,7 +189,6 @@
 						</select>
 					</li>
 					<li><label for="differential">Differential</label> <input class="set-other" type="text" id="differential" name="differential" size="4" /> degrees</li>
-					<li><label for="grace-time">Grace time</label> <input class="set-other" type="text" id="grace-time" name="grace-time" size="4" /> minutes</li>
 				</ul>
 			</div>
 		</div>

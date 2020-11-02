@@ -159,13 +159,11 @@ class TestSocket(unittest.TestCase):
                 async with session.post(__url_settings__,
                                         data={socket.REQ_SETTINGS_MODE: timetable.JSON_MODE_TMAX,
                                               socket.REQ_SETTINGS_TMAX: 32.3,
-                                              socket.REQ_SETTINGS_HVAC_MODE: common.HVAC_COOLING,
-                                              socket.REQ_SETTINGS_GRACE_TIME: 'inf'}) as q:
+                                              socket.REQ_SETTINGS_HVAC_MODE: common.HVAC_COOLING}) as q:
                     
                     self.assertEqual(q.status, 200)
                     self.assertEqual(self.timetable.mode, timetable.JSON_MODE_TMAX)
                     self.assertAlmostEqual(self.timetable.tmax, 32.3, delta=0.01)
-                    self.assertEqual(self.timetable.grace_time, float('inf'))
                 
                 # some days
                 old_set = self.timetable.__getstate__()
@@ -180,7 +178,6 @@ class TestSocket(unittest.TestCase):
                 # all settings
                 tt2 = copy.deepcopy(self.timetable)
                 tt2.mode = timetable.JSON_MODE_TMAX
-                tt2.grace_time = 3600
                 tt2.update('thursday', 4, 1, 36.5)
                 
                 self.assertNotEqual(self.timetable, tt2)  # different before update

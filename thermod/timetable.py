@@ -36,7 +36,7 @@ from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, \
     JsonValueError, HVAC_HEATING, HVAC_COOLING, HVAC_ALL_MODES
 
 __date__ = '2015-09-09'
-__updated__ = '2020-10-22'
+__updated__ = '2020-11-02'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -46,12 +46,10 @@ JSON_MODE = 'mode'
 JSON_TEMPERATURES = 'temperatures'
 JSON_TIMETABLE = 'timetable'
 JSON_DIFFERENTIAL = 'differential'
-JSON_GRACE_TIME = 'grace_time'
 JSON_HVAC_MODE = 'hvac_mode'
 JSON_VERSION = 'version'
 JSON_ALL_SETTINGS = (JSON_MODE, JSON_TEMPERATURES, JSON_TIMETABLE,
-                     JSON_DIFFERENTIAL, JSON_GRACE_TIME, JSON_HVAC_MODE,
-                     JSON_VERSION)
+                     JSON_DIFFERENTIAL, JSON_HVAC_MODE, JSON_VERSION)
 
 
 JSON_T0_STR = 't0'
@@ -117,7 +115,6 @@ JSON_SCHEMA = {
             'required': ['monday', 'tuesday', 'wednesday', 'thursday',
                          'friday', 'saturday', 'sunday']},
         'differential': {'type': 'number', 'minimum': 0, 'maximum': 1},
-        'grace_time': {'type': ['number', 'null'], 'minimum': 0},
         'hvac_mode': {'enum': ['heating', 'cooling']}},
     'required': ['version', 'mode', 'temperatures', 'timetable'],
     'definitions': {
@@ -328,7 +325,6 @@ class TimeTable(object):
         
         self._inertia = inertia
         self._differential = 0.5
-        self._grace_time = float('+Inf')  # disabled by default
         
         self._hvac_mode = JSON_HVAC_HEATING
         """HVAC mode currently active.
@@ -349,29 +345,6 @@ class TimeTable(object):
         
         Equal to JSON file mtime if settings are loaded from file or equal
         to current timestamp of last settings change.
-        """
-        
-        self._last_tgt_temp_reached_timestamp = TIMESTAMP_MAX_VALUE
-        """Timestamp of target temperature last reaching.
-        
-        Whenever the target temperature is reached, this value is updated with
-        the current timestamp. When the current temperature falls below the
-        target temperature, this value is reset to `common.TIMESTAMP_MAX_VALUE`.
-        
-        It is used in the `TimeTable.should_the_heating_be_on()`
-        method to respect the grace time.
-        """
-        
-        self._last_below_tgt_temp_timestamp = TIMESTAMP_MAX_VALUE
-        """Timestamp of current temperature last fall below target temperature.
-        
-        Whenever the current temperature falls below the target temperature
-        this value is updated with the current timestamp. It is reset to
-        `common.TIMESTAMP_MAX_VALUE` when the current temperature reaches
-        the target temperature.
-        
-        It is used in the `TimeTable.should_the_heating_be_on()`
-        method to respect the grace time.
         """
         
         self.filepath = filepath
@@ -404,7 +377,6 @@ class TimeTable(object):
                         and (self._temperatures == other._temperatures)
                         and (self._timetable == other._timetable)
                         and (self._differential == other._differential)
-                        and (self._grace_time == other._grace_time)
                         and (self._hvac_mode == other._hvac_mode))
         
         except AttributeError:
@@ -423,13 +395,10 @@ class TimeTable(object):
         new._timetable = self._timetable
         new._inertia = self._inertia
         new._differential = self._differential
-        new._grace_time = self._grace_time
         new._hvac_mode = self._hvac_mode
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
-        new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
-        new._last_below_tgt_temp_timestamp = self._last_below_tgt_temp_timestamp
         
         new.filepath = self.filepath
         
@@ -446,13 +415,10 @@ class TimeTable(object):
         new._timetable = deepcopy(self._timetable)
         new._inertia = self._inertia
         new._differential = self._differential
-        new._grace_time = self._grace_time
         new._hvac_mode = self._hvac_mode
         
         new._has_been_validated = self._has_been_validated
         new._last_update_timestamp = self._last_update_timestamp
-        new._last_tgt_temp_reached_timestamp = self._last_tgt_temp_reached_timestamp
-        new._last_below_tgt_temp_timestamp = self._last_below_tgt_temp_timestamp
         
         new.filepath = self.filepath
         
@@ -479,9 +445,6 @@ class TimeTable(object):
                 
                 if JSON_DIFFERENTIAL in oldstate:
                     newstate[JSON_DIFFERENTIAL] = oldstate[JSON_DIFFERENTIAL]
-                
-                if JSON_GRACE_TIME in oldstate:
-                    newstate[JSON_GRACE_TIME] = oldstate[JSON_GRACE_TIME]
                 
                 if JSON_HVAC_MODE in oldstate:
                     newstate[JSON_HVAC_MODE] = oldstate[JSON_HVAC_MODE]
@@ -523,7 +486,6 @@ class TimeTable(object):
                     JSON_TEMPERATURES: self._temperatures,
                     JSON_TIMETABLE: self._timetable,
                     JSON_DIFFERENTIAL: self._differential,
-                    JSON_GRACE_TIME: self._grace_time,
                     JSON_HVAC_MODE: self._hvac_mode}
         
         try:
@@ -577,10 +539,6 @@ class TimeTable(object):
             if JSON_DIFFERENTIAL in _state:
                 self._differential = _state[JSON_DIFFERENTIAL]
             
-            if JSON_GRACE_TIME in _state:
-                # NOTE: using grace_time setter to perform additional checks
-                self.grace_time = _state[JSON_GRACE_TIME]
-            
             if JSON_HVAC_MODE in _state:
                 self._hvac_mode = _state[JSON_HVAC_MODE]
             
@@ -599,7 +557,6 @@ class TimeTable(object):
             logger.debug('current mode: {}', self._mode)
             logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
             logger.debug('differential: {} deg', self._differential)
-            logger.debug('grace time: {} sec', self._grace_time)
             logger.debug('hvac mode: {}', self._hvac_mode)
         
         logger.debug('new internal state set')
@@ -635,18 +592,13 @@ class TimeTable(object):
     def settings(self, indent=0, sort_keys=False):
         """Get internal settings as JSON string.
         
-        To adhere to the JSON standard, the `+Infinite` value of grace time is
-        converted to `None`, thus it will be `null` in the returned JSON string.
-        
         @exception ValueError if there is an invalid float in internal settings
         """
         
-        state = self.__getstate__()
-        
-        if not math.isfinite(state[JSON_GRACE_TIME]):
-            state[JSON_GRACE_TIME] = None
-        
-        return json.dumps(state, indent=indent, sort_keys=sort_keys, allow_nan=False)
+        return json.dumps(self.__getstate__(),
+                          indent=indent,
+                          sort_keys=sort_keys,
+                          allow_nan=False)
     
     
     # no need for @transactional because __setstate__ is @transactionl
@@ -729,10 +681,6 @@ class TimeTable(object):
         # validate and retrive settings
         settings = self.__getstate__()
         
-        # convert possible Infinite grace_time to None
-        if not math.isfinite(settings[JSON_GRACE_TIME]):
-            settings[JSON_GRACE_TIME] = None
-        
         # if an old JSON file exists, load its content for later restore if necessary
         try:
             logger.debug('reading old JSON file {}', filepath)
@@ -768,11 +716,6 @@ class TimeTable(object):
     def last_update_timestamp(self):
         """Return the timestamp of last settings update."""
         return self._last_update_timestamp
-    
-    
-    def last_tgt_temp_reached_timestamp(self):
-        """Return the POSIX timestamp when the target temperature was last reached."""
-        return self._last_tgt_temp_reached_timestamp
     
     
     @property
@@ -831,49 +774,6 @@ class TimeTable(object):
         self._differential = nvalue
         self._last_update_timestamp = time.time()
         logger.debug('new differential value set: {}', nvalue)
-    
-    
-    @property
-    def grace_time(self):
-        """Return the current grace time in *seconds*.
-        
-        The returned value is a float and can also be the positive infinity
-        if the grace time has been disabled.
-        """
-        logger.debug('reading current grace time')
-        return self._grace_time
-    
-    
-    @grace_time.setter
-    def grace_time(self, seconds):
-        """Set a new grace time in *seconds*.
-        
-        The input value must be a positive number or, to disable the grace time,
-        one of the following values: `None` or the strings 'Inf', 'Infinity' or
-        'NaN' (case insensitive). If the input is a float number it is
-        rounded to the nearest integer value.
-        """
-        
-        logger.debug('setting a new grace time')
-        
-        try:
-            nvalue = float(seconds if seconds is not None else '+Inf')
-            
-            if math.isnan(nvalue):
-                nvalue = float('+Inf')
-            
-            if nvalue < 0:
-                raise ValueError()
-        
-        except:
-            logger.debug('invalid new grace time: {}', seconds)
-            raise JsonValueError(
-                'the new grace time `{}` is invalid, it must be a positive '
-                'number expressed in seconds or the string `Inf`'.format(seconds))
-        
-        self._grace_time = round(nvalue, 0)
-        self._last_update_timestamp = time.time()
-        logger.debug('new grace time set: {} sec', self._grace_time)
     
     
     @property
@@ -1150,12 +1050,11 @@ class TimeTable(object):
         temperature is above target, otherwise when the temperature is below
         target.
         
-        This method updates only the internal variable `self._last_tgt_temp_reached_timestamp`
-        if appropriate conditions are met.
+        This method makes no changes to internal attributes.
         
         @param current_temperature the current temperature of the room
         @param status current status of the heating/cooling (as
-            returned from `BaseHeating.status` or `BaseCooling.status`)
+            returned from `BaseHeating.status`)
         
         @return an instance of ShouldBeOn with a boolean value
             of `True` if the heating/cooling should be on, `False` otherwise
@@ -1225,43 +1124,14 @@ class TimeTable(object):
             
             ison = bool(status)
             nowts = target_time.timestamp()
-            grace = self._grace_time
-            
-            if current >= target and nowts < self._last_tgt_temp_reached_timestamp:
-                # first time the target temp is reached, update timestamp
-                self._last_tgt_temp_reached_timestamp = nowts
-            elif current < target:
-                self._last_tgt_temp_reached_timestamp = TIMESTAMP_MAX_VALUE
-            
-            if current < target and nowts < self._last_below_tgt_temp_timestamp:
-                # first time the current temp has fallen below target temp, update timestamp
-                self._last_below_tgt_temp_timestamp = nowts
-            elif current >= target:
-                self._last_below_tgt_temp_timestamp = TIMESTAMP_MAX_VALUE
-            
-            tgtts = self._last_tgt_temp_reached_timestamp
-            bltts = self._last_below_tgt_temp_timestamp
-            
-            logger.debug('{}_on: {}, below_tgt_temperature_time: {}, '
-                         'tgt_temperature_time: {}, grace_time: {}',
-                         self._hvac_mode, ison, datetime.fromtimestamp(bltts),
-                         datetime.fromtimestamp(tgtts), grace)
             
             if self._hvac_mode == JSON_HVAC_HEATING:
-                should_be_on = (
-                    ((current <= (target - diff))
-                    or ((current < target) and ((nowts - bltts) > grace))
-                    or ((current < (target + diff)) and ison))
-                        and not (current >= target and (nowts - tgtts) > grace))
+                should_be_on = (((current <= (target - diff))
+                    or ((current < (target + diff)) and ison)))
             
             else:
-                # In case of cooling system the meaning of tgtts and bltts are inverted
-                # the same way are inverted the major/minor signs.
-                should_be_on = (
-                    ((current >= (target + diff))
-                    or ((current > target) and ((nowts - tgtts) > grace))
-                    or ((current > (target - diff)) and ison))
-                        and not (current <= target and (nowts - bltts) > grace))
+                should_be_on = (((current >= (target + diff))
+                    or ((current > (target - diff)) and ison)))
         
         logger.debug('the {} system should be {}', self._hvac_mode, ('ON' if should_be_on else 'OFF'))
         

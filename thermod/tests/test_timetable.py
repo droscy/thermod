@@ -44,7 +44,6 @@ _json_state_v1 = '''
 {
   "status": "auto",
   "differential": 0.5,
-  "grace_time": null,
   "temperatures": {
     "t0": 10.0,
     "tmin": 17.0,
@@ -246,7 +245,6 @@ def fill_timetable(tt):
     tt.tmax = 21
     
     tt.differential = 0.5
-    tt.grace_time = 180
     
     t0 = timetable.JSON_T0_STR
     tmin = timetable.JSON_TMIN_STR
@@ -349,27 +347,6 @@ class TestTimeTable(aiounittest.AsyncTestCase):
         
         with self.assertRaises(JsonValueError):
             self.timetable.differential = 'invalid'
-    
-    
-    def test_grace_time(self):
-        # valid values
-        for grace in range(0, 12000, 120):
-            self.timetable.grace_time = grace
-            self.assertEqual(grace, self.timetable.grace_time)
-        
-        # test float inf value
-        self.timetable.grace_time = 'inf'
-        self.assertEqual(float('inf'), self.timetable.grace_time)
-        
-        self.timetable.grace_time = float('inf')
-        self.assertEqual(float('inf'), self.timetable.grace_time)
-        
-        # invalid values
-        with self.assertRaises(JsonValueError):
-            self.timetable.grace_time = -300
-        
-        with self.assertRaises(JsonValueError):
-            self.timetable.grace_time = 'invalid'
     
     
     def test_t0(self):
@@ -535,9 +512,9 @@ class TestTimeTable(aiounittest.AsyncTestCase):
         self.assertNotEqual(self.timetable.mode, tt2.mode)
         
         # change other settings and test inequality
-        tt.grace_time = 1200
+        tt.hvac_mode = timetable.JSON_HVAC_COOLING
         self.assertNotEqual(self.timetable, tt)
-        self.assertNotEqual(self.timetable.grace_time, tt.grace_time)
+        self.assertNotEqual(self.timetable.hvac_mode, tt.hvac_mode)
         
         tt2.update(3,15,0,34)
         self.assertNotEqual(self.timetable, tt2)
@@ -612,7 +589,7 @@ class TestTimeTable(aiounittest.AsyncTestCase):
             self.assertTrue(self.timetable.should_the_heating_be_on(temp, await self.heating.status))
         
         # Not testing temp equal to t0 (5 degrees) because the result
-        # depends by both grace time and differential. More on other tests.
+        # depends by both differential and `ison` internal state.
         
         for temp in range(6,15):
             self.assertFalse(self.timetable.should_the_heating_be_on(temp, await self.heating.status))
@@ -633,7 +610,7 @@ class TestTimeTable(aiounittest.AsyncTestCase):
             self.assertTrue(self.timetable.should_the_heating_be_on(temp, await self.heating.status))
         
         # Not testing temp equal to tmin (17 degrees) because the result
-        # depends by both grace time and differential. More on other tests.
+        # depends by both differential and `ison` internal state.
         
         for temp in range(18,21):
             self.assertFalse(self.timetable.should_the_heating_be_on(temp, await self.heating.status))
@@ -654,7 +631,7 @@ class TestTimeTable(aiounittest.AsyncTestCase):
             self.assertTrue(self.timetable.should_the_heating_be_on(temp, await self.heating.status))
         
         # Not testing temp equal to tmax (21 degrees) because the result
-        # depends by both grace time and differential. More on other tests.
+        # depends by both differential and `ison` internal state.
         
         for temp in range(22,27):
             self.assertFalse(self.timetable.should_the_heating_be_on(temp, await self.heating.status))
@@ -887,46 +864,6 @@ class TestTimeTable(aiounittest.AsyncTestCase):
         self.assertTrue(self.timetable.should_the_heating_be_on(25.1, await self.heating.status))
     
     
-    async def test_timetable_07(self):
-        fill_timetable(self.timetable)
-        
-        now = datetime.now()
-        day = now.strftime('%w')
-        hour = timetable.json_format_hour(now.hour)
-        quarter = int(now.minute // 15)
-        
-        self.timetable.mode = timetable.JSON_MODE_AUTO
-        self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
-        
-        # the current temperature fell below target 2 hours ago, more than grace time
-        self.heating._is_on = False
-        self.timetable._last_below_tgt_temp_timestamp = (now - timedelta(seconds=7200)).timestamp()
-        self.assertTrue(self.timetable.should_the_heating_be_on(20.9, await self.heating.status))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21, await self.heating.status))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21.1, await self.heating.status))
-    
-    
-    async def test_timetable_08(self):
-        fill_timetable(self.timetable)
-        
-        now = datetime.now()
-        day = now.strftime('%w')
-        hour = timetable.json_format_hour(now.hour)
-        quarter = int(now.minute // 15)
-        
-        self.timetable.mode = timetable.JSON_MODE_AUTO
-        self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
-        self.timetable.grace_time = 3600
-        
-        # the current temperature fell below target 30 minutes ago, less than grace time
-        self.heating._is_on = False
-        self.timetable._last_below_tgt_temp_timestamp = (now - timedelta(seconds=1800)).timestamp()
-        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, await self.heating.status))
-        self.assertFalse(self.timetable.should_the_heating_be_on(20.6, await self.heating.status))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21, await self.heating.status))
-        self.assertFalse(self.timetable.should_the_heating_be_on(21.5, await self.heating.status))
-    
-    
     async def test_timetable_09(self):
         fill_timetable(self.timetable)
         
@@ -937,12 +874,12 @@ class TestTimeTable(aiounittest.AsyncTestCase):
         
         self.timetable.mode = timetable.JSON_MODE_AUTO
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
-        self.timetable.grace_time = 60
         await self.heating.switch_on()
         
-        # the heating is on and it remains on untill target temperature
+        # The heating is on and it remains on untill target temperature
         # plus differential
         self.assertTrue(self.timetable.should_the_heating_be_on(21.1, await self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(21.4, await self.heating.status))
         
         # I simulate the time passing by changing the target temperature
         # next quarter is tmin
@@ -950,31 +887,11 @@ class TestTimeTable(aiounittest.AsyncTestCase):
         self.assertFalse(self.timetable.should_the_heating_be_on(21, await self.heating.status))
         await self.heating.switch_off()
         
-        # even if next quarter is tmax again, the grace time is not passed and
-        # the heating remains off
+        # Next quarter is tmax again, the heating remains off until target minus differential
         self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
         self.assertFalse(self.timetable.should_the_heating_be_on(21, await self.heating.status))
-    
-    
-    async def test_timetable_10(self):
-        fill_timetable(self.timetable)
-        
-        now = datetime.now()
-        day = now.strftime('%w')
-        hour = timetable.json_format_hour(now.hour)
-        quarter = int(now.minute // 15)
-        
-        self.timetable.mode = timetable.JSON_MODE_AUTO
-        self.timetable.update(day,hour,quarter,timetable.JSON_TMAX_STR)
-        self.timetable.grace_time = 2
-        await self.heating.switch_on()
-        
-        # the heating is on
-        self.assertTrue(self.timetable.should_the_heating_be_on(21.1, await self.heating.status))
-        
-        # sleeps 3 seconds to exceed the grace time, the heating is then off
-        time.sleep(3)
-        self.assertFalse(self.timetable.should_the_heating_be_on(21.1, await self.heating.status))
+        self.assertFalse(self.timetable.should_the_heating_be_on(20.6, await self.heating.status))
+        self.assertTrue(self.timetable.should_the_heating_be_on(20.5, await self.heating.status))
     
     
     def test_target_temperature(self):

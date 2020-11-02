@@ -50,11 +50,8 @@ class MementoTable(TimeTable):
         if timetable.JSON_DIFFERENTIAL in state:
             self._differential = state[timetable.JSON_DIFFERENTIAL]
         
-        if timetable.JSON_GRACE_TIME in state:
-            self._grace_time = float(state[timetable.JSON_GRACE_TIME])
-            
-        if timetable.JSON_COOLING in state:
-            self._cooling = state[timetable.JSON_COOLING]
+        if timetable.JSON_HVAC_MODE in state:
+            self._hvac_mode = state[timetable.JSON_HVAC_MODE]
         
         # validating
         self._has_been_validated = False

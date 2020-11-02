@@ -209,37 +209,6 @@ $(function()
 		}
 	});
 
-	$('#grace-time').spinner(
-	{
-		disabled: true,
-		max: 120,
-		min: 0,
-		step: 1,
-		page: 10,
-		spin: function(event, ui)
-		{
-			if(ui.value == 0)
-			{
-				$(this).prop('value', 'disabled');
-				return false;
-			}
-		},
-		change: function()
-		{
-			var val = $(this).prop('value');
-			if(isNaN(val) || Number(val) == 0)
-			{
-				settings['grace_time'] = null;
-				$(this).prop('value', 'disabled');
-			}
-			else
-			{
-				settings['grace_time'] = Number(val) * 60;
-				$(this).prop('value', Number(val).toFixed(0));
-			}
-		}
-	});
-
 	$('#save').button({disabled: true});
 
 	$("#dialog").dialog(
@@ -365,9 +334,6 @@ $(function()
 			$('#t0').prop('value', settings['temperatures']['t0'].toFixed(1));
 			$('#differential').prop('value', settings['differential'].toFixed(1));
 
-			var grace = settings['grace_time'] ? (settings['grace_time']/60) : 0;
-			$('#grace-time').spinner('value', grace.toFixed(0));
-
 			// enable objects
 			$('#target-mode').selectmenu('option', 'disabled', false).selectmenu('refresh');
 			$('#days').controlgroup('option', 'disabled', false);
@@ -375,7 +341,6 @@ $(function()
 			$('.quarter').button('option', 'disabled', false).button('refresh');
 			$('.set-temperatures').spinner('option', 'disabled', false);
 			$('#differential').spinner('option', 'disabled', false);
-			$('#grace-time').spinner('option', 'disabled', false);
 			$('#save').button('option', 'disabled', false);
 			$('#device').selectmenu('option', 'disabled', false).selectmenu('refresh');
 		},
