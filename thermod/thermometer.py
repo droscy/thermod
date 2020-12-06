@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2020-10-30'
+__updated__ = '2020-12-06'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -80,7 +80,7 @@ def linearfit(raw, ref):
     sx = sum(raw)
     sy = sum(ref)
     sxx = sum([x**2 for x in raw])
-    syy = sum([y**2 for y in ref])
+    #syy = sum([y**2 for y in ref])
     sxy = sum([raw[i]*ref[i] for i in range(n)])
     
     a = (n*sxy - sx*sy) / (n*sxx - sx**2)
@@ -983,7 +983,7 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
             temperatures and the other half form the lowest (this value
             must be between 0 and 1)
         @param loop the asynchronous loop to be used (if it is `None` the
-            default loop as retrieved with `asyncio.get_running_loop()` is
+            default loop, as retrieved with `asyncio.get_running_loop()`, is
             used)
         """
         

@@ -44,7 +44,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2020-11-02'
+__updated__ = '2020-12-06'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -688,7 +688,7 @@ main_loop.add_signal_handler(signal.SIGUSR1, toggle_debug_messages)
 
 # start control socket
 try:
-    socket.start()
+    main_loop.run_until_complete(socket.start())
 
 except OSError as oe:
     # probably the socket address is already in use
@@ -710,7 +710,7 @@ finally:
         logger.info('closing daemon with return code {}', main_return_code)
         exit(main_return_code)
 
-# run the main loop
+# run the main cycle
 try:
     logger.debug('starting main cycle')
     main_loop.run_until_complete(thermostat_cycle(timetable, heating, thermometer, masterlock))
@@ -725,7 +725,7 @@ finally:
     
     # stop the socket
     try:
-        socket.stop()
+        main_loop.run_until_complete(socket.stop())
     
     except Exception as e:
         logger.error('unexpected error stopping control socket: {}', e, exc_info=True)

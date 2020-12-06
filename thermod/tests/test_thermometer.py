@@ -29,9 +29,9 @@ import asyncio
 from thermod.common import DEGREE_CELSIUS, DEGREE_FAHRENHEIT
 from thermod.thermometer import ScriptThermometer, ThermometerError, \
     celsius2fahrenheit, fahrenheit2celsius, OneWireThermometer, linearfit, \
-    ScaleAdapterThermometerDecorator, BaseThermometer, FakeThermometer
+    ScaleAdapterThermometerDecorator, FakeThermometer
 
-__updated__ = '2020-10-28'
+__updated__ = '2020-12-06'
 
 
 class TestThermometer(unittest.TestCase):

@@ -34,7 +34,7 @@ from thermod.socket import ControlSocket
 from thermod.thermometer import FakeThermometer
 from thermod.tests.test_timetable import fill_timetable
 
-__updated__ = '2020-10-30'
+__updated__ = '2020-12-06'
 __url_settings__ = 'http://localhost:4345/settings'
 __url_heating__ = 'http://localhost:4345/status'
 
@@ -59,13 +59,12 @@ class TestSocket(unittest.TestCase):
                                     self.thermometer,
                                     'localhost',
                                     4345,  # using different port to run test while real thermod is running
-                                    self.lock,
-                                    self.loop)
-        self.socket.start()
+                                    self.lock)
+        self.loop.run_until_complete(self.socket.start())
     
     
     def tearDown(self):
-        self.socket.stop()
+        self.loop.run_until_complete(self.socket.stop())
         os.remove(self.timetable.filepath)
     
     

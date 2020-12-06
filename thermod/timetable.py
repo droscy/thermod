@@ -32,11 +32,11 @@ from datetime import datetime
 from json.decoder import JSONDecodeError
 
 from .memento import transactional
-from .common import LogStyleAdapter, ThermodStatus, TIMESTAMP_MAX_VALUE, \
-    JsonValueError, HVAC_HEATING, HVAC_COOLING, HVAC_ALL_MODES
+from .common import LogStyleAdapter, ThermodStatus, JsonValueError, \
+    HVAC_HEATING, HVAC_COOLING, HVAC_ALL_MODES
 
 __date__ = '2015-09-09'
-__updated__ = '2020-11-02'
+__updated__ = '2020-12-06'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 

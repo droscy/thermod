@@ -39,7 +39,7 @@ from .thermometer import ThermometerError
 from .version import __version__ as PROGRAM_VERSION
 
 __date__ = '2017-03-19'
-__updated__ = '2020-10-30'
+__updated__ = '2020-12-06'
 __version__ = '2.4.4'
 
 baselogger = LogStyleAdapter(logging.getLogger(__name__))
@@ -85,23 +85,31 @@ class ClientAddressLogAdapter(logging.LoggerAdapter):
 
 
 class ControlSocket(object):
-    """Create a asynchronous HTTP server ready to receive commands."""
+    """Create a asynchronous HTTP server ready to receive commands.
+    
+    @param timetable the `TimeTable` object to use
+    @param heating the `BaseHeating` object to use
+    @param thermometer the `BaseThermometer` object to use
+    @param host hostname or IP address where bind this socket to
+    @param port the port number where listen to
+    @param lock the `asyncio.Condition` to access resources
+    """
 
     # TODO rivedere i test di questa classe
     
-    def __init__(self, timetable, heating, thermometer, host, port, lock, loop=None):
+    def __init__(self, timetable, heating, thermometer, host, port, lock):
         baselogger.debug('initializing control socket')
         
         if not isinstance(lock, asyncio.Condition):
             raise TypeError('the lock in ControlSocket must be an asyncio.Condition object')
         
-        self.app = web.Application(middlewares=[exceptions_handler], loop=loop)
+        self.app = web.Application(middlewares=[exceptions_handler])
         self.runner = web.AppRunner(self.app)
         self.host = host
         self.port = port
         
         self.app['lock'] = lock
-        self.app['monitors'] = asyncio.Queue(loop=self.app.loop)
+        self.app['monitors'] = asyncio.Queue()
         
         self.app['timetable'] = timetable
         self.app['heating'] = heating
@@ -112,31 +120,24 @@ class ControlSocket(object):
         
         baselogger.debug('control socket initialized')
     
-    def start(self):
+    async def start(self):
         """Start the internal HTTP server."""
         
         baselogger.debug('starting control socket')
-        self.app.loop.run_until_complete(self.runner.setup())
+        await self.runner.setup()
         
         site = web.TCPSite(runner=self.runner,
                            host=self.host,
                            port=self.port,
                            shutdown_timeout=6.0)
         
-        self.app.loop.run_until_complete(site.start())
+        await site.start()
         baselogger.info('control socket listening on {}:{}', self.host, self.port)
     
-    def stop(self):
+    async def stop(self):
         """Stop the internal HTTP server."""
         baselogger.debug('stopping control socket')
-        
-        if self.app.loop.is_running():
-            # TODO this way the stop() method exits even if the runner is still
-            # running, check if this is acceptable.
-            self.app.loop.create_task(self.runner.cleanup())
-        else:
-            self.app.loop.run_until_complete(self.runner.cleanup())
-        
+        await self.runner.cleanup()
         baselogger.info('control socket halted')
     
     async def update_monitors(self, status):
@@ -392,7 +393,7 @@ async def GET_handler(request):
         logger.debug('enqueuing new long-polling {} monitor request',
                      (qs[REQ_MONITOR_NAME][0] if REQ_MONITOR_NAME in qs else 'unknown'))
         
-        future = request.app.loop.create_future()
+        future = asyncio.get_running_loop().create_future()
         await request.app['monitors'].put(future)
         
         logger.debug('waiting for timetable status change')

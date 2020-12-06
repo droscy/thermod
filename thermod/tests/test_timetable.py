@@ -30,13 +30,13 @@ import asyncio
 import aiounittest
 
 from jsonschema import ValidationError
-from datetime import datetime, timedelta
+from datetime import datetime
 from thermod import timetable, ThermodStatus
 from thermod.common import HVAC_HEATING, HVAC_COOLING
 from thermod.timetable import TimeTable, ShouldBeOn, JsonValueError
 from thermod.heating import BaseHeating
 
-__updated__ = '2020-10-30'
+__updated__ = '2020-12-06'
 
 
 # state saved with Thermod version 1.2
