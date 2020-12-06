@@ -905,10 +905,12 @@ class SimilarityCheckerThermometerDecorator(ThermometerBaseDecorator):
         @param delta the maximum allowed difference from new temperature to be
             considered similar to older values
         """
+        
         super().__init__(thermometer)
+        loop = asyncio.get_event_loop()
         
         logger.debug('queue size is {}, maximum allowed delta is {} degrees', queuelen, delta)
-        self.last_raw_temperatures = deque([self.decorated.raw_temperature],
+        self.last_raw_temperatures = deque([loop.run_until_complete(self.decorated.raw_temperature)],
                                            maxlen=queuelen)
         self.delta = delta
     
@@ -998,7 +1000,8 @@ class AveragingTaskThermometerDecorator(ThermometerBaseDecorator):
         # Allocate the queue for the last temperatures to be averaged. The
         # lenght is computed considering the desired averaging time and
         # the frequency of the raw samples.
-        self._temperatures = deque([self.decorated.raw_temperature],
+        loop = asyncio.get_event_loop()
+        self._temperatures = deque([loop.run_until_complete(self.decorated.raw_temperature)],
                                    maxlen=int(self._averaging_time * 60 / self._short_interval))
         
         # get the event loop

@@ -39,7 +39,7 @@ except ImportError:
     GPIO = False
 
 __date__ = '2015-12-30'
-__updated__ = '2020-10-30'
+__updated__ = '2020-12-06'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -534,19 +534,19 @@ class PiPinsRelayHeating(BaseHeating):
                     pins=self._pins,
                     level=self._on)
     
-    def switch_on(self):
+    async def switch_on(self):
         """Switch on the heating setting right level to GPIO pins."""
         logger.debug('switching on the heating setting level {} to pins {}', self._on, self._pins)
         self.GPIO.output(self._pins, self._on)
     
-    def switch_off(self):
+    async def switch_off(self):
         """Switch off the heating setting right level to GPIO pins."""
         logger.debug('switching off the heating setting level {} to pins {}', self._off, self._pins)
         self.GPIO.output(self._pins, self._off)
         self._switch_off_time = datetime.now()
         logger.debug('heating switched off at {}', self._switch_off_time)
     
-    def is_on(self):
+    async def is_on(self):
         """Return `True` if the heating is currently on, `False` otherwise.
         
         Actually returns `True` if the first used pin has a level equal

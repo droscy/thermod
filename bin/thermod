@@ -510,7 +510,7 @@ async def thermostat_cycle(timetable, heating, thermometer, lock):
     try:
         try:
             _heatcool_str = 'cooling system' if timetable.hvac_mode == HVAC_COOLING else timetable.hvac_mode
-            logger.info('the {} is currently {}', _heatcool_str, ('ON' if heating.is_on() else 'OFF'))
+            logger.info('the {} is currently {}', _heatcool_str, ('ON' if await heating.is_on() else 'OFF'))
             
         except HeatingError as he:
             # We report the error as a severe error but we do nothing because
@@ -544,14 +544,8 @@ async def thermostat_cycle(timetable, heating, thermometer, lock):
                     
                     try:
                         should_be_on = timetable.should_the_heating_be_on(
-                                            thermometer.temperature,
-                                            # TODO waiting for 'async' in thermometer.temperature, this below
-                                            # could be a solution to get the temperature in async fashion.
-                                            #await loop.run_in_executor(None,
-                                            #                           thermometer.__class__.temperature.__get__,
-                                            #                           thermometer,
-                                            #                           thermometer.__class__),
-                                            heating.status)
+                                            await thermometer.temperature,
+                                            await heating.status)
                         
                         _msg = ('mode: {!r}, '
                                 'current: {:.1f}, '
@@ -632,7 +626,7 @@ async def thermostat_cycle(timetable, heating, thermometer, lock):
                         raise
                     
                     else:
-                        newstatus = should_be_on.thermod_status._replace(status=heating.status)
+                        newstatus = should_be_on.thermod_status._replace(status=await heating.status)
                         _sleep_time = settings.interval
                     
                     finally:  # we update all connected monitors
@@ -741,7 +735,7 @@ finally:
     
     # switch off the heating
     try:
-        if heating.is_on():
+        if main_loop.run_until_complete(heating.is_on()):
             main_loop.run_until_complete(heating.switch_off())
             logger.info('heating switched OFF')
     
