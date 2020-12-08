@@ -46,7 +46,7 @@ except ImportError:
         MCP3008 = False
 
 __date__ = '2016-02-04'
-__updated__ = '2020-12-06'
+__updated__ = '2020-12-08'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -572,9 +572,8 @@ class PiAnalogZeroThermometer(BaseThermometer):
         
         # This if-else block is the same of Wire1Thermometer except the error messages,
         # remember to modify both.
-        if len(temperatures) > 0:
+        if len(temperatures) > 1:
             std = statistics.pstdev(temperatures)
-            
             logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
             
             if std < self._stddev and self._printed_warning_std is True:
@@ -589,6 +588,9 @@ class PiAnalogZeroThermometer(BaseThermometer):
             # the median excludes a possible single outlier
             raw = statistics.median(temperatures)
             logger.debug('current median of temperatures is {:.2f}', raw)
+        
+        elif len(temperatures) == 1:
+            raw = temperatures[0]
         
         else:
             raise ThermometerError('no temperature retrieved, probably all '
@@ -707,9 +709,6 @@ class OneWireThermometer(BaseThermometer):
         
         for dev in self._devices:
             try:
-                with open(dev, 'r') as f:
-                    data = f.readlines()
-                
                 data = await loop.run_in_executor(None, self._read_device_data, dev)
                 
                 if data[0].strip()[-3:] == 'YES':
@@ -721,14 +720,16 @@ class OneWireThermometer(BaseThermometer):
             except IOError as ioe:
                 logger.warning('cannot access 1-wire device {}: {}', dev, ioe)
                 logger.info('keep going without device {}', dev)
+            
+            except IndexError:
+                logger.warning('empty data from 1-wire device {}, keep going without it', dev)
         
         logger.debug('checking standard deviation of temperatures {}', temperatures)
         
         # This if-else block is the same of PiAnalogZeroThermometer except the error messages,
         # remember to modify both.
-        if len(temperatures) > 0:
+        if len(temperatures) > 1:
             std = statistics.pstdev(temperatures)
-            
             logger.debug('standard deviation is {:.2f} maximum allowed value is {:.2f}', std, self._stddev)
             
             if std < self._stddev and self._printed_warning_std is True:
@@ -744,6 +745,9 @@ class OneWireThermometer(BaseThermometer):
             # the median excludes a possible single outlier
             raw = statistics.median(temperatures)
             logger.debug('current median of temperatures is {:.2f}', raw)
+        
+        elif len(temperatures) == 1:
+            raw = temperatures[0]
         
         else:
             raise ThermometerError('no temperature retrieved, probably all '

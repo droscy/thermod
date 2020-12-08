@@ -36,7 +36,7 @@ from .common import LogStyleAdapter, ThermodStatus, JsonValueError, \
     HVAC_HEATING, HVAC_COOLING, HVAC_ALL_MODES
 
 __date__ = '2015-09-09'
-__updated__ = '2020-12-06'
+__updated__ = '2020-12-08'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -1123,7 +1123,6 @@ class TimeTable(object):
                 target = realtgt
             
             ison = bool(status)
-            nowts = target_time.timestamp()
             
             if self._hvac_mode == JSON_HVAC_HEATING:
                 should_be_on = (((current <= (target - diff))

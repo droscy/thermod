@@ -2,7 +2,7 @@
 Programmable thermostat daemon for smart-heating automation.
 
 ## License
-Thermod v2.0.0-alpha<br/>
+Thermod v2.0.0-beta<br/>
 Copyright (C) 2018 Simone Rossetto <simros85@gmail.com><br/>
 GNU General Public License v3
 
@@ -134,7 +134,18 @@ on the same server where *Thermod* is running:
       sudo apt-get install lighttpd php-fpm libjs-jquery libjs-jquery-ui
       ```
 
-2. copy the `web/` folder somewhere in the system and make sure *lighttpd*'s user
+2. edit file `/etc/lighttpd/conf-available/15-fastcgi-php.conf` removing *bin-path*
+   line and changing the *socket* line with:
+
+      ```
+      "socket" => "/var/run/php/php7.x-fpm.sock",
+      ```
+
+   Use the current php version installed on system.
+
+3. edit file `/etc/php/7.x/fpm/php.ini` uncommenting `cgi.fix_pathinfo=1`
+
+4. copy the `web/` folder somewhere in the system and make sure *lighttpd*'s user
    can access it:
 
       ```bash
@@ -150,7 +161,7 @@ on the same server where *Thermod* is running:
       chmod +rx ~/thermod/web
       ```
 
-3. copy `etc/lighttpd.inc.conf` to `/etc/lighttpd/conf-available`, change in
+5. copy `etc/lighttpd.inc.conf` to `/etc/lighttpd/conf-available`, change in
    it `<WEB-FILE-PATH>` to the folder path where you copied the web interface:
 
       ```bash
@@ -161,7 +172,7 @@ on the same server where *Thermod* is running:
    If *Thermod* is running on a different server edit the just copied file: change the
    last `127.0.0.1` to the right IP address.
 
-4. enable the just copied module together with *fastcgi* and *fastcgi-php*,
+6. enable the just copied module together with *fastcgi* and *fastcgi-php*,
    then restart *lighttpd*:
 
       ```bash
@@ -171,7 +182,7 @@ on the same server where *Thermod* is running:
       sudo systemctl restart lighttpd.service
       ```
 
-5. open browser and navigate to `http://<hostname>/thermod` you should see the web interface
+7. open browser and navigate to `http://<hostname>/thermod` you should see the web interface
 
 ### Apache2
 If you use Apache2 web server follow these steps:
