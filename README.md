@@ -84,7 +84,7 @@ already installed on the system, then the basic steps are:
 
 
 ## Starting/Stopping the daemon
-If *systemd* is in use in the system, copy the file `etc/thermod.inc.service`
+If *systemd* is in use in the system, copy the file `etc/thermod.service.inc`
 to `/etc/systemd/system/thermod.service` or `/usr/local/lib/systemd/system/thermod.service`,
 and change it to your needs (pay attention to `User` value and `ExecStart` path).
 
@@ -161,11 +161,11 @@ on the same server where *Thermod* is running:
       chmod +rx ~/thermod/web
       ```
 
-5. copy `etc/lighttpd.inc.conf` to `/etc/lighttpd/conf-available`, change in
+5. copy `etc/lighttpd.conf.inc` to `/etc/lighttpd/conf-available`, change in
    it `<WEB-FILE-PATH>` to the folder path where you copied the web interface:
 
       ```bash
-      sudo cp etc/lighttpd.inc.conf /etc/lighttpd/conf-available/95-thermod.conf
+      sudo cp etc/lighttpd.conf.inc /etc/lighttpd/conf-available/95-thermod.conf
       sudo sed -i 's|<WEB-FILE-PATH>|/srv/www/thermod|' /etc/lighttpd/conf-available/95-thermod.conf
       ```
 
@@ -209,11 +209,11 @@ If you use Apache2 web server follow these steps:
       chmod +rx ~/thermod/web
       ```
 
-3. copy `etc/apache2.inc.conf` to `/etc/apache2/conf-available`, change in
+3. copy `etc/apache2.conf.inc` to `/etc/apache2/conf-available`, change in
    it `<WEB-FILE-PATH>` to the folder path where you copied the web interface:
 
       ```bash
-      sudo cp etc/apache2.inc.conf /etc/apache2/conf-available/thermod.conf
+      sudo cp etc/apache2.conf.inc /etc/apache2/conf-available/thermod.conf
       sudo sed -i 's|<WEB-FILE-PATH>|/srv/www/thermod|' /etc/apache2/conf-available/thermod.conf
       ```
 
