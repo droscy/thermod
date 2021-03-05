@@ -22,6 +22,7 @@
     - heating hardware is managed via coroutines
     - add config file and documentation for lighttpd and apache2 web servers
     - add systemd service file
+    - multiple copies of munin plugin can be run appending '_customname' to plugin name
 
 ## 1.2.1
 

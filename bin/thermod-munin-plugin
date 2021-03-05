@@ -17,7 +17,7 @@ These are the environment variables accepted by this plugin:
  - `current_critical` critical value for current temperature
 
 @author:     Simone Rossetto
-@copyright:  2017-2019 Simone Rossetto
+@copyright:  2017-2021 Simone Rossetto
 @license:    GNU General Public License v3
 @contact:    simros85@gmail.com
 
@@ -40,10 +40,16 @@ import sys
 import json
 from urllib import request
 
-__version__ = '1.3.0'
+__version__ = '1.3.1'
 __date__ = '2016-04-24'
-__updated__ = '2020-04-28'
+__updated__ = '2021-03-05'
 
+
+# custom name
+try:
+  custom_name = sys.argv[0].split('_')[1] or None
+except IndexError:
+  custom_name = None
 
 # default return code
 main_return_code = 0
@@ -59,7 +65,7 @@ if len(sys.argv) > 1:
         current_critical = os.getenv('current_critical', None)
         
         print('''\
-graph_title Thermod temperatures and status
+graph_title Thermod{custom_name}temperatures and status
 graph_vlabel degrees
 graph_scale no
 graph_category sensors
@@ -73,6 +79,7 @@ current.info The current room temperature as reported by Thermod.
 {current_critical}\
 status.label Heating ON
 status.info The current status of the heating/cooling (value equal to current temperature means heating/cooling ON, no value means heating/cooling OFF).'''.format(
+    custom_name=(' {} '.format(custom_name) if custom_name is not None else ' '),
     current_warning=('current.warning {}\n'.format(current_warning) if current_warning else ''),
     current_critical=('current.critical {}\n'.format(current_critical) if current_critical else '')))
         
