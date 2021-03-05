@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2020-10-28'
+__updated__ = '2021-03-05'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -179,8 +179,8 @@ def parse_main_settings(cfg):
         if heating['manager'] not in ('scripts', 'PiPinsRelay'):
             raise ValueError('invalid value `{}` for heating'.format(heating['manager']))
         
-        heating['on'] = cfg.get('heating/scripts', 'switchon')
-        heating['off'] = cfg.get('heating/scripts', 'switchoff')
+        heating['on'] = cfg.get('heating/scripts', 'switchon', fallback='')
+        heating['off'] = cfg.get('heating/scripts', 'switchoff', fallback='')
         heating['status'] = cfg.get('heating/scripts', 'status', fallback=None)
         
         if heating['status'] == '':
@@ -191,7 +191,7 @@ def parse_main_settings(cfg):
             raise ValueError('the switch_on_level for heating must be `high` '
                              'or `low`, `{}` provided'.format(_level))
         
-        heating['pins'] = [int(p) for p in cfg.get('heating/PiPinsRelay', 'pins', fallback='').split(',')]
+        heating['pins'] = [int(p) for p in cfg.get('heating/PiPinsRelay', 'pins', fallback='').split(',') if p not in ('', None)]
         heating['level'] = _level[0]  # only the first letter of _level is used
         
         # parsing thermometer setting
@@ -199,7 +199,6 @@ def parse_main_settings(cfg):
         _t_ref = cfg.get('thermometer', 't_ref')
         _t_raw = cfg.get('thermometer', 't_raw')
         thermometer = {'thermometer': cfg.get('thermometer', 'thermometer'),
-                       'calibration': cfg.getboolean('thermometer', 'calibration', fallback=False),
                        't_ref': [float(t) for t in _t_ref.split(',')] if _t_ref else [],
                        't_raw': [float(t) for t in _t_raw.split(',')] if _t_raw else [],
                        'similcheck': cfg.getboolean('thermometer', 'similarity_check', fallback=True),
@@ -210,8 +209,7 @@ def parse_main_settings(cfg):
                        'avgtask': cfg.getboolean('thermometer', 'avgtask', fallback=False),
                        'avgint': cfg.getint('thermometer', 'avgint', fallback=3),
                        'avgtime': cfg.getint('thermometer', 'avgtime', fallback=6),
-                       'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33),
-                       'stddev': cfg.getfloat('thermometer', 'stddev', fallback=2.0)}
+                       'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33)}
         
         if thermometer['thermometer'][0] != '/' and thermometer['thermometer'] not in ('PiAnalogZero', '1Wire'):
             # If the first char is a / it denotes the beginning of a filesystem
@@ -233,7 +231,7 @@ def parse_main_settings(cfg):
         thermometer['scale'] = _scale[0]  # only the first letter of _scale is used
         
         thermometer['az'] = {}
-        thermometer['az']['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',')]
+        thermometer['az']['channels'] = [int(c) for c in cfg.get('thermometer/PiAnalogZero', 'channels', fallback='').split(',') if c not in ('', None)]
         thermometer['az']['stddev'] = cfg.getfloat('thermometer/PiAnalogZero', 'stddev', fallback=2.0)
         
         thermometer['w1'] = {}
@@ -314,7 +312,7 @@ def parse_main_settings(cfg):
         # Raised by getboolean(), getfloat(), getint() and int() methods
         # and if heating, switch_on_level or thermometer are not valid.
         error_code = common.RET_CODE_CFG_FILE_INVALID
-        logger.critical('invalid configuration: {}', ve)
+        logger.critical('invalid value in configuration: {}', ve)
     
     except OverflowError as oe:
         error_code = common.RET_CODE_CFG_FILE_INVALID
@@ -335,8 +333,25 @@ def parse_main_settings(cfg):
         error_code = common.RET_CODE_OK
         logger.debug('main settings parsed')
     
-    return (Settings(enabled, debug, tt_file, interval, sleep_on_error, scale,
-                     inertia, heating, thermometer, host, port, email),
-            error_code)
+    # The exceptions above may result in invalid settings, so we check if
+    # every variables are defined.
+    try:
+        final_settings = Settings(enabled,
+                                  debug,
+                                  tt_file,
+                                  interval,
+                                  sleep_on_error,
+                                  scale,
+                                  inertia,
+                                  heating,
+                                  thermometer,
+                                  host,
+                                  port,
+                                  email)
+    
+    except UnboundLocalError as ule:
+        final_settings = None
+    
+    return (final_settings, error_code)
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab
