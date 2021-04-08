@@ -44,7 +44,7 @@ from thermod.socket import ControlSocket
 from thermod.version import __version__ as PROGRAM_VERSION
 
 __date__ = '2015-09-08'
-__updated__ = '2020-12-06'
+__updated__ = '2021-04-11'
 
 # TODO documentare return code
 # TODO documentare variabili globali nel socket
@@ -70,6 +70,7 @@ __updated__ = '2020-12-06'
 # TODO [Roadmap 2.0.0] rimuovere to_celsius() e to_fahrenheit() dai termometri (adesso c'è un decorator) (DONE)
 # TODO [Roadmap 2.0.0] usare aiofiles per OneWireThermometer (la lettura sequenziale dei file è lenta) (DONE, with run_in_executor)
 # TODO [Roadmap 2.0.0] mettere calibrazione del termometro in un decorator
+# TODO [Roadmap 2.0.0] rivedere API per farle compatibili REST
 # TODO [Roadmap 2.0.0] cambiare funzionamento del grace_time (DONE, grace_time rimosso)
 # TODO [Roadmap 2.0.0] rinominare Wire1Thermometer in OneWireThermometer (lasciando il vecchio nome deprecato) (DONE)
 # TODO [Roadmap 2.0.0] convertire BaseThermometer.temperature in una coroutine così da poter eseguire operazioni (DONE, TODO tests)
@@ -77,6 +78,7 @@ __updated__ = '2020-12-06'
 
 # TODO [Roadmap 2.1.0] usare gpiozero.LED per lo PiPinRelay, così Thermod può essere eseguito in remoto tramite pigpiod
 # TODO [Roadmap 2.1.0] chiamare le temperature t0, t1 e t2
+# TODO [Roadmap 2.1.0] creare timetable di default da ricaricare ad inizio settimana
 # TODO [Roadmap 2.1.0] modificare client web per permettere di impostare tre livelli di
 # temperatura per ogni singolo quarto d'ora
 
@@ -173,7 +175,9 @@ if not enabled:
 
 # if mail server is present in configuration file, a new SMTPHandler is created
 if settings.email['server']:
-    logger.debug('configuring e-mail alerts to: {}', settings.email['recipients'])
+    logger.debug('configuring e-mail alerts to {} with minimum level of {}',
+                 settings.email['recipients'],
+                 settings.email['level'])
     
     maillog = SMTPHandler(settings.email['server'],
                           settings.email['sender'],
@@ -185,7 +189,17 @@ if settings.email['server']:
                                            datefmt=common.LOGGER_FMT_DATETIME,
                                            style=common.LOGGER_FMT_STYLE))
     
-    maillog.setLevel(logging.WARNING)
+    if settings.email['level'] == 'debug':
+        maillog.setLevel(logging.DEBUG)
+    elif settings.email['level'] == 'info':
+        maillog.setLevel(logging.INFO)
+    elif settings.email['level'] == 'error':
+        maillog.setLevel(logging.ERROR)
+    elif settings.email['level'] == 'critical':
+        maillog.setLevel(logging.CRITICAL)
+    else:
+        maillog.setLevel(logging.WARNING)
+    
     logger.addHandler(maillog)
 
 

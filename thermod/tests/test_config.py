@@ -24,7 +24,7 @@ import unittest
 import thermod.config as cnf
 import thermod.common as common
 
-__updated__ = '2020-10-28'
+__updated__ = '2021-04-08'
 
 
 # TODO write more tests for specific settings and possible errors
@@ -79,6 +79,7 @@ class TestHeating(unittest.TestCase):
         self.assertEqual(settings.email['sender'], 'Thermod <root@localhost>')
         self.assertEqual(settings.email['subject'], 'Thermod alert')
         self.assertEqual(settings.email['recipients'], ['Simone Rossetto <root@localhost>', 'other@localhost'])
+        self.assertEqual(settings.email['level'], 'warning')
 
 
 if __name__ == "__main__":

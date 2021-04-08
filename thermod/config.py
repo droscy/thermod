@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2021-03-05'
+__updated__ = '2021-04-06'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -196,8 +196,8 @@ def parse_main_settings(cfg):
         
         # parsing thermometer setting
         logger.debug('parsing thermometer settings')
-        _t_ref = cfg.get('thermometer', 't_ref')
-        _t_raw = cfg.get('thermometer', 't_raw')
+        _t_ref = cfg.get('thermometer', 't_ref', fallback=None)
+        _t_raw = cfg.get('thermometer', 't_raw', fallback=None)
         thermometer = {'thermometer': cfg.get('thermometer', 'thermometer'),
                        't_ref': [float(t) for t in _t_ref.split(',')] if _t_ref else [],
                        't_raw': [float(t) for t in _t_raw.split(',')] if _t_raw else [],
@@ -285,11 +285,17 @@ def parse_main_settings(cfg):
         eserver = cfg.get('email', 'server').split(':')
         euser = cfg.get('email', 'user', fallback='')
         epwd = cfg.get('email', 'password', fallback='')
+        elevel = cfg.get('email', 'level', fallback='warning')
+        
+        if elevel not in ('debug', 'info', 'warning', 'warn', 'error', 'critical'):
+            raise ValueError('invalid level for log messages by e-mail: {}'.format(elevel))
+        
         email = {'server': ((eserver[0], eserver[1]) if len(eserver)>1 else eserver[0]),
                  'sender': cfg.get('email', 'sender'),
                  'recipients': [rcpt for (_, rcpt) in cfg.items('email/rcpt')],
                  'subject': cfg.get('email', 'subject', fallback='Thermod alert'),
-                 'credentials': ((euser, epwd) if (euser or epwd) else None)}
+                 'credentials': ((euser, epwd) if (euser or epwd) else None),
+                 'level': elevel}
         
         global _fake_RPi_Heating, _fake_RPi_Thermometer
         _fake_RPi_Heating = cfg.getboolean('debug', 'fake_rpi_heating', fallback=False)
