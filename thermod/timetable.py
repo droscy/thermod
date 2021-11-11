@@ -36,7 +36,7 @@ from .common import LogStyleAdapter, ThermodStatus, JsonValueError, \
     HVAC_HEATING, HVAC_COOLING, HVAC_ALL_MODES
 
 __date__ = '2015-09-09'
-__updated__ = '2020-12-08'
+__updated__ = '2021-11-10'
 
 logger = LogStyleAdapter(logging.getLogger(__name__))
 
@@ -435,7 +435,7 @@ class TimeTable(object):
         logger.debug('checking version of new state')
         
         try:
-            if JSON_SCHEMA_VERSION not in oldstate:
+            if JSON_VERSION not in oldstate:
                 logger.debug('the new state is an old version, upgrading it')
                 
                 newstate = {JSON_VERSION: JSON_SCHEMA_VERSION,
@@ -509,7 +509,6 @@ class TimeTable(object):
     @transactional()
     def __setstate__(self, state):
         """Set new internal state.
-            self._has_been_validated = False
         
         The new `state` is "deep" copied before saving
         internally to prevent unwanted update to any external array, if it's
@@ -553,9 +552,15 @@ class TimeTable(object):
         
         finally:
             # TODO with exceptions the transactional fires later than this code
-            # block, thus these debug messages will contain the new values, always!
+            # block, thus these debug messages will contain the new values, always,
+            # or fails if old state is empty.
             logger.debug('current mode: {}', self._mode)
-            logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
+            
+            try:
+                logger.debug('temperatures: t0={t0}, tmin={tmin}, tmax={tmax}', **self._temperatures)
+            except:
+                logger.debug('temperatures: {}', self._temperatures)
+            
             logger.debug('differential: {} deg', self._differential)
             logger.debug('hvac mode: {}', self._hvac_mode)
         

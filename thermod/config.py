@@ -30,7 +30,7 @@ from collections import namedtuple
 from . import common
 
 __date__ = '2015-09-13'
-__updated__ = '2021-04-06'
+__updated__ = '2021-11-05'
 
 logger = common.LogStyleAdapter(logging.getLogger(__name__))
 
@@ -211,7 +211,8 @@ def parse_main_settings(cfg):
                        'avgtime': cfg.getint('thermometer', 'avgtime', fallback=6),
                        'avgskip': cfg.getfloat('thermometer', 'avgskip', fallback=0.33)}
         
-        if thermometer['thermometer'][0] != '/' and thermometer['thermometer'] not in ('PiAnalogZero', '1Wire'):
+        if (not thermometer['thermometer'].startswith('/')
+                and thermometer['thermometer'] not in ('PiAnalogZero', '1Wire')):
             # If the first char is a / it denotes the beginning of a filesystem
             # path, so the value is acceptable. If the path is not a valid
             # script, the error will be managed later.
@@ -318,7 +319,7 @@ def parse_main_settings(cfg):
         # Raised by getboolean(), getfloat(), getint() and int() methods
         # and if heating, switch_on_level or thermometer are not valid.
         error_code = common.RET_CODE_CFG_FILE_INVALID
-        logger.critical('invalid value in configuration: {}', ve)
+        logger.critical('invalid value in configuration file: {}', ve)
     
     except OverflowError as oe:
         error_code = common.RET_CODE_CFG_FILE_INVALID
@@ -326,14 +327,14 @@ def parse_main_settings(cfg):
     
     except Exception as e:
         error_code = common.RET_CODE_CFG_FILE_UNKNOWN_ERR
-        logger.critical('unknown error in configuration file: {}', e)
+        logger.critical('unknown error in configuration file: {}', e, exc_info=True)
     
     except KeyboardInterrupt:
         error_code = common.RET_CODE_KEYB_INTERRUPT
     
     except:
         error_code = common.RET_CODE_CFG_FILE_UNKNOWN_ERR
-        logger.critical('unknown error in configuration file, no more details')
+        logger.critical('unknown error in configuration file, no more details', exc_info=True)
     
     else:
         error_code = common.RET_CODE_OK
