@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """This module contains the main version of Thermod daemon.
 
-Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018-2022 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
@@ -20,9 +20,9 @@ along with Thermod.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 __date__ = '2016-03-27'
-__updated__ = '2021-11-09'
+__updated__ = '2022-04-18'
 
-__version__ = '2.0.0b2.post5'
+__version__ = '2.0.0'
 """The main version of the whole Thermod package and daemon."""
 
 # vim: fileencoding=utf-8 tabstop=4 shiftwidth=4 expandtab

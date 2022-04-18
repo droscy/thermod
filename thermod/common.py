@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Common classes and constants for thermod package and Thermod daemon.
 
-Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018-2022 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 

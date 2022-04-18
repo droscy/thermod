@@ -3,7 +3,7 @@ Programmable thermostat daemon for smart-heating automation.
 
 ## License
 Thermod v2.0.0-beta<br/>
-Copyright (C) 2018 Simone Rossetto <simros85@gmail.com><br/>
+Copyright (C) 2018-2022 Simone Rossetto <simros85@gmail.com><br/>
 GNU General Public License v3
 
     Thermod is free software: you can redistribute it and/or modify

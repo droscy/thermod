@@ -4,7 +4,7 @@
 This module is only useful in main Thermod daemon because it doesn't raise any
 exception and uses logger to print info and error messages. 
 
-Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018-2022 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 

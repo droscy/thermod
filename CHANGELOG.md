@@ -1,6 +1,6 @@
 # Thermod Changelog
 
-## 2.0.0~development
+## 2.0.0
 
   * Changes that break retro-compatibility:
     - `import thermod` only imports constants and classes useful for clients and monitors
@@ -23,6 +23,7 @@
     - add config file and documentation for lighttpd and apache2 web servers
     - add systemd service file
     - multiple copies of munin plugin can be run appending '_customname' to plugin name
+    - add selectable level for log messages sent by e-mail
 
 ## 1.2.1
 

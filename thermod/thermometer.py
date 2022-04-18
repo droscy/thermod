@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Interface to the thermometer.
 
-Copyright (C) 2018 Simone Rossetto <simros85@gmail.com>
+Copyright (C) 2018-2022 Simone Rossetto <simros85@gmail.com>
 
 This file is part of Thermod.
 
